@@ -53,17 +53,24 @@ export function saveQuizPack(pack: QuizPack) {
   }
 }
 
+export const QUIZ_OVERLAY_PATH = "/quiz/overlay";
 export const QUIZ_POPOUT_NAME = "al-daboor-quiz-window";
 
+/** Try a sized popout. Browsers often block this — callers should fall back to a normal tab link. */
 export function openQuizPopout() {
   if (typeof window === "undefined") return null;
   const w = 460;
   const h = 780;
   const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - w) / 2));
   const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - h) / 2));
-  return window.open(
-    "/quiz/overlay",
-    QUIZ_POPOUT_NAME,
-    `popup=yes,width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no`,
-  );
+  try {
+    // No `popup=yes` — that flag makes Chrome block more aggressively.
+    return window.open(
+      QUIZ_OVERLAY_PATH,
+      QUIZ_POPOUT_NAME,
+      `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`,
+    );
+  } catch {
+    return null;
+  }
 }

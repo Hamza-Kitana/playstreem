@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { AppWindow, Plus, Trash2 } from "lucide-react";
 import type { ChatMessage } from "@/hooks/useKickChat";
 import { DURATION_OPTIONS } from "@/hooks/useGameSession";
@@ -15,11 +15,13 @@ import {
 } from "@/components/ui/dialog";
 import {
   DEFAULT_QUIZ_QUESTIONS,
+  QUIZ_OVERLAY_PATH,
   loadQuizPack,
   openQuizPopout,
   saveQuizPack,
   type QuizQuestion,
 } from "@/lib/quiz-pack";
+import { cn } from "@/lib/utils";
 
 export default function QuizGame({
   chatActive,
@@ -33,7 +35,7 @@ export default function QuizGame({
   const [draftQ, setDraftQ] = useState("");
   const [draftA, setDraftA] = useState("");
   const [addOpen, setAddOpen] = useState(false);
-  const [popupBlocked, setPopupBlocked] = useState(false);
+  const [openedAsTab, setOpenedAsTab] = useState(false);
 
   useEffect(() => {
     saveQuizPack({ questions: list, durationSec, index: loadQuizPack().index });
@@ -50,15 +52,18 @@ export default function QuizGame({
     setList((l) => l.filter((_, k) => k !== i));
   };
 
-  const openWindow = () => {
+  /** Prefer sized popout; if blocked, let the <a target="_blank"> open a tab instead. */
+  const onOpenStreamWindow = (e: MouseEvent<HTMLAnchorElement>) => {
     saveQuizPack({ questions: list, durationSec, index: 0 });
     const win = openQuizPopout();
-    if (!win) {
-      setPopupBlocked(true);
+    if (win) {
+      e.preventDefault();
+      win.focus();
+      setOpenedAsTab(false);
       return;
     }
-    setPopupBlocked(false);
-    win.focus();
+    // Fallback: default <a> opens /quiz/overlay in a new tab (browsers rarely block this).
+    setOpenedAsTab(true);
   };
 
   return (
@@ -153,13 +158,19 @@ export default function QuizGame({
             </DialogContent>
           </Dialog>
 
-          <Button
-            className="h-12 px-8 font-extrabold shadow-[0_0_40px_-10px_var(--neon)]"
-            onClick={openWindow}
-            disabled={list.length < 1}
+          <a
+            href={QUIZ_OVERLAY_PATH}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onOpenStreamWindow}
+            aria-disabled={list.length < 1}
+            className={cn(
+              "inline-flex h-12 items-center justify-center gap-2 rounded-md bg-primary px-8 text-sm font-extrabold text-primary-foreground shadow-[0_0_40px_-10px_var(--neon)] transition-colors hover:bg-primary/90",
+              list.length < 1 && "pointer-events-none opacity-50",
+            )}
           >
             <AppWindow className="size-4" /> فتح نافذة البث
-          </Button>
+          </a>
         </div>
 
         {!chatActive ? (
@@ -172,9 +183,9 @@ export default function QuizGame({
           </p>
         )}
 
-        {popupBlocked ? (
-          <p className="mt-3 text-sm font-bold text-destructive">
-            المتصفح منع النافذة. اسمح بالنوافذ المنبثقة لهاالموقع وحاول مرة ثانية.
+        {openedAsTab ? (
+          <p className="mt-3 text-xs text-muted-foreground">
+            انفتح تاب جديد (المتصفح منع النافذة المنبثقة). اسحب التاب برا لتصير نافذة جنب OBS.
           </p>
         ) : null}
       </div>

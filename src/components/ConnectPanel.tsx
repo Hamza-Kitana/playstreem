@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useRouterState } from "@tanstack/react-router";
-import { Loader2, Play, PlugZap, Radio, ClipboardPaste } from "lucide-react";
+import { ClipboardPaste, Loader2, Play, PlugZap, Radio } from "lucide-react";
 import { resolveKickChannel } from "@/lib/kick.functions";
 import type { ChatStatus } from "@/hooks/useKickChat";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const STORAGE_KEY = "al-daboor-kick-channel";
 
@@ -22,34 +23,6 @@ function looksLikeSlug(value: string) {
   return /^[a-z0-9_-]{2,60}$/i.test(value);
 }
 
-async function detectChannelSlug(search: string): Promise<{ slug: string; source: string } | null> {
-  const params = new URLSearchParams(search);
-  const fromUrl = params.get("channel") || params.get("kick");
-  if (fromUrl) {
-    const slug = cleanSlug(fromUrl);
-    if (looksLikeSlug(slug)) return { slug, source: "الرابط" };
-  }
-
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved && looksLikeSlug(saved)) return { slug: saved, source: "آخر ربط" };
-  } catch {
-    /* ignore */
-  }
-
-  try {
-    const text = await navigator.clipboard.readText();
-    if (text) {
-      const slug = cleanSlug(text);
-      if (looksLikeSlug(slug)) return { slug, source: "الحافظة" };
-    }
-  } catch {
-    /* clipboard denied */
-  }
-
-  return null;
-}
-
 export default function ConnectPanel({
   status,
   channel,
@@ -65,32 +38,53 @@ export default function ConnectPanel({
 }) {
   const resolve = useServerFn(resolveKickChannel);
   const search = useRouterState({ select: (s) => s.location.searchStr });
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
+  const [prefilled, setPrefilled] = useState(false);
 
   const connected = status === "live" || status === "demo";
 
-  const connectOneTap = async () => {
+  // Prefill from URL (?channel=) or last saved channel.
+  useEffect(() => {
+    if (prefilled) return;
+    const params = new URLSearchParams(search);
+    const fromUrl = params.get("channel") || params.get("kick");
+    if (fromUrl) {
+      setInput(cleanSlug(fromUrl));
+      setPrefilled(true);
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved && looksLikeSlug(saved)) setInput(saved);
+    } catch {
+      /* ignore */
+    }
+    setPrefilled(true);
+  }, [search, prefilled]);
+
+  const connectWith = async (raw: string, source: string) => {
     setErr(null);
     setHint(null);
+
+    const slug = cleanSlug(raw);
+    if (!looksLikeSlug(slug)) {
+      setErr("حط رابط البث أو اسم القناة، مثل kick.com/اسمك أو اسمك فقط.");
+      return;
+    }
+
     setLoading(true);
     try {
-      const found = await detectChannelSlug(search);
-      if (!found) {
-        setErr(
-          "ما لقينا قناة للربط. انسخ رابط بثك من كيك (مثل kick.com/اسمك) ثم اضغط الزر مرة ثانية — بدون كتابة.",
-        );
-        return;
-      }
-
-      const info = await resolve({ data: { slug: found.slug } });
+      const info = await resolve({ data: { slug } });
       try {
         localStorage.setItem(STORAGE_KEY, info.slug);
       } catch {
         /* ignore */
       }
-      setHint(`تم التعرف عبر ${found.source}`);
+      setInput(info.slug);
+      setHint(`تم الربط عبر ${source}`);
       onConnect(info.chatroomId, `kick.com/${info.slug}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "تعذّر الاتصال بالقناة.");
@@ -99,13 +93,34 @@ export default function ConnectPanel({
     }
   };
 
-  // Auto one-tap when /connect?channel=slug is opened (great for OBS browser source).
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    void connectWith(input, "الرابط المدخل");
+  };
+
+  const pasteFromClipboard = async () => {
+    setErr(null);
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text?.trim()) {
+        setErr("الحافظة فاضية. انسخ رابط البث من كيك أول.");
+        return;
+      }
+      setInput(text.trim());
+      await connectWith(text, "الحافظة");
+    } catch {
+      setErr("ما قدرنا نقرأ الحافظة. الصق الرابط يدويًا في الحقل.");
+    }
+  };
+
+  // Auto-connect when opened with /connect?channel=slug (OBS-friendly).
   useEffect(() => {
     if (connected || loading) return;
     const params = new URLSearchParams(search);
-    if (!(params.get("channel") || params.get("kick"))) return;
-    void connectOneTap();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on search param arrival
+    const fromUrl = params.get("channel") || params.get("kick");
+    if (!fromUrl) return;
+    void connectWith(fromUrl, "رابط الصفحة");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once when channel search arrives
   }, [search]);
 
   return (
@@ -115,9 +130,9 @@ export default function ConnectPanel({
           <Radio className="size-5" />
         </span>
         <div>
-          <h3 className="text-lg font-extrabold">اربط كيك بكبسة واحدةحدة</h3>
+          <h3 className="text-lg font-extrabold">اربط بث كيك</h3>
           <p className="text-sm text-muted-foreground">
-            بدون ما تكتب شيء. انسخ رابط بثك من كيك واضغط الزر — أو افتح الصفحة برابط القناة.
+            حط رابط قناتك أو اسمها، بعدين اضغط ربط.
           </p>
         </div>
       </div>
@@ -134,43 +149,64 @@ export default function ConnectPanel({
         </div>
       ) : (
         <div className="space-y-4">
-          <Button
-            onClick={connectOneTap}
-            disabled={loading}
-            className="h-16 w-full text-lg font-extrabold shadow-[0_0_40px_-8px_var(--neon)]"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="size-5 animate-spin" />
-                جاري الربط…
-              </>
-            ) : (
-              <>
-                <PlugZap className="size-5" />
-                اربط كيك الآن
-              </>
-            )}
-          </Button>
+          <form onSubmit={onSubmit} className="space-y-3">
+            <label className="block space-y-2">
+              <span className="text-sm font-bold text-foreground">رابط البث أو اسم القناة</span>
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="kick.com/اسمك أو اسم القناة"
+                dir="ltr"
+                className="h-12 rounded-2xl text-base font-semibold placeholder:font-normal placeholder:text-muted-foreground"
+                autoComplete="off"
+                spellCheck={false}
+                disabled={loading}
+              />
+            </label>
 
-          <div className="grid gap-2 rounded-2xl border border-border/60 bg-secondary/40 p-4 text-sm text-muted-foreground">
-            <p className="flex items-start gap-2 font-bold text-foreground">
-              <ClipboardPaste className="mt-0.5 size-4 shrink-0 text-primary" />
-              كيف بدون كتابة؟
-            </p>
-            <ol className="list-decimal space-y-1 pr-5 text-sm leading-6">
-              <li>افتح صفحتك على كيك وانسخ الرابط.</li>
-              <li>ارجع هنا واضغط «اربط كيك الآن».</li>
-              <li>المرة الجاية الزر يربط نفس القناة تلقائياً.</li>
-            </ol>
-            <p className="pt-1 text-xs">
-              للمستمرين على OBS: استخدم{" "}
-              <span className="font-brand text-primary" dir="ltr">
-                /connect?channel=اسمك
-              </span>
-            </p>
-          </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                type="submit"
+                disabled={loading || !input.trim()}
+                className="h-12 flex-1 text-base font-extrabold shadow-[0_0_40px_-8px_var(--neon)]"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="size-5 animate-spin" />
+                    جاري الربط…
+                  </>
+                ) : (
+                  <>
+                    <PlugZap className="size-5" />
+                    ربط القناة
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={loading}
+                onClick={() => void pasteFromClipboard()}
+                className="h-12 font-bold sm:w-auto"
+              >
+                <ClipboardPaste className="size-4" />
+                لصق وربط
+              </Button>
+            </div>
+          </form>
 
-          <Button variant="outline" className="h-12 w-full" onClick={onDemo}>
+          <p className="text-xs leading-6 text-muted-foreground">
+            مثال:{" "}
+            <span className="font-brand text-primary" dir="ltr">
+              https://kick.com/salahat8
+            </span>{" "}
+            أو الاسم فقط. للبث المستمر من OBS استخدم{" "}
+            <span className="font-brand text-primary" dir="ltr">
+              /connect?channel=اسمك
+            </span>
+          </p>
+
+          <Button variant="outline" className="h-12 w-full" onClick={onDemo} disabled={loading}>
             <Play className="size-4" />
             تجربة بدون بث
           </Button>

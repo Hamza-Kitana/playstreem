@@ -28,7 +28,7 @@ function ConnectPage() {
       <SectionHeading
         eyebrow="الخطوة الأولى"
         title="اربط كيك"
-        subtitle="كبسة واحدةحدة — بدون ما تكتب اسم القناة. انسخ رابط بثك من كيك أو استخدم رابط جاهز."
+        subtitle="حط رابط بثك أو اسم القناة، اربط، وبعدين روح لأي لعبة من الشريط فوق."
       />
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
         <Reveal>

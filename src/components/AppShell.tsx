@@ -8,7 +8,7 @@ import { useKickChatContext } from "@/contexts/KickChatContext";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const FULL_BLEED = new Set(["/about", "/contact", "/streamers"]);
+const FULL_BLEED = new Set(["/about", "/contact", "/streamers", "/chat"]);
 const CHAT_OPEN_KEY = "al-daboor-side-chat-open";
 
 function loadChatOpenPreference() {
@@ -34,6 +34,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const chatActive = chat.status === "live";
   const fullBleed = FULL_BLEED.has(pathname);
   const onStreamers = pathname === "/streamers";
+  const onChatPage = pathname === "/chat";
   const isOverlay = pathname === "/quiz/overlay";
 
   const [chatOpen, setChatOpen] = useState(true);
@@ -43,13 +44,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (onStreamers) setChatOpen(false);
-  }, [onStreamers]);
+    if (onStreamers || onChatPage) setChatOpen(false);
+  }, [onStreamers, onChatPage]);
 
   const toggleChat = () => {
     setChatOpen((prev) => {
       const next = !prev;
-      if (!onStreamers) saveChatOpenPreference(next);
+      if (!onStreamers && !onChatPage) saveChatOpenPreference(next);
       return next;
     });
   };
@@ -66,7 +67,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       <main
         className={cn(
           fullBleed ? "w-full max-w-none px-0 pb-16" : "mx-auto max-w-6xl px-4 pb-24 sm:px-6",
-          onStreamers ? "pt-24" : "pt-28 sm:pt-32",
+          onStreamers || onChatPage ? "pt-24" : "pt-28 sm:pt-32",
         )}
       >
         {children}
@@ -83,7 +84,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
       </footer>
 
-      {chatActive ? (
+      {chatActive && !onChatPage ? (
         <div className="fixed bottom-5 left-5 z-30 hidden flex-col items-start gap-2 xl:flex">
           <Button
             type="button"

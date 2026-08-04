@@ -13,6 +13,7 @@ import {
 
 const LINKS = [
   { to: "/" as const, label: "الرئيسية" },
+  { to: "/chat" as const, label: "شات" },
   { to: "/about" as const, label: "من نحن" },
   { to: "/contact" as const, label: "تواصل معنا" },
   { to: "/streamers" as const, label: "الستريمر الموثقين" },

@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, BadgeCheck, Shield, Sparkles, Zap } from "lucide-react";
 import StreamerCard, { type VerifiedStreamer } from "@/components/StreamerCard";
 import { Reveal } from "@/components/Reveal";
 import { Button } from "@/components/ui/button";
+import { checkKickLiveStatuses } from "@/lib/kick.functions";
 
 export const Route = createFileRoute("/streamers")({
   head: () => ({
@@ -11,7 +13,7 @@ export const Route = createFileRoute("/streamers")({
       { title: "الستريمر الموثقين — Al-Daboor" },
       {
         name: "description",
-        content: "تعرّف على الستريمرز الموثقين لدى Al-Daboor، مرّر على الكرت وشاهد بثّهم مباشرة.",
+        content: "تعرّف على الستريمرز الموثقين لدى Al-Daboor، شاهد بثّهم مباشرة من الكرت.",
       },
     ],
   }),
@@ -24,14 +26,14 @@ const VERIFIED: VerifiedStreamer[] = [
     slug: "salahat8",
     tag: "رائد المنصة",
     hue: 152,
-    note: "وجه موثّق عند Al-Daboor — مرّر على الكرت وشوف البث لحظياً من كيك.",
+    note: "وجه موثّق عند Al-Daboor — البث يشتغل مكتوم على الكرت، والهوفر يكبّره.",
   },
   {
     name: "xsybx",
     slug: "xsybx",
     tag: "طاقة لايف",
     hue: 168,
-    note: "ستريمر موثّق بطاقة عالية — الهوفر يشغّل معاينة البث مباشرة.",
+    note: "ستريمر موثّق بطاقة عالية — مرّر عشان تشوف البث أكبر.",
   },
   {
     name: "sarfndi-m",
@@ -45,24 +47,54 @@ const VERIFIED: VerifiedStreamer[] = [
     slug: "aboel3abed",
     tag: "ستريمر موثّق",
     hue: 160,
-    note: "موثّق لدى Al-Daboor — مرّر على الكرت وشوف البث من كيك، أو اربطه بسرعة.",
+    note: "موثّق لدى Al-Daboor — شارة LIVE تظهر لما يكون البث شغّال.",
   },
 ];
 
 const HIGHLIGHTS = [
   { icon: BadgeCheck, label: "شارة موثّق ظاهرة للجمهور" },
-  { icon: Zap, label: "معاينة بث حي من الكرت" },
-  { icon: Shield, label: "أولوية دعم أثناء اللّايف" },
+  { icon: Zap, label: "بث مكتوم على الكرت + تكبير بالهوفر" },
+  { icon: Shield, label: "LIVE / OFFLINE حسب الحالة" },
 ];
 
 const GUTTER = "px-4 sm:px-8 lg:px-12 xl:px-16";
 
 function StreamersPage() {
-  const [activeSlug, setActiveSlug] = useState<string | null>(null);
+  const [expandedSlug, setExpandedSlug] = useState<string | null>(null);
+  const [liveMap, setLiveMap] = useState<Record<string, boolean | null>>(() =>
+    Object.fromEntries(VERIFIED.map((s) => [s.slug, null])),
+  );
+  const checkLive = useServerFn(checkKickLiveStatuses);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const statuses = await checkLive({ data: { slugs: VERIFIED.map((s) => s.slug) } });
+        if (cancelled) return;
+        setLiveMap((prev) => {
+          const next = { ...prev };
+          for (const s of VERIFIED) {
+            next[s.slug] = statuses[s.slug] ?? false;
+          }
+          return next;
+        });
+      } catch {
+        if (cancelled) return;
+        setLiveMap((prev) => {
+          const next = { ...prev };
+          for (const s of VERIFIED) next[s.slug] = false;
+          return next;
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [checkLive]);
 
   return (
     <div className="w-full space-y-20 pb-8 sm:space-y-24">
-      {/* Full-bleed hero */}
       <section className="relative w-full overflow-hidden border-y border-primary/20 py-16 sm:py-20">
         <div
           className="pointer-events-none absolute inset-0"
@@ -82,7 +114,7 @@ function StreamersPage() {
             <span className="shimmer-text">الستريمر الموثقين</span>
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-base leading-8 text-muted-foreground sm:text-lg">
-            نخبة تستخدم المنصة بشكل حقيقي. مرّر على أي كرت — البث يشتغل قدامك مباشرة من كيك.
+            البث يشتغل مكتوم على الكرت، وشارة LIVE تظهر لمن هو أونلاين. مرّر الماوس عشان يكبّر الكرت وتشوف أوضح.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-sm font-bold text-muted-foreground">
@@ -108,32 +140,32 @@ function StreamersPage() {
         </div>
       </section>
 
-      {/* Gallery — edge to edge */}
-      <section className={`w-full ${GUTTER}`}>
+      <section className={`w-full overflow-visible ${GUTTER}`}>
         <Reveal className="mb-8 flex w-full flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-bold tracking-[0.2em] text-primary uppercase">المعرض</p>
             <h2 className="mt-2 text-3xl font-extrabold sm:text-4xl">وجوه المنصة</h2>
           </div>
           <p className="max-w-md text-sm leading-7 text-muted-foreground">
-            كرت واحد يشتغل في كل مرة عشان الأداء يبقى نظيف. اضغط أو مرّر للمعاينة، وبعدين اربط بثّك أو زور القناة.
+            LIVE = فاتح بث الآن · OFFLINE = مو أونلاين. مرّر على أي كرت عشان يكبّر وتشوف البث أوضح.
           </p>
         </Reveal>
 
-        <div className="grid w-full gap-5 sm:grid-cols-2 xl:grid-cols-4 xl:gap-6">
+        <div className="grid w-full gap-6 overflow-visible pt-4 pb-10 sm:grid-cols-2 sm:gap-8 xl:grid-cols-4 xl:gap-8">
           {VERIFIED.map((s, i) => (
-            <Reveal key={s.slug} delay={i * 70} className="h-full">
+            <Reveal key={s.slug} delay={i * 70} className="h-full overflow-visible">
               <div
                 className={
-                  activeSlug && activeSlug !== s.slug
-                    ? "h-full opacity-55 transition-opacity duration-500"
+                  expandedSlug && expandedSlug !== s.slug
+                    ? "h-full opacity-45 transition-opacity duration-500"
                     : "h-full opacity-100 transition-opacity duration-500"
                 }
               >
                 <StreamerCard
                   streamer={s}
-                  active={activeSlug === s.slug}
-                  onHoverChange={setActiveSlug}
+                  expanded={expandedSlug === s.slug}
+                  onHoverChange={setExpandedSlug}
+                  isLive={liveMap[s.slug] ?? null}
                 />
               </div>
             </Reveal>
@@ -141,7 +173,6 @@ function StreamersPage() {
         </div>
       </section>
 
-      {/* CTA full bleed */}
       <section className="relative w-full overflow-hidden border-y border-primary/25 py-14 text-center sm:py-16">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_80%_at_50%_0%,color-mix(in_oklab,var(--neon)_16%,transparent),transparent_60%)]" />
         <div className={`relative ${GUTTER}`}>

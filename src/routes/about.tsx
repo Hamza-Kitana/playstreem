@@ -6,6 +6,7 @@ import {
   Flame,
   Gamepad2,
   Heart,
+  MessageSquareQuote,
   PlugZap,
   Sparkles,
   Star,
@@ -78,6 +79,12 @@ const SERVICES = [
     desc: "تدخل اسماً، والمشاهدون يرسلون من ٠ إلى ١٠. الموقع يحسب المتوسط والتوزيع.",
     to: "/rate" as const,
   },
+  {
+    icon: MessageSquareQuote,
+    title: "الجملة",
+    desc: "تحدد كلاماً معيّناً، واللي يكتبه بالشات يظهر اسمه بهالة كبيرة على الشاشة.",
+    to: "/phrase" as const,
+  },
 ];
 
 const STEPS = [
@@ -113,7 +120,7 @@ function AboutPage() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
                 {[
-                  { k: "٤+", v: "ألعاب أساسية" },
+                  { k: "٥+", v: "ألعاب أساسية" },
                   { k: "١", v: "حط رابط البث" },
                   { k: "RTL", v: "واجهة عربية" },
                   { k: "Live", v: "شات كيك مباشر" },

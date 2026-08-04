@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as ConnectRouteImport } from './routes/connect'
 import { Route as ContactRouteImport } from './routes/contact'
+import { Route as PhraseRouteImport } from './routes/phrase'
 import { Route as QuizRouteImport } from './routes/quiz'
 import { Route as RateRouteImport } from './routes/rate'
 import { Route as SeatRouteImport } from './routes/seat'
@@ -37,6 +38,11 @@ const ConnectRoute = ConnectRouteImport.update({
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PhraseRoute = PhraseRouteImport.update({
+  id: '/phrase',
+  path: '/phrase',
   getParentRoute: () => rootRouteImport,
 } as any)
 const QuizRoute = QuizRouteImport.update({
@@ -70,6 +76,7 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
   '/connect': typeof ConnectRoute
   '/contact': typeof ContactRoute
+  '/phrase': typeof PhraseRoute
   '/quiz': typeof QuizRoute
   '/rate': typeof RateRoute
   '/seat': typeof SeatRoute
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/connect': typeof ConnectRoute
   '/contact': typeof ContactRoute
+  '/phrase': typeof PhraseRoute
   '/quiz': typeof QuizRoute
   '/rate': typeof RateRoute
   '/seat': typeof SeatRoute
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/connect': typeof ConnectRoute
   '/contact': typeof ContactRoute
+  '/phrase': typeof PhraseRoute
   '/quiz': typeof QuizRoute
   '/rate': typeof RateRoute
   '/seat': typeof SeatRoute
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/connect'
     | '/contact'
+    | '/phrase'
     | '/quiz'
     | '/rate'
     | '/seat'
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/connect'
     | '/contact'
+    | '/phrase'
     | '/quiz'
     | '/rate'
     | '/seat'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/about'
     | '/connect'
     | '/contact'
+    | '/phrase'
     | '/quiz'
     | '/rate'
     | '/seat'
@@ -140,6 +152,7 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   ConnectRoute: typeof ConnectRoute
   ContactRoute: typeof ContactRoute
+  PhraseRoute: typeof PhraseRoute
   QuizRoute: typeof QuizRoute
   RateRoute: typeof RateRoute
   SeatRoute: typeof SeatRoute
@@ -175,6 +188,13 @@ declare module '@tanstack/react-router' {
       path: '/contact'
       fullPath: '/contact'
       preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/phrase': {
+      id: '/phrase'
+      path: '/phrase'
+      fullPath: '/phrase'
+      preLoaderRoute: typeof PhraseRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/quiz': {
@@ -220,6 +240,7 @@ const rootRouteChildren: RootRouteChildren = {
   AboutRoute: AboutRoute,
   ConnectRoute: ConnectRoute,
   ContactRoute: ContactRoute,
+  PhraseRoute: PhraseRoute,
   QuizRoute: QuizRoute,
   RateRoute: RateRoute,
   SeatRoute: SeatRoute,

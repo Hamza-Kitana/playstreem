@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { Armchair, BarChart3, Brain, Flame, Plug, Sparkles, Star } from "lucide-react";
+import { Armchair, BarChart3, Brain, Flame, MessageSquareQuote, Plug, Sparkles, Star } from "lucide-react";
 import BrandLogo from "@/components/BrandLogo";
 import { Reveal, SectionHeading } from "@/components/Reveal";
 import { useScrollY } from "@/hooks/useReveal";
@@ -46,6 +46,12 @@ const FEATURES = [
     to: "/rate" as const,
   },
   {
+    icon: MessageSquareQuote,
+    title: "الجملة",
+    desc: "حدد كلاماً — واللي يكتبه يطلع اسمه بهالة نيون.",
+    to: "/phrase" as const,
+  },
+  {
     icon: Flame,
     title: "تفاعل لايف",
     desc: "الشات يحرّك النتائج قدام الجمهور بدون تأخير.",
@@ -68,7 +74,7 @@ const STEPS = [
   {
     n: "٢",
     title: "اختر اللعبة",
-    desc: "من الشريط العلوي افتح «الخدمات» ثم الأسئلة، الكرسي، التصويت، أو التقييم.",
+    desc: "من الشريط العلوي افتح «الخدمات» ثم الأسئلة، الكرسي، التصويت، التقييم، أو الجملة.",
   },
   {
     n: "٣",

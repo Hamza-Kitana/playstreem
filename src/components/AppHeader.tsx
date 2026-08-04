@@ -23,6 +23,7 @@ const SERVICES = [
   { to: "/seat" as const, label: "كراسي" },
   { to: "/vote" as const, label: "التصويت" },
   { to: "/rate" as const, label: "تقييم" },
+  { to: "/phrase" as const, label: "الجملة" },
 ];
 
 function linkClass(active: boolean, compact = false) {

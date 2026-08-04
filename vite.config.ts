@@ -5,7 +5,7 @@ import { nitro } from "nitro/vite";
 import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   resolve: {
     alias: { "@": `${process.cwd()}/src` },
     dedupe: [
@@ -16,6 +16,10 @@ export default defineConfig({
       "@tanstack/react-query",
       "@tanstack/query-core",
     ],
+  },
+  // Avoid broken re-exports in the Vercel/Nitro SSR bundle (Vite 8).
+  ssr: {
+    noExternal: command === "build" ? true : undefined,
   },
   optimizeDeps: {
     include: [
@@ -35,9 +39,8 @@ export default defineConfig({
     tanstackStart({
       server: { entry: "server" },
     }),
-    // Let Nitro pick the host (Vercel/Node/…). Forcing cloudflare-module
-    // breaks SSR on Vercel and surfaces the branded “الصفحة ما تحملتش” page.
+    // Nitro auto-detects Vercel during `vercel build`; don't force Cloudflare.
     nitro(),
     viteReact(),
   ],
-});
+}));

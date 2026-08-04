@@ -45,8 +45,9 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+      <div className="glass max-w-md rounded-3xl border border-primary/20 px-8 py-10 text-center">
+        <p className="font-brand text-lg font-bold text-primary">Al-Daboor</p>
+        <h1 className="mt-3 text-xl font-semibold tracking-tight text-foreground">
           الصفحة ما تحملتش
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">

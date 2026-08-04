@@ -21,7 +21,7 @@ export type KickChannelInfo = {
 
 /** Resolves a Kick channel slug into its chatroom id (server-side to avoid CORS). */
 export const resolveKickChannel = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) => schema.parse(input))
+  .validator((input: unknown) => schema.parse(input))
   .handler(async ({ data }): Promise<KickChannelInfo> => {
     const slug = data.slug.toLowerCase();
     const endpoints = [

@@ -35,7 +35,9 @@ export default defineConfig({
     tanstackStart({
       server: { entry: "server" },
     }),
-    nitro({ defaultPreset: "cloudflare-module" }),
+    // Let Nitro pick the host (Vercel/Node/…). Forcing cloudflare-module
+    // breaks SSR on Vercel and surfaces the branded “الصفحة ما تحملتش” page.
+    nitro(),
     viteReact(),
   ],
 });

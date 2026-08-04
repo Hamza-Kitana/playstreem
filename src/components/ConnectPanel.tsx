@@ -3,11 +3,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { useRouterState } from "@tanstack/react-router";
 import { ClipboardPaste, Loader2, Play, PlugZap, Radio } from "lucide-react";
 import { resolveKickChannel } from "@/lib/kick.functions";
+import { loadKickSession, loadLegacyKickSlug, saveKickSession } from "@/lib/kick-session";
 import type { ChatStatus } from "@/hooks/useKickChat";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-const STORAGE_KEY = "al-daboor-kick-channel";
 
 function cleanSlug(raw: string) {
   return raw
@@ -32,7 +31,7 @@ export default function ConnectPanel({
 }: {
   status: ChatStatus;
   channel: string | null;
-  onConnect: (chatroomId: number, label: string) => void;
+  onConnect: (chatroomId: number, label: string, slug?: string) => void;
   onDemo: () => void;
   onStop: () => void;
 }) {
@@ -45,6 +44,7 @@ export default function ConnectPanel({
   const [prefilled, setPrefilled] = useState(false);
 
   const connected = status === "live" || status === "demo";
+  const busy = loading || status === "connecting";
 
   // Prefill from URL (?channel=) or last saved channel.
   useEffect(() => {
@@ -56,12 +56,14 @@ export default function ConnectPanel({
       setPrefilled(true);
       return;
     }
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved && looksLikeSlug(saved)) setInput(saved);
-    } catch {
-      /* ignore */
+    const session = loadKickSession();
+    if (session) {
+      setInput(session.slug);
+      setPrefilled(true);
+      return;
     }
+    const legacy = loadLegacyKickSlug();
+    if (legacy) setInput(legacy);
     setPrefilled(true);
   }, [search, prefilled]);
 
@@ -78,14 +80,10 @@ export default function ConnectPanel({
     setLoading(true);
     try {
       const info = await resolve({ data: { slug } });
-      try {
-        localStorage.setItem(STORAGE_KEY, info.slug);
-      } catch {
-        /* ignore */
-      }
+      saveKickSession({ slug: info.slug, chatroomId: info.chatroomId });
       setInput(info.slug);
       setHint(`تم الربط عبر ${source}`);
-      onConnect(info.chatroomId, `kick.com/${info.slug}`);
+      onConnect(info.chatroomId, `kick.com/${info.slug}`, info.slug);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "تعذّر الاتصال بالقناة.");
     } finally {
@@ -115,7 +113,7 @@ export default function ConnectPanel({
 
   // Auto-connect when opened with /connect?channel=slug (OBS-friendly).
   useEffect(() => {
-    if (connected || loading) return;
+    if (connected || busy) return;
     const params = new URLSearchParams(search);
     const fromUrl = params.get("channel") || params.get("kick");
     if (!fromUrl) return;
@@ -132,7 +130,7 @@ export default function ConnectPanel({
         <div>
           <h3 className="text-lg font-extrabold">اربط بث كيك</h3>
           <p className="text-sm text-muted-foreground">
-            حط رابط قناتك أو اسمها، بعدين اضغط ربط.
+            حط رابط قناتك أو اسمها، بعدين اضغط ربط. الربط يرجع تلقائياً بعد التحديث.
           </p>
         </div>
       </div>
@@ -149,6 +147,13 @@ export default function ConnectPanel({
         </div>
       ) : (
         <div className="space-y-4">
+          {status === "connecting" ? (
+            <p className="flex items-center gap-2 text-sm font-bold text-primary">
+              <Loader2 className="size-4 animate-spin" />
+              جاري استعادة الربط…
+            </p>
+          ) : null}
+
           <form onSubmit={onSubmit} className="space-y-3">
             <label className="block space-y-2">
               <span className="text-sm font-bold text-foreground">رابط البث أو اسم القناة</span>
@@ -160,17 +165,17 @@ export default function ConnectPanel({
                 className="h-12 rounded-2xl text-base font-semibold placeholder:font-normal placeholder:text-muted-foreground"
                 autoComplete="off"
                 spellCheck={false}
-                disabled={loading}
+                disabled={busy}
               />
             </label>
 
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button
                 type="submit"
-                disabled={loading || !input.trim()}
+                disabled={busy || !input.trim()}
                 className="h-12 flex-1 text-base font-extrabold shadow-[0_0_40px_-8px_var(--neon)]"
               >
-                {loading ? (
+                {busy ? (
                   <>
                     <Loader2 className="size-5 animate-spin" />
                     جاري الربط…
@@ -185,7 +190,7 @@ export default function ConnectPanel({
               <Button
                 type="button"
                 variant="outline"
-                disabled={loading}
+                disabled={busy}
                 onClick={() => void pasteFromClipboard()}
                 className="h-12 font-bold sm:w-auto"
               >
@@ -206,7 +211,7 @@ export default function ConnectPanel({
             </span>
           </p>
 
-          <Button variant="outline" className="h-12 w-full" onClick={onDemo} disabled={loading}>
+          <Button variant="outline" className="h-12 w-full" onClick={onDemo} disabled={busy}>
             <Play className="size-4" />
             تجربة بدون بث
           </Button>

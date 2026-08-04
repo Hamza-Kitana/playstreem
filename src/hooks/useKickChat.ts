@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { clearKickSession, saveKickSession } from "@/lib/kick-session";
 
 export type ChatMessage = {
   key: number;
@@ -61,17 +62,24 @@ export function useKickChat() {
     });
   }, []);
 
-  const stop = useCallback(() => {
+  const disconnectSockets = useCallback(() => {
     wsRef.current?.close();
     wsRef.current = null;
     if (demoRef.current) clearInterval(demoRef.current);
     demoRef.current = null;
-    setStatus("idle");
-    setChannel(null);
   }, []);
 
+  /** Full stop — drops the session so refresh won't reconnect. */
+  const stop = useCallback(() => {
+    disconnectSockets();
+    clearKickSession();
+    setStatus("idle");
+    setChannel(null);
+  }, [disconnectSockets]);
+
   const startDemo = useCallback(() => {
-    stop();
+    disconnectSockets();
+    clearKickSession();
     setError(null);
     setStatus("demo");
     setChannel("وضع تجريبي");
@@ -83,14 +91,19 @@ export function useKickChat() {
       },
       900 + Math.random() * 900,
     );
-  }, [push, stop]);
+  }, [disconnectSockets, push]);
 
   const connect = useCallback(
-    (chatroomId: number, label: string) => {
-      stop();
+    (chatroomId: number, label: string, slug?: string) => {
+      disconnectSockets();
       setError(null);
       setStatus("connecting");
       setChannel(label);
+
+      const resolvedSlug =
+        slug?.toLowerCase() ||
+        label.replace(/^kick\.com\//i, "").split(/[/?#]/)[0]?.toLowerCase() ||
+        "";
 
       let ws: WebSocket;
       try {
@@ -109,6 +122,9 @@ export function useKickChat() {
             data: { auth: "", channel: `chatrooms.${chatroomId}.v2` },
           }),
         );
+        if (resolvedSlug) {
+          saveKickSession({ slug: resolvedSlug, chatroomId });
+        }
         setStatus("live");
       };
 
@@ -144,10 +160,10 @@ export function useKickChat() {
         }
       };
     },
-    [push, stop],
+    [disconnectSockets, push],
   );
 
-  useEffect(() => stop, [stop]);
+  useEffect(() => () => disconnectSockets(), [disconnectSockets]);
 
   return { messages, status, error, channel, connect, startDemo, stop, setError };
 }

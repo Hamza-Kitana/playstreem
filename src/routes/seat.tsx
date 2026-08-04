@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/seat")({
   head: () => ({
-    meta: [{ title: "كرسي الاعتراف — Al-Daboor" }],
+    meta: [{ title: "الكراسي — Al-Daboor" }],
   }),
   component: SeatPage,
 });
@@ -19,8 +19,8 @@ function SeatPage() {
     <section>
       <SectionHeading
         eyebrow="اللعبة الثانية"
-        title="كرسي الاعتراف"
-        subtitle="اختر الجالس عشوائياً واستقبل أسئلة الجمهور مباشرة من الشات."
+        title="الكراسي"
+        subtitle="اكتبوا «دخول» في الشات، يلفّون حول الدائرة، تظهر أرقام على الكراسي، واللي ما يلحق يطلع لين يفوز واحد."
       />
       {!chatActive ? (
         <div className="glass mb-6 rounded-2xl p-4 text-center text-sm text-muted-foreground">

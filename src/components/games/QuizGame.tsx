@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Crown, RotateCcw, Plus, Trash2, Trophy } from "lucide-react";
+import { Crown, Plus, RotateCcw, Trash2, Trophy } from "lucide-react";
 import type { ChatMessage } from "@/hooks/useKickChat";
 import { useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
@@ -7,6 +7,15 @@ import SessionControls from "@/components/games/SessionControls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GameCard } from "@/components/Reveal";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 type Q = { q: string; a: string };
 type Winner = { user: string; answer: string; color: string };
@@ -27,6 +36,7 @@ export default function QuizGame({
   const [list, setList] = useState<Q[]>(DEFAULT_QS);
   const [draftQ, setDraftQ] = useState("");
   const [draftA, setDraftA] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
   const [index, setIndex] = useState(0);
   const [winner, setWinner] = useState<Winner | null>(null);
   const [scores, setScores] = useState<Record<string, number>>({});
@@ -59,6 +69,14 @@ export default function QuizGame({
     session.stop();
   });
 
+  const prepareQuestion = (nextIndex: number) => {
+    setIndex(nextIndex);
+    settled.current = false;
+    setWinner(null);
+    setAttempts(0);
+    session.clearParticipants();
+  };
+
   const start = () => {
     if (!current) return;
     settled.current = false;
@@ -67,12 +85,43 @@ export default function QuizGame({
     session.start();
   };
 
+  /** Advance to next question — works even while the round is live. */
   const next = () => {
-    setIndex((i) => (i + 1) % Math.max(list.length, 1));
+    if (list.length < 1) return;
+    const nextIndex = (index + 1) % list.length;
+    prepareQuestion(nextIndex);
+    // Keep an active round going for the new question (fresh answers).
+    if (session.running) {
+      session.start();
+    }
+  };
+
+  const selectQuestion = (i: number) => {
+    if (i === index && !winner) return;
+    prepareQuestion(i);
+    if (session.running) session.start();
+  };
+
+  const addQuestion = () => {
+    if (!draftQ.trim() || !draftA.trim()) return;
+    setList((l) => [...l, { q: draftQ.trim(), a: draftA.trim() }]);
+    setDraftQ("");
+    setDraftA("");
+  };
+
+  const removeQuestion = (i: number) => {
+    setList((l) => {
+      const nextList = l.filter((_, k) => k !== i);
+      setIndex((cur) => {
+        if (nextList.length === 0) return 0;
+        if (i < cur) return cur - 1;
+        if (i === cur) return Math.min(cur, nextList.length - 1);
+        return cur;
+      });
+      return nextList;
+    });
     settled.current = false;
     setWinner(null);
-    setAttempts(0);
-    session.stop();
   };
 
   const top = Object.entries(scores)
@@ -91,7 +140,7 @@ export default function QuizGame({
           canStart={Boolean(current)}
           startLabel="بدء الجولة"
           stopLabel="إيقاف الجولة"
-          hint="كل مشاهد يجاوب مرة واحدة فقط بالجولة. أول إجابة صحيحة تفوز وتوقف الجلسة."
+          hint="كل مشاهد يجاوب مرة واحدة فقط بالسؤال. أول إجابة صحيحة تفوز. تقدر تنتقل للسؤال التالي أثناء الجولة."
           onDurationChange={session.setDurationSec}
           onStart={start}
           onStop={() => session.stop()}
@@ -111,7 +160,7 @@ export default function QuizGame({
 
           {session.running ? (
             <div className="relative mt-5 text-sm font-bold text-primary">
-              بانتظار الإجابات من الشات · محاولات صحيحة الاستلام: {attempts}
+              بانتظار الإجابات من الشات · محاولات: {attempts}
             </div>
           ) : null}
 
@@ -128,71 +177,129 @@ export default function QuizGame({
             </div>
           ) : null}
 
-          <div className="relative mt-6">
-            <Button variant="secondary" onClick={next} disabled={list.length < 1 || session.running}>
+          <div className="relative mt-6 flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={next} disabled={list.length < 1}>
               <RotateCcw className="size-4" /> السؤال التالي
             </Button>
           </div>
         </div>
 
         <div className="space-y-3">
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Input
-              value={draftQ}
-              onChange={(e) => setDraftQ(e.target.value)}
-              placeholder="اكتب سؤالاً جديداً"
-              className="flex-1"
-              disabled={session.running}
-            />
-            <Input
-              value={draftA}
-              onChange={(e) => setDraftA(e.target.value)}
-              placeholder="الإجابة"
-              className="sm:w-44"
-              disabled={session.running}
-            />
-            <Button
-              variant="outline"
-              disabled={session.running}
-              onClick={() => {
-                if (!draftQ.trim() || !draftA.trim()) return;
-                setList((l) => [...l, { q: draftQ.trim(), a: draftA.trim() }]);
-                setDraftQ("");
-                setDraftA("");
-              }}
-            >
-              <Plus className="size-4" /> إضافة
-            </Button>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-bold text-muted-foreground">قائمة الأسئلة ({list.length})</p>
+            <Dialog open={addOpen} onOpenChange={setAddOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="font-bold">
+                  <Plus className="size-4" /> إضافة أسئلة
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md border-border/60 bg-background sm:rounded-3xl" dir="rtl">
+                <DialogHeader className="text-right">
+                  <DialogTitle className="text-xl font-extrabold">إضافة أسئلة</DialogTitle>
+                  <DialogDescription className="text-right">
+                    اكتب السؤال والجواب، اضغط إضافة، وقدّر تضيف أكثر من سؤال قبل ما تقفل النافذة.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-3 py-2">
+                  <label className="block space-y-1.5">
+                    <span className="text-sm font-bold">السؤال</span>
+                    <Input
+                      value={draftQ}
+                      onChange={(e) => setDraftQ(e.target.value)}
+                      placeholder="اكتب سؤالاً جديداً"
+                      className="h-11"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addQuestion();
+                        }
+                      }}
+                    />
+                  </label>
+                  <label className="block space-y-1.5">
+                    <span className="text-sm font-bold">الإجابة الصحيحة</span>
+                    <Input
+                      value={draftA}
+                      onChange={(e) => setDraftA(e.target.value)}
+                      placeholder="الإجابة"
+                      className="h-11"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addQuestion();
+                        }
+                      }}
+                    />
+                  </label>
+                  <Button
+                    className="w-full font-extrabold"
+                    onClick={addQuestion}
+                    disabled={!draftQ.trim() || !draftA.trim()}
+                  >
+                    <Plus className="size-4" /> إضافة للقائمة
+                  </Button>
+
+                  {list.length > 0 ? (
+                    <div className="max-h-40 space-y-2 overflow-y-auto rounded-2xl border border-border/50 bg-secondary/30 p-3">
+                      {list.map((item, i) => (
+                        <div
+                          key={`${item.q}-${i}`}
+                          className="flex items-start justify-between gap-2 text-sm"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate font-bold">{item.q}</p>
+                            <p className="truncate text-xs text-muted-foreground">الجواب: {item.a}</p>
+                          </div>
+                          <button
+                            type="button"
+                            className="shrink-0 rounded-lg p-1 text-muted-foreground hover:bg-destructive/15 hover:text-destructive"
+                            onClick={() => removeQuestion(i)}
+                            aria-label="حذف السؤال"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <DialogFooter className="sm:justify-start">
+                  <Button variant="secondary" className="font-bold" onClick={() => setAddOpen(false)}>
+                    تم
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
+
           <div className="flex flex-wrap gap-2">
-            {list.map((item, i) => (
-              <button
-                key={`${item.q}-${i}`}
-                type="button"
-                disabled={session.running}
-                onClick={() => {
-                  setIndex(i);
-                  setWinner(null);
-                  session.stop();
-                }}
-                className={`group inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition disabled:opacity-50 ${
-                  i === index
-                    ? "border-primary/60 bg-primary/15 text-primary"
-                    : "border-border bg-secondary/40 text-muted-foreground hover:border-accent/50"
-                }`}
-              >
-                <span className="max-w-40 truncate">{item.q}</span>
-                <Trash2
-                  className="size-3.5 opacity-50 hover:opacity-100"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (session.running) return;
-                    setList((l) => l.filter((_, k) => k !== i));
-                    setIndex(0);
-                  }}
-                />
-              </button>
-            ))}
+            {list.length === 0 ? (
+              <p className="text-sm text-muted-foreground">ما في أسئلة بعد — افتح نافذة الإضافة.</p>
+            ) : (
+              list.map((item, i) => (
+                <button
+                  key={`${item.q}-${i}`}
+                  type="button"
+                  onClick={() => selectQuestion(i)}
+                  className={`group inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition ${
+                    i === index
+                      ? "border-primary/60 bg-primary/15 text-primary"
+                      : "border-border bg-secondary/40 text-muted-foreground hover:border-accent/50"
+                  }`}
+                >
+                  <span className="max-w-40 truncate">{item.q}</span>
+                  <Trash2
+                    className="size-3.5 opacity-50 hover:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeQuestion(i);
+                    }}
+                  />
+                </button>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -227,7 +334,7 @@ export default function QuizGame({
           </ol>
         )}
         {top.length > 0 ? (
-          <Button variant="ghost" className="mt-4 w-full" onClick={() => setScores({})} disabled={session.running}>
+          <Button variant="ghost" className="mt-4 w-full" onClick={() => setScores({})}>
             تصفير النقاط
           </Button>
         ) : null}

@@ -8,6 +8,35 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GameCard } from "@/components/Reveal";
 
+/** Map a chat line to an option index: numbers (1/٢) or option text (نعم / لا…). */
+function resolveVoteIndex(raw: string, options: string[]): number {
+  const t = normalizeAr(raw);
+  if (!t || options.length === 0) return -1;
+
+  const tokens = t.split(" ").filter(Boolean);
+  const first = tokens[0] ?? "";
+  const n = Number(first);
+  if (Number.isInteger(n) && n >= 1 && n <= options.length) return n - 1;
+
+  const normalized = options.map((o) => normalizeAr(o));
+
+  const exact = normalized.findIndex((o) => o && o === t);
+  if (exact >= 0) return exact;
+
+  // Longer labels first so "ما بعرف" wins over a short substring.
+  const ranked = normalized
+    .map((o, i) => ({ o, i }))
+    .filter(({ o }) => o.length > 0)
+    .sort((a, b) => b.o.length - a.o.length);
+
+  for (const { o, i } of ranked) {
+    if (first === o) return i;
+    if (t.startsWith(`${o} `) || t.endsWith(` ${o}`)) return i;
+  }
+
+  return -1;
+}
+
 export default function PollGame({
   messages,
   chatActive,
@@ -23,11 +52,10 @@ export default function PollGame({
 
   useNewMessages(messages, session.running, (m) => {
     if (session.hasParticipated(m.user)) return;
-    const t = normalizeAr(m.text);
-    const n = Number(t.split(" ")[0]);
-    if (!Number.isInteger(n) || n < 1 || n > options.length) return;
+    const idx = resolveVoteIndex(m.text, options);
+    if (idx < 0) return;
     if (!session.tryClaim(m.user)) return;
-    setVotes((v) => v.map((c, i) => (i === n - 1 ? c + 1 : c)));
+    setVotes((v) => v.map((c, i) => (i === idx ? c + 1 : c)));
   });
 
   const total = votes.reduce((a, b) => a + b, 0);
@@ -56,7 +84,7 @@ export default function PollGame({
         canStart={options.length >= 2}
         startLabel="بدء التصويت"
         stopLabel="إيقاف التصويت"
-        hint="كل مشاهد يصوّت مرة واحدة فقط أثناء الجلسة بكتابة رقم الخيار في الشات (١، ٢، ٣…)."
+        hint="كل مشاهد يصوّت مرة واحدة فقط: يكتب نص الخيار (نعم، لا…) أو رقمه (١، ٢، ٣…)."
         onDurationChange={session.setDurationSec}
         onStart={start}
         onStop={stop}
@@ -140,7 +168,10 @@ export default function PollGame({
       ) : null}
 
       <p className="text-center text-sm text-muted-foreground">
-        مجموع الأصوات الصحيحة: <span className="font-extrabold text-foreground tabular-nums">{total}</span>
+        المشاهد يكتب{" "}
+        <span className="font-bold text-foreground">نص الخيار</span> أو{" "}
+        <span className="font-bold text-foreground">رقمه</span> في الشات. مجموع الأصوات:{" "}
+        <span className="font-extrabold text-foreground tabular-nums">{total}</span>
       </p>
     </GameCard>
   );

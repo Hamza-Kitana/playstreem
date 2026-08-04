@@ -99,7 +99,7 @@ export default function SessionControls({
 
       <p className="mt-2 text-[11px] leading-5 text-muted-foreground">{hint}</p>
       {!chatActive ? (
-        <p className="mt-1 text-[11px] font-bold text-destructive">اربط كيك أو شغّل التجريبي قبل البدء.</p>
+        <p className="mt-1 text-[11px] font-bold text-destructive">اربط كيك قبل البدء.</p>
       ) : null}
     </div>
   );

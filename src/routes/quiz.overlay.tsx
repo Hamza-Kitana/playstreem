@@ -11,7 +11,7 @@ export const Route = createFileRoute("/quiz/overlay")({
 
 function QuizOverlayPage() {
   const chat = useKickChatContext();
-  const chatActive = chat.status === "live" || chat.status === "demo";
+  const chatActive = chat.status === "live";
 
   return <QuizOverlayStage messages={chat.messages} chatActive={chatActive} />;
 }

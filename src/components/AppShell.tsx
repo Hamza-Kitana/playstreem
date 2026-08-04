@@ -31,7 +31,7 @@ function saveChatOpenPreference(open: boolean) {
 export default function AppShell({ children }: { children: ReactNode }) {
   const chat = useKickChatContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const chatActive = chat.status === "live" || chat.status === "demo";
+  const chatActive = chat.status === "live";
   const fullBleed = FULL_BLEED.has(pathname);
   const onStreamers = pathname === "/streamers";
   const isOverlay = pathname === "/quiz/overlay";

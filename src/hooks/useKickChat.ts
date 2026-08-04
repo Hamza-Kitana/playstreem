@@ -9,41 +9,10 @@ export type ChatMessage = {
   at: number;
 };
 
-export type ChatStatus = "idle" | "connecting" | "live" | "demo" | "error";
+export type ChatStatus = "idle" | "connecting" | "live" | "error";
 
 const KICK_WS =
   "wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&client=js&version=8.4.0-rc2&flash=false";
-
-const DEMO_USERS = [
-  "أبو_فهد",
-  "Ghaith99",
-  "سمسم",
-  "MrKick",
-  "لؤي",
-  "نور",
-  "الشبح",
-  "Zeko",
-  "ريماس",
-  "حمودي",
-];
-const DEMO_WORDS = [
-  "هههههه",
-  "يا وحش",
-  "٧",
-  "١٠",
-  "الأردن",
-  "برشلونة",
-  "نعم",
-  "لا",
-  "سوطه",
-  "٤٢",
-  "الكرسي إلي",
-  "يلا بسرعة",
-  "٩",
-  "القاهرة",
-  "يلا يا شباب",
-  "٣",
-];
 
 let counter = 0;
 
@@ -53,7 +22,6 @@ export function useKickChat() {
   const [error, setError] = useState<string | null>(null);
   const [channel, setChannel] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const demoRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const push = useCallback((user: string, text: string, color: string) => {
     counter += 1;
@@ -66,8 +34,6 @@ export function useKickChat() {
   const disconnectSockets = useCallback(() => {
     wsRef.current?.close();
     wsRef.current = null;
-    if (demoRef.current) clearInterval(demoRef.current);
-    demoRef.current = null;
   }, []);
 
   /** Full stop — drops the session so refresh won't reconnect. */
@@ -77,22 +43,6 @@ export function useKickChat() {
     setStatus("idle");
     setChannel(null);
   }, [disconnectSockets]);
-
-  const startDemo = useCallback(() => {
-    disconnectSockets();
-    clearKickSession();
-    setError(null);
-    setStatus("demo");
-    setChannel("وضع تجريبي");
-    demoRef.current = setInterval(
-      () => {
-        const u = DEMO_USERS[Math.floor(Math.random() * DEMO_USERS.length)]!;
-        const w = DEMO_WORDS[Math.floor(Math.random() * DEMO_WORDS.length)]!;
-        push(u, w, `oklch(0.8 0.17 ${Math.floor(Math.random() * 360)})`);
-      },
-      900 + Math.random() * 900,
-    );
-  }, [disconnectSockets, push]);
 
   const connect = useCallback(
     (chatroomId: number, label: string, slug?: string) => {
@@ -166,5 +116,5 @@ export function useKickChat() {
 
   useEffect(() => () => disconnectSockets(), [disconnectSockets]);
 
-  return { messages, status, error, channel, connect, startDemo, stop, setError };
+  return { messages, status, error, channel, connect, stop, setError };
 }

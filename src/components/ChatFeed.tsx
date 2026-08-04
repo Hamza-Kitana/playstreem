@@ -6,7 +6,6 @@ const LABEL: Record<ChatStatus, string> = {
   idle: "غير متصل",
   connecting: "جاري الاتصال…",
   live: "مباشر",
-  demo: "وضع تجريبي",
   error: "انقطع الاتصال",
 };
 
@@ -28,7 +27,7 @@ export default function ChatFeed({
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
-  const live = status === "live" || status === "demo";
+  const live = status === "live";
 
   return (
     <div className={cn("glass flex flex-col overflow-hidden rounded-3xl", className)}>

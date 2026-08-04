@@ -210,7 +210,7 @@ export default function QuizOverlayStage({
 
         {!chatActive ? (
           <p className="bg-destructive/15 px-3 py-2 text-center text-xs font-bold text-destructive">
-            اربط كيك أو شغّل التجريبي عشان الشات يشتغل داخل النافذة.
+            اربط كيك عشان الشات يشتغل داخل النافذة.
           </p>
         ) : null}
 

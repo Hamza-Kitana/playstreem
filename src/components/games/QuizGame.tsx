@@ -159,7 +159,7 @@ export default function QuizGame({
 
         {!chatActive ? (
           <p className="mt-4 text-sm font-bold text-destructive">
-            اربط كيك أو شغّل التجريبي قبل ما تفتح النافذة.
+            اربط كيك قبل ما تفتح النافذة.
           </p>
         ) : (
           <p className="mt-4 text-xs text-muted-foreground">

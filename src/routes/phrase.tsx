@@ -13,7 +13,7 @@ export const Route = createFileRoute("/phrase")({
 
 function PhrasePage() {
   const chat = useKickChatContext();
-  const chatActive = chat.status === "live" || chat.status === "demo";
+  const chatActive = chat.status === "live";
 
   return (
     <section>
@@ -26,7 +26,7 @@ function PhrasePage() {
         <div className="glass mb-6 rounded-2xl p-4 text-center text-sm text-muted-foreground">
           الشات غير متصل.{" "}
           <Button asChild variant="link" className="h-auto p-0 text-primary">
-            <Link to="/connect">اربط قناتك أو شغّل التجريبي</Link>
+            <Link to="/connect">اربط قناتك</Link>
           </Button>
         </div>
       ) : null}

@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useRouterState } from "@tanstack/react-router";
-import { ClipboardPaste, Loader2, Play, PlugZap, Radio } from "lucide-react";
+import { ClipboardPaste, Loader2, PlugZap, Radio } from "lucide-react";
 import { resolveKickChannel } from "@/lib/kick.functions";
 import { loadKickSession, loadLegacyKickSlug, saveKickSession } from "@/lib/kick-session";
 import type { ChatStatus } from "@/hooks/useKickChat";
@@ -26,13 +26,11 @@ export default function ConnectPanel({
   status,
   channel,
   onConnect,
-  onDemo,
   onStop,
 }: {
   status: ChatStatus;
   channel: string | null;
   onConnect: (chatroomId: number, label: string, slug?: string) => void;
-  onDemo: () => void;
   onStop: () => void;
 }) {
   const resolve = useServerFn(resolveKickChannel);
@@ -43,7 +41,7 @@ export default function ConnectPanel({
   const [hint, setHint] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState(false);
 
-  const connected = status === "live" || status === "demo";
+  const connected = status === "live";
   const busy = loading || status === "connecting";
 
   // Prefill from URL (?channel=) or last saved channel.
@@ -210,11 +208,6 @@ export default function ConnectPanel({
               /connect?channel=اسمك
             </span>
           </p>
-
-          <Button variant="outline" className="h-12 w-full" onClick={onDemo} disabled={busy}>
-            <Play className="size-4" />
-            تجربة بدون بث
-          </Button>
 
           {hint ? <p className="text-sm font-semibold text-primary">{hint}</p> : null}
           {err ? <p className="text-sm font-semibold text-destructive">{err}</p> : null}

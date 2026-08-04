@@ -36,7 +36,6 @@ function ConnectPage() {
             status={chat.status}
             channel={chat.channel}
             onConnect={chat.connect}
-            onDemo={chat.startDemo}
             onStop={chat.stop}
           />
         </Reveal>

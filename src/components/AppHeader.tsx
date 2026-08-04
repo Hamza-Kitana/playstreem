@@ -36,7 +36,7 @@ export default function AppHeader() {
   const { status } = useKickChatContext();
   const { openGuide } = useGuide();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const chatActive = status === "live" || status === "demo";
+  const chatActive = status === "live";
   const servicesActive = SERVICES.some((s) => pathname === s.to);
 
   return (

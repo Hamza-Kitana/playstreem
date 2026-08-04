@@ -114,7 +114,7 @@ function ContactPage() {
               <ul className="space-y-3 text-sm leading-7 text-muted-foreground">
                 <li className="flex gap-3">
                   <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" />
-                  لو عندك مشكلة ربط: اذكر اسم قناة كيك وهل جربت الوضع التجريبي.
+                  لو عندك مشكلة ربط: اذكر اسم قناة كيك وشو الرسالة اللي طلعت عندك.
                 </li>
                 <li className="flex gap-3">
                   <BadgeCheck className="mt-0.5 size-5 shrink-0 text-primary" />

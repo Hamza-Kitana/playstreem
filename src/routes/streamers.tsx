@@ -40,6 +40,13 @@ const VERIFIED: VerifiedStreamer[] = [
     hue: 142,
     note: "موثّق لدى Al-Daboor — ادخل قناته أو اربطها بكبسة من الكرت.",
   },
+  {
+    name: "aboel3abed",
+    slug: "aboel3abed",
+    tag: "ستريمر موثّق",
+    hue: 160,
+    note: "موثّق لدى Al-Daboor — مرّر على الكرت وشوف البث من كيك، أو اربطه بسرعة.",
+  },
 ];
 
 const HIGHLIGHTS = [
@@ -50,8 +57,6 @@ const HIGHLIGHTS = [
 
 function StreamersPage() {
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
-  const featured = VERIFIED[0]!;
-  const rest = VERIFIED.slice(1);
 
   return (
     <div className="space-y-24 pb-8">
@@ -113,34 +118,24 @@ function StreamersPage() {
           </p>
         </Reveal>
 
-        <div className="grid gap-6 lg:grid-cols-12 lg:gap-7">
-          <Reveal className="lg:col-span-7" delay={40}>
-            <StreamerCard
-              streamer={featured}
-              featured
-              active={activeSlug === featured.slug}
-              onHoverChange={setActiveSlug}
-            />
-          </Reveal>
-          <div className="grid gap-6 sm:grid-cols-2 lg:col-span-5 lg:grid-cols-1 lg:gap-7">
-            {rest.map((s, i) => (
-              <Reveal key={s.slug} delay={90 + i * 70}>
-                <div
-                  className={
-                    activeSlug && activeSlug !== s.slug
-                      ? "opacity-55 transition-opacity duration-500"
-                      : "opacity-100 transition-opacity duration-500"
-                  }
-                >
-                  <StreamerCard
-                    streamer={s}
-                    active={activeSlug === s.slug}
-                    onHoverChange={setActiveSlug}
-                  />
-                </div>
-              </Reveal>
-            ))}
-          </div>
+        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-2">
+          {VERIFIED.map((s, i) => (
+            <Reveal key={s.slug} delay={i * 70}>
+              <div
+                className={
+                  activeSlug && activeSlug !== s.slug
+                    ? "h-full opacity-55 transition-opacity duration-500"
+                    : "h-full opacity-100 transition-opacity duration-500"
+                }
+              >
+                <StreamerCard
+                  streamer={s}
+                  active={activeSlug === s.slug}
+                  onHoverChange={setActiveSlug}
+                />
+              </div>
+            </Reveal>
+          ))}
         </div>
       </section>
 

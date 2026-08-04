@@ -1,18 +1,59 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouterState } from "@tanstack/react-router";
+import { ChevronDown, MessageSquareText } from "lucide-react";
 import Background3D from "@/components/Background3D";
 import AppHeader from "@/components/AppHeader";
 import ChatFeed from "@/components/ChatFeed";
 import { useKickChatContext } from "@/contexts/KickChatContext";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const FULL_BLEED = new Set(["/about", "/contact", "/streamers"]);
+const CHAT_OPEN_KEY = "al-daboor-side-chat-open";
+
+function loadChatOpenPreference() {
+  if (typeof window === "undefined") return true;
+  try {
+    return localStorage.getItem(CHAT_OPEN_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+function saveChatOpenPreference(open: boolean) {
+  try {
+    localStorage.setItem(CHAT_OPEN_KEY, open ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const chat = useKickChatContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const chatActive = chat.status === "live" || chat.status === "demo";
   const fullBleed = FULL_BLEED.has(pathname);
+  const onStreamers = pathname === "/streamers";
+
+  const [chatOpen, setChatOpen] = useState(true);
+
+  // Hydrate preference on mount
+  useEffect(() => {
+    setChatOpen(loadChatOpenPreference());
+  }, []);
+
+  // Always collapse side chat when entering verified streamers.
+  useEffect(() => {
+    if (onStreamers) setChatOpen(false);
+  }, [onStreamers]);
+
+  const toggleChat = () => {
+    setChatOpen((prev) => {
+      const next = !prev;
+      if (!onStreamers) saveChatOpenPreference(next);
+      return next;
+    });
+  };
 
   return (
     <div className="relative min-h-screen">
@@ -39,13 +80,39 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </footer>
 
       {chatActive ? (
-        <div className="animate-pop-in fixed bottom-6 left-6 z-30 hidden w-72 xl:block">
-          <ChatFeed
-            messages={chat.messages}
-            status={chat.status}
-            channel={chat.channel}
-            className="max-h-80"
-          />
+        <div className="fixed bottom-5 left-5 z-30 hidden flex-col items-start gap-2 xl:flex">
+          <Button
+            type="button"
+            size="sm"
+            variant={chatOpen ? "secondary" : "default"}
+            className="h-9 gap-1.5 rounded-xl font-bold shadow-lg"
+            onClick={toggleChat}
+            aria-expanded={chatOpen}
+            aria-controls="side-chat-panel"
+          >
+            {chatOpen ? (
+              <>
+                <ChevronDown className="size-3.5" />
+                إخفاء الشات
+              </>
+            ) : (
+              <>
+                <MessageSquareText className="size-3.5" />
+                إظهار الشات
+              </>
+            )}
+          </Button>
+
+          {chatOpen ? (
+            <div id="side-chat-panel" className="animate-pop-in w-72">
+              <ChatFeed
+                messages={chat.messages}
+                status={chat.status}
+                channel={chat.channel}
+                className="max-h-80"
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

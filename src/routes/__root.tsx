@@ -3,6 +3,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -126,6 +127,8 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isOverlay = pathname === "/quiz/overlay";
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -136,7 +139,7 @@ function RootComponent() {
               <Outlet />
             </AppShell>
           </BootWithGuide>
-          <WelcomeGuide />
+          {!isOverlay ? <WelcomeGuide /> : null}
         </GuideProvider>
       </KickChatProvider>
     </QueryClientProvider>
@@ -145,5 +148,7 @@ function RootComponent() {
 
 function BootWithGuide({ children }: { children: ReactNode }) {
   const { offerGuideAfterBoot } = useGuide();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  if (pathname === "/quiz/overlay") return <>{children}</>;
   return <BootSplash onFinished={offerGuideAfterBoot}>{children}</BootSplash>;
 }

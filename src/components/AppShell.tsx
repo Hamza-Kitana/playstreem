@@ -34,15 +34,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const chatActive = chat.status === "live" || chat.status === "demo";
   const fullBleed = FULL_BLEED.has(pathname);
   const onStreamers = pathname === "/streamers";
+  const isOverlay = pathname === "/quiz/overlay";
 
   const [chatOpen, setChatOpen] = useState(true);
 
-  // Hydrate preference on mount
   useEffect(() => {
     setChatOpen(loadChatOpenPreference());
   }, []);
 
-  // Always collapse side chat when entering verified streamers.
   useEffect(() => {
     if (onStreamers) setChatOpen(false);
   }, [onStreamers]);
@@ -54,6 +53,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
       return next;
     });
   };
+
+  // Popout quiz window: no site chrome — pure game window.
+  if (isOverlay) {
+    return <div className="min-h-screen bg-[#070d0c] text-foreground">{children}</div>;
+  }
 
   return (
     <div className="relative min-h-screen">

@@ -19,6 +19,7 @@ import { Route as RateRouteImport } from './routes/rate'
 import { Route as SeatRouteImport } from './routes/seat'
 import { Route as StreamersRouteImport } from './routes/streamers'
 import { Route as VoteRouteImport } from './routes/vote'
+import { Route as QuizOverlayRouteImport } from './routes/quiz.overlay'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -70,6 +71,11 @@ const VoteRoute = VoteRouteImport.update({
   path: '/vote',
   getParentRoute: () => rootRouteImport,
 } as any)
+const QuizOverlayRoute = QuizOverlayRouteImport.update({
+  id: '/overlay',
+  path: '/overlay',
+  getParentRoute: () => QuizRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -77,11 +83,12 @@ export interface FileRoutesByFullPath {
   '/connect': typeof ConnectRoute
   '/contact': typeof ContactRoute
   '/phrase': typeof PhraseRoute
-  '/quiz': typeof QuizRoute
+  '/quiz': typeof QuizRouteWithChildren
   '/rate': typeof RateRoute
   '/seat': typeof SeatRoute
   '/streamers': typeof StreamersRoute
   '/vote': typeof VoteRoute
+  '/quiz/overlay': typeof QuizOverlayRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -89,11 +96,12 @@ export interface FileRoutesByTo {
   '/connect': typeof ConnectRoute
   '/contact': typeof ContactRoute
   '/phrase': typeof PhraseRoute
-  '/quiz': typeof QuizRoute
+  '/quiz': typeof QuizRouteWithChildren
   '/rate': typeof RateRoute
   '/seat': typeof SeatRoute
   '/streamers': typeof StreamersRoute
   '/vote': typeof VoteRoute
+  '/quiz/overlay': typeof QuizOverlayRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -102,11 +110,12 @@ export interface FileRoutesById {
   '/connect': typeof ConnectRoute
   '/contact': typeof ContactRoute
   '/phrase': typeof PhraseRoute
-  '/quiz': typeof QuizRoute
+  '/quiz': typeof QuizRouteWithChildren
   '/rate': typeof RateRoute
   '/seat': typeof SeatRoute
   '/streamers': typeof StreamersRoute
   '/vote': typeof VoteRoute
+  '/quiz/overlay': typeof QuizOverlayRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -121,6 +130,7 @@ export interface FileRouteTypes {
     | '/seat'
     | '/streamers'
     | '/vote'
+    | '/quiz/overlay'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -133,6 +143,7 @@ export interface FileRouteTypes {
     | '/seat'
     | '/streamers'
     | '/vote'
+    | '/quiz/overlay'
   id:
     | '__root__'
     | '/'
@@ -145,6 +156,7 @@ export interface FileRouteTypes {
     | '/seat'
     | '/streamers'
     | '/vote'
+    | '/quiz/overlay'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -153,7 +165,7 @@ export interface RootRouteChildren {
   ConnectRoute: typeof ConnectRoute
   ContactRoute: typeof ContactRoute
   PhraseRoute: typeof PhraseRoute
-  QuizRoute: typeof QuizRoute
+  QuizRoute: typeof QuizRouteWithChildren
   RateRoute: typeof RateRoute
   SeatRoute: typeof SeatRoute
   StreamersRoute: typeof StreamersRoute
@@ -232,8 +244,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VoteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/quiz/overlay': {
+      id: '/quiz/overlay'
+      path: '/overlay'
+      fullPath: '/quiz/overlay'
+      preLoaderRoute: typeof QuizOverlayRouteImport
+      parentRoute: typeof QuizRoute
+    }
   }
 }
+
+interface QuizRouteChildren {
+  QuizOverlayRoute: typeof QuizOverlayRoute
+}
+
+const QuizRouteChildren: QuizRouteChildren = {
+  QuizOverlayRoute: QuizOverlayRoute,
+}
+
+const QuizRouteWithChildren = QuizRoute._addFileChildren(QuizRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -241,7 +270,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConnectRoute: ConnectRoute,
   ContactRoute: ContactRoute,
   PhraseRoute: PhraseRoute,
-  QuizRoute: QuizRoute,
+  QuizRoute: QuizRouteWithChildren,
   RateRoute: RateRoute,
   SeatRoute: SeatRoute,
   StreamersRoute: StreamersRoute,
@@ -250,13 +279,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

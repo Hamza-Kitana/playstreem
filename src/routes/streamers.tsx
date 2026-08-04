@@ -49,6 +49,13 @@ const VERIFIED: VerifiedStreamer[] = [
     hue: 160,
     note: "موثّق لدى Al-Daboor — شارة LIVE تظهر لما يكون البث شغّال.",
   },
+  {
+    name: "xrreo",
+    slug: "xrreo",
+    tag: "ستريمر موثّق",
+    hue: 175,
+    note: "موثّق لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
+  },
 ];
 
 const GUTTER = "px-4 sm:px-8 lg:px-12 xl:px-16";

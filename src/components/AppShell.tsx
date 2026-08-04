@@ -65,8 +65,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
       <AppHeader />
       <main
         className={cn(
-          "pt-28 pb-24 sm:pt-32",
-          fullBleed ? "w-full max-w-none px-0" : "mx-auto max-w-6xl px-4 sm:px-6",
+          fullBleed ? "w-full max-w-none px-0 pb-16" : "mx-auto max-w-6xl px-4 pb-24 sm:px-6",
+          onStreamers ? "pt-24" : "pt-28 sm:pt-32",
         )}
       >
         {children}

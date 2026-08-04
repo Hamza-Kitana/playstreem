@@ -33,10 +33,14 @@ function answersMatch(guess: string, answerKey: string) {
 export default function QuizOverlayStage({
   messages,
   chatActive,
+  variant = "page",
 }: {
   messages: ChatMessage[];
   chatActive: boolean;
+  /** page = full popout route; modal = dialog over the quiz page */
+  variant?: "page" | "modal";
 }) {
+  const isModal = variant === "modal";
   const initial = loadQuizPack();
   const [list, setList] = useState<QuizQuestion[]>(initial.questions);
   const [index, setIndex] = useState(initial.index);
@@ -141,9 +145,16 @@ export default function QuizOverlayStage({
     : formatClock(durationSec > 0 ? durationSec : 0);
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#070d0c] text-foreground">
-      {/* Real window fills the popup */}
-      <div className="flex min-h-screen flex-1 flex-col border border-white/10 bg-gradient-to-b from-[#121c1a] to-[#0a1210]">
+    <div
+      className={`flex flex-col bg-[#070d0c] text-foreground ${
+        isModal ? "max-h-[92vh]" : "min-h-screen"
+      }`}
+    >
+      <div
+        className={`flex flex-1 flex-col border border-white/10 bg-gradient-to-b from-[#121c1a] to-[#0a1210] ${
+          isModal ? "max-h-[92vh] overflow-y-auto rounded-3xl" : "min-h-screen"
+        }`}
+      >
         <header className="flex items-center gap-3 border-b border-white/10 bg-black/40 px-4 py-3">
           <div className="flex gap-1.5" aria-hidden>
             <span className="size-2.5 rounded-full bg-[#ff5f57]" />
@@ -199,7 +210,7 @@ export default function QuizOverlayStage({
 
         {!chatActive ? (
           <p className="bg-destructive/15 px-3 py-2 text-center text-xs font-bold text-destructive">
-            اربط القناة من الصفحة الرئيسية أولاً، بعدين افتح هالنافذة.
+            اربط كيك أو شغّل التجريبي عشان الشات يشتغل داخل النافذة.
           </p>
         ) : null}
 
@@ -210,7 +221,9 @@ export default function QuizOverlayStage({
         >
           <p className="text-[10px] font-bold tracking-[0.3em] text-muted-foreground uppercase">العداد</p>
           <p
-            className={`mt-1 font-brand text-6xl font-bold tabular-nums ${
+            className={`mt-1 font-brand font-bold tabular-nums ${
+              isModal ? "text-5xl" : "text-6xl"
+            } ${
               session.running ? (urgent ? "text-destructive" : "shimmer-text") : "text-foreground/75"
             }`}
           >
@@ -223,12 +236,20 @@ export default function QuizOverlayStage({
           </p>
         </div>
 
-        <div className="relative flex flex-1 flex-col justify-center px-5 py-10 text-center">
+        <div
+          className={`relative flex flex-1 flex-col justify-center px-5 text-center ${
+            isModal ? "py-8" : "py-10"
+          }`}
+        >
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_50%_at_50%_20%,color-mix(in_oklab,var(--neon)_14%,transparent),transparent_70%)]" />
           <p className="relative text-[11px] font-extrabold tracking-[0.28em] text-primary">
             سؤال {list.length ? index + 1 : 0} / {list.length}
           </p>
-          <h1 className="relative mt-5 text-balance text-3xl font-extrabold leading-snug sm:text-4xl">
+          <h1
+            className={`relative mt-5 text-balance font-extrabold leading-snug ${
+              isModal ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"
+            }`}
+          >
             {current?.q ?? "لا يوجد سؤال"}
           </h1>
           <p className="relative mt-5 text-sm text-muted-foreground">الجمهور يكتب الجواب في الشات</p>

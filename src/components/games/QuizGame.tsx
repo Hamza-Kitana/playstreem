@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useState } from "react";
 import { AppWindow, Plus, Trash2 } from "lucide-react";
 import type { ChatMessage } from "@/hooks/useKickChat";
 import { DURATION_OPTIONS } from "@/hooks/useGameSession";
@@ -15,15 +15,14 @@ import {
 } from "@/components/ui/dialog";
 import {
   DEFAULT_QUIZ_QUESTIONS,
-  QUIZ_OVERLAY_PATH,
   loadQuizPack,
-  openQuizPopout,
   saveQuizPack,
   type QuizQuestion,
 } from "@/lib/quiz-pack";
-import { cn } from "@/lib/utils";
+import QuizOverlayStage from "@/components/games/QuizOverlayStage";
 
 export default function QuizGame({
+  messages,
   chatActive,
 }: {
   messages: ChatMessage[];
@@ -35,7 +34,7 @@ export default function QuizGame({
   const [draftQ, setDraftQ] = useState("");
   const [draftA, setDraftA] = useState("");
   const [addOpen, setAddOpen] = useState(false);
-  const [openedAsTab, setOpenedAsTab] = useState(false);
+  const [streamOpen, setStreamOpen] = useState(false);
 
   useEffect(() => {
     saveQuizPack({ questions: list, durationSec, index: loadQuizPack().index });
@@ -52,18 +51,9 @@ export default function QuizGame({
     setList((l) => l.filter((_, k) => k !== i));
   };
 
-  /** Prefer sized popout; if blocked, let the <a target="_blank"> open a tab instead. */
-  const onOpenStreamWindow = (e: MouseEvent<HTMLAnchorElement>) => {
+  const openStreamWindow = () => {
     saveQuizPack({ questions: list, durationSec, index: 0 });
-    const win = openQuizPopout();
-    if (win) {
-      e.preventDefault();
-      win.focus();
-      setOpenedAsTab(false);
-      return;
-    }
-    // Fallback: default <a> opens /quiz/overlay in a new tab (browsers rarely block this).
-    setOpenedAsTab(true);
+    setStreamOpen(true);
   };
 
   return (
@@ -72,10 +62,10 @@ export default function QuizGame({
         <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-primary/15 text-primary shadow-[0_0_40px_-8px_var(--neon)]">
           <AppWindow className="size-7" />
         </div>
-        <h3 className="mt-4 text-2xl font-extrabold">نافذة الأسئلة الخارجية</h3>
+        <h3 className="mt-4 text-2xl font-extrabold">نافذة الأسئلة</h3>
         <p className="mx-auto mt-2 max-w-md text-sm leading-7 text-muted-foreground">
-          الأسئلة ما بتصير داخل هالصفحة. جهّز القائمة هنا، بعدين افتح{" "}
-          <span className="font-bold text-foreground">نافذة متصفح منفصلة</span> للبث (تقدر تسحبها جنب OBS).
+          جهّز الأسئلة هنا، بعدين افتح{" "}
+          <span className="font-bold text-foreground">نافذة فوق الصفحة</span> للبث — مش تاب ولا داخل المحتوى.
         </p>
 
         <div className="mx-auto mt-6 max-w-sm space-y-3 text-right">
@@ -158,19 +148,13 @@ export default function QuizGame({
             </DialogContent>
           </Dialog>
 
-          <a
-            href={QUIZ_OVERLAY_PATH}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={onOpenStreamWindow}
-            aria-disabled={list.length < 1}
-            className={cn(
-              "inline-flex h-12 items-center justify-center gap-2 rounded-md bg-primary px-8 text-sm font-extrabold text-primary-foreground shadow-[0_0_40px_-10px_var(--neon)] transition-colors hover:bg-primary/90",
-              list.length < 1 && "pointer-events-none opacity-50",
-            )}
+          <Button
+            className="h-12 px-8 font-extrabold shadow-[0_0_40px_-10px_var(--neon)]"
+            onClick={openStreamWindow}
+            disabled={list.length < 1}
           >
             <AppWindow className="size-4" /> فتح نافذة البث
-          </a>
+          </Button>
         </div>
 
         {!chatActive ? (
@@ -179,16 +163,23 @@ export default function QuizGame({
           </p>
         ) : (
           <p className="mt-4 text-xs text-muted-foreground">
-            الربط موجود — النافذة الخارجية تسترجع نفس القناة تلقائياً.
+            الربط موجود — النافذة بتقرأ الشات مباشرة.
           </p>
         )}
-
-        {openedAsTab ? (
-          <p className="mt-3 text-xs text-muted-foreground">
-            انفتح تاب جديد (المتصفح منع النافذة المنبثقة). اسحب التاب برا لتصير نافذة جنب OBS.
-          </p>
-        ) : null}
       </div>
+
+      <Dialog open={streamOpen} onOpenChange={setStreamOpen}>
+        <DialogContent
+          className="max-h-[92vh] w-[min(100vw-1.5rem,32rem)] max-w-none gap-0 overflow-hidden border-primary/25 bg-[#070d0c] p-0 shadow-[0_0_80px_-20px_var(--neon)] sm:rounded-3xl"
+          dir="rtl"
+          aria-describedby={undefined}
+        >
+          <DialogTitle className="sr-only">نافذة بث الأسئلة</DialogTitle>
+          {streamOpen ? (
+            <QuizOverlayStage messages={messages} chatActive={chatActive} variant="modal" />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

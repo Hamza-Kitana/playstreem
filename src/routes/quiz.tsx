@@ -20,7 +20,7 @@ function QuizPage() {
       <SectionHeading
         eyebrow="اللعبة الأولى"
         title="أسئلة وأجوبة"
-        subtitle="جهّز الأسئلة هنا، والبث نفسه يطلع بنافذة متصفح خارجية منفصلة — مو داخل الصفحة."
+        subtitle="جهّز الأسئلة هنا، والبث ينفتح بنافذة فوق الصفحة — زي نافذة إضافة الأسئلة."
       />
       {!chatActive ? (
         <div className="glass mb-6 rounded-2xl p-4 text-center text-sm text-muted-foreground">

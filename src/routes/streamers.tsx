@@ -55,13 +55,15 @@ const HIGHLIGHTS = [
   { icon: Shield, label: "أولوية دعم أثناء اللّايف" },
 ];
 
+const GUTTER = "px-4 sm:px-8 lg:px-12 xl:px-16";
+
 function StreamersPage() {
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
 
   return (
-    <div className="space-y-24 pb-8">
-      {/* Hero */}
-      <section className="relative overflow-hidden rounded-[2rem] border border-primary/20 px-5 py-14 sm:px-10 sm:py-16">
+    <div className="w-full space-y-20 pb-8 sm:space-y-24">
+      {/* Full-bleed hero */}
+      <section className="relative w-full overflow-hidden border-y border-primary/20 py-16 sm:py-20">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -72,7 +74,7 @@ function StreamersPage() {
         <div className="pointer-events-none absolute -top-20 -left-10 size-64 rounded-full bg-primary/15 blur-3xl" />
         <div className="pointer-events-none absolute right-0 bottom-0 size-72 rounded-full bg-[color-mix(in_oklab,var(--neon-2)_18%,transparent)] blur-3xl" />
 
-        <div className="relative mx-auto max-w-3xl text-center">
+        <div className={`relative mx-auto max-w-4xl text-center ${GUTTER}`}>
           <p className="font-brand text-sm font-semibold tracking-[0.35em] text-primary uppercase">
             Al-Daboor Verified
           </p>
@@ -106,21 +108,21 @@ function StreamersPage() {
         </div>
       </section>
 
-      {/* Gallery */}
-      <section>
-        <Reveal className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      {/* Gallery — edge to edge */}
+      <section className={`w-full ${GUTTER}`}>
+        <Reveal className="mb-8 flex w-full flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-bold tracking-[0.2em] text-primary uppercase">المعرض</p>
             <h2 className="mt-2 text-3xl font-extrabold sm:text-4xl">وجوه المنصة</h2>
           </div>
-          <p className="max-w-sm text-sm leading-7 text-muted-foreground">
+          <p className="max-w-md text-sm leading-7 text-muted-foreground">
             كرت واحد يشتغل في كل مرة عشان الأداء يبقى نظيف. اضغط أو مرّر للمعاينة، وبعدين اربط بثّك أو زور القناة.
           </p>
         </Reveal>
 
-        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-2">
+        <div className="grid w-full gap-5 sm:grid-cols-2 xl:grid-cols-4 xl:gap-6">
           {VERIFIED.map((s, i) => (
-            <Reveal key={s.slug} delay={i * 70}>
+            <Reveal key={s.slug} delay={i * 70} className="h-full">
               <div
                 className={
                   activeSlug && activeSlug !== s.slug
@@ -139,17 +141,17 @@ function StreamersPage() {
         </div>
       </section>
 
-      {/* Apply CTA — one job */}
-      <Reveal>
-        <section className="relative overflow-hidden rounded-[2rem] border border-primary/25 px-6 py-12 text-center sm:px-12">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_80%_at_50%_0%,color-mix(in_oklab,var(--neon)_16%,transparent),transparent_60%)]" />
-          <Sparkles className="relative mx-auto size-8 text-primary" />
-          <h2 className="relative mt-4 text-3xl font-extrabold sm:text-4xl">تبي تكون موثّق؟</h2>
-          <p className="relative mx-auto mt-3 max-w-lg text-sm leading-7 text-muted-foreground sm:text-base">
+      {/* CTA full bleed */}
+      <section className="relative w-full overflow-hidden border-y border-primary/25 py-14 text-center sm:py-16">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_80%_at_50%_0%,color-mix(in_oklab,var(--neon)_16%,transparent),transparent_60%)]" />
+        <div className={`relative ${GUTTER}`}>
+          <Sparkles className="mx-auto size-8 text-primary" />
+          <h2 className="mt-4 text-3xl font-extrabold sm:text-4xl">تبي تكون موثّق؟</h2>
+          <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-muted-foreground sm:text-base">
             أرسل رابط قناتك من صفحة التواصل واختر نوع الطلب «طلب توثيق ستريمر». ما نطلب آلاف المتابعين —
             نطلب استخدام حقيقي ومحتوى مناسب.
           </p>
-          <div className="relative mt-8 flex flex-wrap justify-center gap-3">
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button asChild className="h-12 gap-2 px-7 font-extrabold">
               <Link to="/contact">
                 قدّم الآن
@@ -160,8 +162,8 @@ function StreamersPage() {
               <Link to="/about">اعرف أكثر عن Al-Daboor</Link>
             </Button>
           </div>
-        </section>
-      </Reveal>
+        </div>
+      </section>
     </div>
   );
 }

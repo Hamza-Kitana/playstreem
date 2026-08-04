@@ -85,21 +85,15 @@ export default function QuizGame({
     session.start();
   };
 
-  /** Advance to next question — works even while the round is live. */
+  /** Advance to next question — keeps the same timer if the round is live. */
   const next = () => {
     if (list.length < 1) return;
-    const nextIndex = (index + 1) % list.length;
-    prepareQuestion(nextIndex);
-    // Keep an active round going for the new question (fresh answers).
-    if (session.running) {
-      session.start();
-    }
+    prepareQuestion((index + 1) % list.length);
   };
 
   const selectQuestion = (i: number) => {
     if (i === index && !winner) return;
     prepareQuestion(i);
-    if (session.running) session.start();
   };
 
   const addQuestion = () => {
@@ -140,7 +134,7 @@ export default function QuizGame({
           canStart={Boolean(current)}
           startLabel="بدء الجولة"
           stopLabel="إيقاف الجولة"
-          hint="كل مشاهد يجاوب مرة واحدة فقط بالسؤال. أول إجابة صحيحة تفوز. تقدر تنتقل للسؤال التالي أثناء الجولة."
+          hint="كل مشاهد يجاوب مرة واحدة فقط بالسؤال. أول إجابة صحيحة تفوز. السؤال التالي يبدّل السؤال بدون ما يصفر الوقت."
           onDurationChange={session.setDurationSec}
           onStart={start}
           onStop={() => session.stop()}
@@ -155,7 +149,7 @@ export default function QuizGame({
             {current?.q ?? "أضف سؤالاً للبدء"}
           </h3>
           <p className="relative mt-2 text-sm text-muted-foreground">
-            الجواب: {session.running ? "مخفي أثناء الجولة" : (current?.a ?? "—")}
+            الجواب مخفي عن الشاشة — يظهر للمشاهدين فقط من إجابات الشات.
           </p>
 
           {session.running ? (

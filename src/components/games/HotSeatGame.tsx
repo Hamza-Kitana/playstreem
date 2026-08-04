@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Armchair, Crown, Play, RotateCcw, Users } from "lucide-react";
 import type { ChatMessage } from "@/hooks/useKickChat";
-import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
+import { useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +37,11 @@ function extractNumber(text: string): number | null {
   const n = Number(m[1]);
   if (!Number.isFinite(n) || n < 1 || n > 100) return null;
   return n;
+}
+
+function pickClaimSeconds() {
+  // Inclusive 2–12s, different each round — players can't predict the cutoff.
+  return 2 + Math.floor(Math.random() * 11);
 }
 
 function pickUniqueChairNumbers(count: number): number[] {
@@ -224,7 +229,7 @@ export default function HotSeatGame({
         const nums = pickUniqueChairNumbers(chairsRef.current.length);
         setChairs((prev) => prev.map((c, i) => ({ ...c, number: nums[i] ?? null, seated: null })));
         setPhase("claiming");
-        session.start();
+        session.start(pickClaimSeconds());
       }
     };
     raf = requestAnimationFrame(tick);
@@ -264,25 +269,10 @@ export default function HotSeatGame({
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <div className="glass rounded-3xl border border-primary/20 p-4 sm:p-5">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[9rem] flex-1">
-            <label className="mb-1.5 block text-xs font-bold text-muted-foreground">
-              مدة المطالبة بالكرسي
-            </label>
-            <select
-              value={session.durationSec}
-              disabled={phase === "spinning" || phase === "claiming"}
-              onChange={(e) => session.setDurationSec(Number(e.target.value))}
-              className="border-input bg-background h-11 w-full rounded-md border px-3 text-sm font-bold"
-            >
-              {DURATION_OPTIONS.filter((o) => o.value > 0).map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-bold text-muted-foreground">
+            المطالبة عشوائية بين ٢ و ١٢ ثانية — العداد مخفي عشان التوتر.
+          </p>
           {phase === "lobby" ? (
             <Button
               className="h-11 px-6 font-extrabold"
@@ -307,18 +297,14 @@ export default function HotSeatGame({
                 {" "}
                 · جولة <span className="text-foreground">{round}</span>
                 {" "}
-                · كراسي <span className="text-foreground">{chairsTotal || Math.max(players.length - 1, 0)}</span>
+                · كراسي{" "}
+                <span className="text-foreground">{chairsTotal || Math.max(players.length - 1, 0)}</span>
               </>
             ) : null}
           </span>
-          {phase === "claiming" && session.left != null ? (
-            <span
-              className={cn(
-                "tabular-nums",
-                session.left <= 10 ? "text-destructive" : "text-primary",
-              )}
-            >
-              الوقت {formatClock(session.left)} · محجوز {chairsTaken}/{chairsTotal}
+          {phase === "claiming" ? (
+            <span className="text-primary">
+              سارعوا! محجوز {chairsTaken}/{chairsTotal}
             </span>
           ) : (
             <span className="text-muted-foreground">{statusLine}</span>

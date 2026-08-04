@@ -35,11 +35,16 @@ export function useGameSession(defaultDuration = 60) {
     setLeft(null);
   }, []);
 
-  const start = useCallback(() => {
-    clearParticipants();
-    setRunning(true);
-    setLeft(durationSec > 0 ? durationSec : null);
-  }, [clearParticipants, durationSec]);
+  const start = useCallback(
+    (overrideDuration?: number) => {
+      clearParticipants();
+      const d = overrideDuration ?? durationSec;
+      if (overrideDuration != null) setDurationSec(overrideDuration);
+      setRunning(true);
+      setLeft(d > 0 ? d : null);
+    },
+    [clearParticipants, durationSec],
+  );
 
   /** Returns true only the first time this user acts in the current session. */
   const tryClaim = useCallback((user: string) => {

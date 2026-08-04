@@ -50,11 +50,11 @@ const VERIFIED: VerifiedStreamer[] = [
     note: "موثّق لدى Al-Daboor — شارة LIVE تظهر لما يكون البث شغّال.",
   },
   {
-    name: "xrreo",
-    slug: "xrreo",
+    name: "rahma_gamin_g",
+    slug: "rahma_gamin_g",
     tag: "ستريمر موثّق",
-    hue: 175,
-    note: "موثّق لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
+    hue: 148,
+    note: "موثّقة لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
   },
 ];
 

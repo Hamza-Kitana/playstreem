@@ -222,7 +222,7 @@ export default function QuizOverlayStage({
           <p className="text-[10px] font-bold tracking-[0.3em] text-muted-foreground uppercase">العداد</p>
           <p
             className={`mt-1 font-brand font-bold tabular-nums ${
-              isModal ? "text-5xl" : "text-6xl"
+              isModal ? "text-6xl sm:text-7xl" : "text-6xl"
             } ${
               session.running ? (urgent ? "text-destructive" : "shimmer-text") : "text-foreground/75"
             }`}
@@ -245,11 +245,7 @@ export default function QuizOverlayStage({
           <p className="relative text-[11px] font-extrabold tracking-[0.28em] text-primary">
             سؤال {list.length ? index + 1 : 0} / {list.length}
           </p>
-          <h1
-            className={`relative mt-5 text-balance font-extrabold leading-snug ${
-              isModal ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl"
-            }`}
-          >
+          <h1 className="relative mt-5 text-balance text-3xl font-extrabold leading-snug sm:text-4xl">
             {current?.q ?? "لا يوجد سؤال"}
           </h1>
           <p className="relative mt-5 text-sm text-muted-foreground">الجمهور يكتب الجواب في الشات</p>

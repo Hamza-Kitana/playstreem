@@ -170,7 +170,7 @@ export default function QuizGame({
 
       <Dialog open={streamOpen} onOpenChange={setStreamOpen}>
         <DialogContent
-          className="max-h-[92vh] w-[min(100vw-1.5rem,32rem)] max-w-none gap-0 overflow-hidden border-primary/25 bg-[#070d0c] p-0 shadow-[0_0_80px_-20px_var(--neon)] sm:rounded-3xl"
+          className="max-h-[94vh] w-[min(100vw-1.5rem,56rem)] max-w-none gap-0 overflow-hidden border-primary/25 bg-[#070d0c] p-0 shadow-[0_0_80px_-20px_var(--neon)] sm:rounded-3xl"
           dir="rtl"
           aria-describedby={undefined}
         >

@@ -63,6 +63,13 @@ const VERIFIED: VerifiedStreamer[] = [
     hue: 172,
     note: "موثّق لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
   },
+  {
+    name: "rivo_gaming",
+    slug: "rivo_gaming",
+    tag: "ستريمر موثّق",
+    hue: 158,
+    note: "موثّق لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
+  },
 ];
 
 const GUTTER = "px-4 sm:px-8 lg:px-12 xl:px-16";

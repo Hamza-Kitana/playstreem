@@ -28,15 +28,21 @@ export function useNewMessages(
   }, [messages, active]);
 }
 
-/** Converts Arabic-Indic digits to latin and strips tatweel/diacritics. */
+/** Converts Arabic-Indic digits to latin and strips tatweel/all diacritics (harakat). */
 export function normalizeAr(input: string) {
   return input
+    .normalize("NFKC")
     .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
     .replace(/[\u06f0-\u06f9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
-    .replace(/[\u0640\u064b-\u0652]/g, "")
-    .replace(/[إأآا]/g, "ا")
+    // Tatweel + every Arabic haraka / tashkeel (fatha, damma, kasra, shadda, sukun, tanween…)
+    // plus any other Unicode combining marks that chat may insert.
+    .replace(/[\u0640\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u08D3-\u08FF]/g, "")
+    .replace(/\p{M}/gu, "")
+    .replace(/[إأآٱا]/g, "ا")
     .replace(/ى/g, "ي")
     .replace(/ة/g, "ه")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
     .replace(/[^\p{L}\p{N} ]/gu, " ")
     .replace(/\s+/g, " ")
     .trim()

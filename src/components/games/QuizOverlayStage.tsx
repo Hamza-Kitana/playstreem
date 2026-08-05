@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Crown, Play, RotateCcw, Square, Trophy } from "lucide-react";
 import type { ChatMessage } from "@/hooks/useKickChat";
-import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
+import { formatClock, useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
 import { Button } from "@/components/ui/button";
 import {
@@ -199,37 +199,37 @@ export default function QuizOverlayStage({
           </span>
         </header>
 
-        <div className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-black/25 px-3 py-2">
-          <select
-            value={durationSec}
-            disabled={session.running || finished}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              setDurationSec(v);
-              const pack = loadQuizPack();
-              saveQuizPack({ ...pack, durationSec: v, questions: list, index });
-            }}
-            className="h-9 flex-1 rounded-lg border border-white/10 bg-black/40 px-2 text-xs font-bold"
-          >
-            {DURATION_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+        <div className="border-b border-white/10 bg-black/25 px-4 py-3">
           {finished ? (
-            <Button size="sm" className="h-9 font-extrabold" onClick={() => setFinalOpen(true)}>
-              <Trophy className="size-3.5" /> النتيجة
+            <Button
+              className="h-14 w-full text-base font-extrabold shadow-[0_0_36px_-10px_var(--neon)]"
+              onClick={() => setFinalOpen(true)}
+            >
+              <Trophy className="size-5" /> عرض النتيجة النهائية
             </Button>
           ) : session.running ? (
-            <Button size="sm" variant="destructive" className="h-9 font-extrabold" onClick={() => session.stop()}>
-              <Square className="size-3.5" /> إيقاف
+            <Button
+              variant="destructive"
+              className="h-14 w-full text-base font-extrabold"
+              onClick={() => session.stop()}
+            >
+              <Square className="size-5" /> إيقاف الجولة
             </Button>
           ) : (
-            <Button size="sm" className="h-9 font-extrabold" disabled={!chatActive || !current} onClick={start}>
-              <Play className="size-3.5" /> بدء
+            <Button
+              className="h-14 w-full text-lg font-extrabold shadow-[0_0_48px_-8px_var(--neon)]"
+              disabled={!chatActive || !current}
+              onClick={start}
+            >
+              <Play className="size-6 fill-current" /> بدء
             </Button>
           )}
+          <p className="mt-2 text-center text-[11px] text-muted-foreground">
+            المدة تتحدد من برّا النافذة · حالياً{" "}
+            <span className="font-bold text-foreground">
+              {durationSec > 0 ? formatClock(durationSec) : "بدون حد"}
+            </span>
+          </p>
         </div>
 
         {!chatActive ? (

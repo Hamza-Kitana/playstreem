@@ -102,7 +102,7 @@ export default function QuizGame({
             </select>
           </label>
           <label className="block space-y-1.5">
-            <span className="text-xs font-bold text-muted-foreground">مدة كل سؤال</span>
+            <span className="text-xs font-bold text-muted-foreground">مدة كل سؤال (من برّا النافذة)</span>
             <select
               value={durationSec}
               onChange={(e) => setDurationSec(Number(e.target.value))}

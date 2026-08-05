@@ -58,8 +58,6 @@ export default function FlagGame({
   const hasNext = index < deck.length - 1;
   const urgent = session.left != null && session.left <= 10;
 
-  const urgent = session.left != null && session.left <= 10;
-
   useEffect(() => {
     setImgOk(true);
   }, [current?.code]);

@@ -53,6 +53,15 @@ function pickUniqueChairNumbers(count: number): number[] {
   return pool.slice(0, count);
 }
 
+function shufflePlayers(items: Player[]): Player[] {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j]!, arr[i]!];
+  }
+  return arr;
+}
+
 function polar(percentRadius: number, angleDeg: number) {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
   return {
@@ -100,25 +109,58 @@ export default function HotSeatGame({
     finishingRef.current = true;
     session.stop();
 
-    const currentChairs = chairsRef.current;
     const currentPlayers = playersRef.current;
-    let survivors = currentChairs.filter((c) => c.seated).map((c) => c.seated!);
-
-    // Edge: nobody sat — knock out one random player, rest advance
-    if (survivors.length === 0 && currentPlayers.length > 1) {
-      const knock = currentPlayers[Math.floor(Math.random() * currentPlayers.length)]!;
-      survivors = currentPlayers.filter((p) => p.name !== knock.name);
-      setEliminatedFlash([knock.name]);
-    } else {
-      const survivorKeys = new Set(survivors.map((s) => s.name.toLowerCase()));
-      setEliminatedFlash(
-        currentPlayers.filter((p) => !survivorKeys.has(p.name.toLowerCase())).map((p) => p.name),
-      );
+    if (currentPlayers.length < 2) {
+      const champ = currentPlayers[0] ?? null;
+      setPlayers(champ ? [champ] : []);
+      setChairs([]);
+      setPhase("winner");
+      setWinner(champ);
+      setWinnerOpen(Boolean(champ));
+      return;
     }
 
+    // Snapshot chairs, then fill any empty seats randomly from people who didn't claim.
+    // Always exactly ONE player is left without a chair (players = chairs + 1).
+    let nextChairs = chairsRef.current.map((c) => ({ ...c }));
+    const seatedKeys = new Set(
+      nextChairs.filter((c) => c.seated).map((c) => c.seated!.name.toLowerCase()),
+    );
+    const waiting = shufflePlayers(
+      currentPlayers.filter((p) => !seatedKeys.has(p.name.toLowerCase())),
+    );
+
+    for (const chair of nextChairs) {
+      if (chair.seated) continue;
+      const next = waiting.shift();
+      if (!next) break;
+      chair.seated = next;
+      seatedKeys.add(next.name.toLowerCase());
+    }
+
+    setChairs(nextChairs);
+    chairsRef.current = nextChairs;
+
+    const leftover = currentPlayers.filter((p) => !seatedKeys.has(p.name.toLowerCase()));
+    // Safety: if somehow 0 leftover (bug), knock one random seated player... shouldn't happen
+    // If somehow >1 leftover, knock only ONE — others survive (user rule: one out per round)
+    let eliminated: Player;
+    if (leftover.length === 1) {
+      eliminated = leftover[0]!;
+    } else if (leftover.length > 1) {
+      eliminated = leftover[Math.floor(Math.random() * leftover.length)]!;
+    } else {
+      eliminated = currentPlayers[Math.floor(Math.random() * currentPlayers.length)]!;
+    }
+
+    const survivors = currentPlayers.filter(
+      (p) => p.name.toLowerCase() !== eliminated.name.toLowerCase(),
+    );
+    setEliminatedFlash([eliminated.name]);
+
     if (survivors.length <= 1) {
-      const champ = survivors[0] ?? currentPlayers[0] ?? null;
-      setPlayers(survivors.length ? survivors : champ ? [champ] : []);
+      const champ = survivors[0] ?? null;
+      setPlayers(champ ? [champ] : []);
       setChairs([]);
       setPhase("winner");
       setWinner(champ);
@@ -452,8 +494,8 @@ export default function HotSeatGame({
         ) : null}
 
         <p className="relative mt-4 text-center text-[11px] leading-6 text-muted-foreground sm:text-xs">
-          {players.length} لاعب ← {Math.max(players.length - 1, 0)} كرسي. بعد اللف تظهر أرقام عشوائية من ١–١٠٠،
-          وأول من يكتب الرقم في الشات ياخذ الكرسي. الباقي يطلع، والجولة اللي بعدها أقل كراسي.
+          {players.length} لاعب ← {Math.max(players.length - 1, 0)} كرسي. كل جولة يطلع شخص واحد فقط.
+          لو خلص الوقت والكراسي لسة فاضية، بتنحجز عشوائي على الباقيين، واللي يضل بدون كرسي يطلع.
         </p>
       </div>
 

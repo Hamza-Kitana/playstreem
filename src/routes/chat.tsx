@@ -19,11 +19,12 @@ function ChatPage() {
   const chat = useKickChatContext();
   const live = chat.status === "live";
   const boxRef = useRef<HTMLDivElement | null>(null);
-  const latest = chat.messages.slice(-120);
+  // Newest comments first (top of the feed).
+  const latest = [...chat.messages].slice(-120).reverse();
 
   useEffect(() => {
     const el = boxRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el) el.scrollTop = 0;
   }, [chat.messages]);
 
   return (
@@ -38,7 +39,7 @@ function ChatPage() {
             <span className="shimmer-text">الشات مباشر</span>
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            بعرض كامل من اليمين لليسار — التعليقات تنزل أولاً بأول.
+            بعرض كامل — التعليق الجديد يطلع فوق.
           </p>
         </div>
 

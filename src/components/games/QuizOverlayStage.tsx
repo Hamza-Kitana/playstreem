@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Crown, RotateCcw, Trophy } from "lucide-react";
+import { Crown, Play, RotateCcw, Square, Trophy } from "lucide-react";
 import type { ChatMessage } from "@/hooks/useKickChat";
-import { formatClock, useGameSession } from "@/hooks/useGameSession";
+import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,13 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  loadQuizPack,
-  saveQuizPack,
-  type QuizQuestion,
-} from "@/lib/quiz-pack";
-import { DURATION_OPTIONS } from "@/hooks/useGameSession";
-import { Play, Square } from "lucide-react";
+import { loadQuizPack, saveQuizPack, type QuizQuestion } from "@/lib/quiz-pack";
+import { cn } from "@/lib/utils";
 
 type Winner = { user: string; answer: string; color: string };
 
@@ -37,34 +32,35 @@ export default function QuizOverlayStage({
 }: {
   messages: ChatMessage[];
   chatActive: boolean;
-  /** page = full popout route; modal = dialog over the quiz page */
   variant?: "page" | "modal";
 }) {
   const isModal = variant === "modal";
   const initial = loadQuizPack();
   const [list, setList] = useState<QuizQuestion[]>(initial.questions);
-  const [index, setIndex] = useState(initial.index);
+  const [index, setIndex] = useState(Math.min(initial.index, Math.max(initial.questions.length - 1, 0)));
   const [durationSec, setDurationSec] = useState(initial.durationSec);
   const [winner, setWinner] = useState<Winner | null>(null);
   const [winnerOpen, setWinnerOpen] = useState(false);
   const [scores, setScores] = useState<Record<string, number>>({});
+  const [scoreColors, setScoreColors] = useState<Record<string, string>>({});
   const [attempts, setAttempts] = useState(0);
+  const [finished, setFinished] = useState(false);
+  const [finalOpen, setFinalOpen] = useState(false);
   const session = useGameSession(initial.durationSec);
   const settled = useRef(false);
 
-  // Keep session duration select in sync
   useEffect(() => {
     session.setDurationSec(durationSec);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync only when pack duration changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [durationSec]);
 
-  // Reload pack if parent page updates questions
   useEffect(() => {
     const sync = () => {
       const pack = loadQuizPack();
       setList(pack.questions);
       setDurationSec(pack.durationSec);
       setIndex((i) => Math.min(i, Math.max(pack.questions.length - 1, 0)));
+      setFinished(false);
     };
     window.addEventListener("storage", sync);
     window.addEventListener("al-daboor-quiz-pack", sync);
@@ -74,8 +70,9 @@ export default function QuizOverlayStage({
     };
   }, []);
 
-  const current = list[index];
-  const upcoming = list.length > 1 ? list[(index + 1) % list.length] : null;
+  const current = finished ? undefined : list[index];
+  const hasNext = index < list.length - 1;
+  const upcoming = hasNext ? list[index + 1] : null;
   const answerKey = useMemo(() => normalizeAr(current?.a ?? ""), [current]);
   const urgent = session.left != null && session.left <= 10;
 
@@ -83,7 +80,7 @@ export default function QuizOverlayStage({
     if (session.running) settled.current = false;
   }, [session.running]);
 
-  useNewMessages(messages, session.running, (m) => {
+  useNewMessages(messages, session.running && !finished, (m) => {
     if (!answerKey || settled.current) return;
     if (session.hasParticipated(m.user)) return;
     const text = normalizeAr(m.text);
@@ -95,6 +92,7 @@ export default function QuizOverlayStage({
     setWinner({ user: m.user, answer: m.text, color: m.color });
     setWinnerOpen(true);
     setScores((s) => ({ ...s, [m.user]: (s[m.user] ?? 0) + 1 }));
+    setScoreColors((c) => ({ ...c, [m.user]: m.color }));
     session.stop();
   });
 
@@ -103,7 +101,19 @@ export default function QuizOverlayStage({
     saveQuizPack({ ...pack, index: nextIndex, questions: list, durationSec });
   };
 
+  const showFinal = () => {
+    session.stop();
+    setFinished(true);
+    setWinnerOpen(false);
+    setWinner(null);
+    setFinalOpen(true);
+  };
+
   const prepareQuestion = (nextIndex: number) => {
+    if (nextIndex >= list.length) {
+      showFinal();
+      return;
+    }
     setIndex(nextIndex);
     persistIndex(nextIndex);
     settled.current = false;
@@ -114,7 +124,7 @@ export default function QuizOverlayStage({
   };
 
   const start = () => {
-    if (!current) return;
+    if (!current || finished) return;
     settled.current = false;
     setWinner(null);
     setWinnerOpen(false);
@@ -123,20 +133,29 @@ export default function QuizOverlayStage({
   };
 
   const next = () => {
-    if (list.length < 1) return;
-    prepareQuestion((index + 1) % list.length);
+    if (finished) return;
+    if (!hasNext) {
+      showFinal();
+      return;
+    }
+    prepareQuestion(index + 1);
   };
 
   const nextAndStart = () => {
-    if (list.length < 1) return;
-    prepareQuestion((index + 1) % list.length);
+    if (finished) return;
+    if (!hasNext) {
+      showFinal();
+      return;
+    }
+    prepareQuestion(index + 1);
     settled.current = false;
-    session.start();
+    // start after state flush
+    window.setTimeout(() => session.start(), 0);
   };
 
-  const top = Object.entries(scores)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6);
+  const ranking = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  const top = ranking.slice(0, 6);
+  const champion = ranking[0];
 
   const clockLabel = session.running
     ? session.left == null
@@ -146,14 +165,16 @@ export default function QuizOverlayStage({
 
   return (
     <div
-      className={`flex flex-col bg-[#070d0c] text-foreground ${
-        isModal ? "max-h-[92vh]" : "min-h-screen"
-      }`}
+      className={cn(
+        "flex flex-col bg-[#070d0c] text-foreground",
+        isModal ? "max-h-[92vh]" : "min-h-screen",
+      )}
     >
       <div
-        className={`flex flex-1 flex-col border border-white/10 bg-gradient-to-b from-[#121c1a] to-[#0a1210] ${
-          isModal ? "max-h-[92vh] overflow-y-auto rounded-3xl" : "min-h-screen"
-        }`}
+        className={cn(
+          "flex flex-1 flex-col border border-white/10 bg-gradient-to-b from-[#121c1a] to-[#0a1210]",
+          isModal ? "max-h-[92vh] overflow-y-auto rounded-3xl" : "min-h-screen",
+        )}
       >
         <header className="flex items-center gap-3 border-b border-white/10 bg-black/40 px-4 py-3">
           <div className="flex gap-1.5" aria-hidden>
@@ -165,19 +186,23 @@ export default function QuizOverlayStage({
             Al-Daboor · أسئلة
           </p>
           <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-              session.running ? "bg-destructive text-white" : "bg-white/10 text-muted-foreground"
-            }`}
+            className={cn(
+              "rounded-full px-2 py-0.5 text-[10px] font-extrabold",
+              finished
+                ? "bg-primary/20 text-primary"
+                : session.running
+                  ? "bg-destructive text-white"
+                  : "bg-white/10 text-muted-foreground",
+            )}
           >
-            {session.running ? "LIVE" : "READY"}
+            {finished ? "END" : session.running ? "LIVE" : "READY"}
           </span>
         </header>
 
-        {/* Compact controls */}
         <div className="flex flex-wrap items-center gap-2 border-b border-white/10 bg-black/25 px-3 py-2">
           <select
             value={durationSec}
-            disabled={session.running}
+            disabled={session.running || finished}
             onChange={(e) => {
               const v = Number(e.target.value);
               setDurationSec(v);
@@ -192,17 +217,16 @@ export default function QuizOverlayStage({
               </option>
             ))}
           </select>
-          {session.running ? (
+          {finished ? (
+            <Button size="sm" className="h-9 font-extrabold" onClick={() => setFinalOpen(true)}>
+              <Trophy className="size-3.5" /> النتيجة
+            </Button>
+          ) : session.running ? (
             <Button size="sm" variant="destructive" className="h-9 font-extrabold" onClick={() => session.stop()}>
               <Square className="size-3.5" /> إيقاف
             </Button>
           ) : (
-            <Button
-              size="sm"
-              className="h-9 font-extrabold"
-              disabled={!chatActive || !current}
-              onClick={start}
-            >
+            <Button size="sm" className="h-9 font-extrabold" disabled={!chatActive || !current} onClick={start}>
               <Play className="size-3.5" /> بدء
             </Button>
           )}
@@ -214,56 +238,85 @@ export default function QuizOverlayStage({
           </p>
         ) : null}
 
-        <div
-          className={`border-b border-white/10 px-4 py-6 text-center ${
-            session.running ? (urgent ? "bg-destructive/15" : "bg-primary/10") : ""
-          }`}
-        >
-          <p className="text-[10px] font-bold tracking-[0.3em] text-muted-foreground uppercase">العداد</p>
-          <p
-            className={`mt-1 font-brand font-bold tabular-nums ${
-              isModal ? "text-6xl sm:text-7xl" : "text-6xl"
-            } ${
-              session.running ? (urgent ? "text-destructive" : "shimmer-text") : "text-foreground/75"
-            }`}
-          >
-            {clockLabel}
-          </p>
-          <p className="mt-1 text-xs font-bold text-muted-foreground">
-            {session.running
-              ? `محاولات ${attempts} · مشاركون ${session.participantCount}`
-              : "نافذة البث جاهزة"}
-          </p>
-        </div>
+        {finished ? (
+          <div className="relative flex flex-1 flex-col items-center justify-center px-5 py-12 text-center">
+            <Trophy className="size-12 text-primary" />
+            <h1 className="mt-4 text-3xl font-extrabold">انتهت الأسئلة</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              خلصت الـ {list.length} سؤال — هذي النتيجة النهائية.
+            </p>
+            {champion ? (
+              <p className="mt-6 font-brand text-4xl font-bold" style={{ color: scoreColors[champion[0]] }}>
+                {champion[0]}
+                <span className="ms-2 text-lg text-primary">({champion[1]})</span>
+              </p>
+            ) : (
+              <p className="mt-6 text-sm text-muted-foreground">ما في نقاط بهالجولة.</p>
+            )}
+            <Button className="mt-8 font-extrabold" onClick={() => setFinalOpen(true)}>
+              عرض الترتيب الكامل
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div
+              className={cn(
+                "border-b border-white/10 px-4 py-6 text-center",
+                session.running ? (urgent ? "bg-destructive/15" : "bg-primary/10") : "",
+              )}
+            >
+              <p className="text-[10px] font-bold tracking-[0.3em] text-muted-foreground uppercase">العداد</p>
+              <p
+                className={cn(
+                  "mt-1 font-brand font-bold tabular-nums",
+                  isModal ? "text-6xl sm:text-7xl" : "text-6xl",
+                  session.running
+                    ? urgent
+                      ? "text-destructive"
+                      : "shimmer-text"
+                    : "text-foreground/75",
+                )}
+              >
+                {clockLabel}
+              </p>
+              <p className="mt-1 text-xs font-bold text-muted-foreground">
+                {session.running
+                  ? `محاولات ${attempts} · مشاركون ${session.participantCount}`
+                  : "نافذة البث جاهزة"}
+              </p>
+            </div>
 
-        <div
-          className={`relative flex flex-1 flex-col justify-center px-5 text-center ${
-            isModal ? "py-8" : "py-10"
-          }`}
-        >
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_50%_at_50%_20%,color-mix(in_oklab,var(--neon)_14%,transparent),transparent_70%)]" />
-          <p className="relative text-[11px] font-extrabold tracking-[0.28em] text-primary">
-            سؤال {list.length ? index + 1 : 0} / {list.length}
-          </p>
-          <h1 className="relative mt-5 text-balance text-3xl font-extrabold leading-snug sm:text-4xl">
-            {current?.q ?? "لا يوجد سؤال"}
-          </h1>
-          <p className="relative mt-5 text-sm text-muted-foreground">الجمهور يكتب الجواب في الشات</p>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="relative mx-auto mt-8 font-bold"
-            onClick={next}
-            disabled={list.length < 2}
-          >
-            <RotateCcw className="size-3.5" /> السؤال التالي
-          </Button>
-        </div>
+            <div
+              className={cn(
+                "relative flex flex-1 flex-col justify-center px-5 text-center",
+                isModal ? "py-8" : "py-10",
+              )}
+            >
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_50%_at_50%_20%,color-mix(in_oklab,var(--neon)_14%,transparent),transparent_70%)]" />
+              <p className="relative text-[11px] font-extrabold tracking-[0.28em] text-primary">
+                سؤال {list.length ? index + 1 : 0} / {list.length}
+              </p>
+              <h1 className="relative mt-5 text-balance text-3xl font-extrabold leading-snug sm:text-4xl">
+                {current?.q ?? "لا يوجد سؤال"}
+              </h1>
+              <p className="relative mt-5 text-sm text-muted-foreground">الجمهور يكتب الجواب في الشات</p>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="relative mx-auto mt-8 font-bold"
+                onClick={next}
+                disabled={list.length < 1}
+              >
+                <RotateCcw className="size-3.5" /> {hasNext ? "السؤال التالي" : "إنهاء وإظهار النتيجة"}
+              </Button>
+            </div>
 
-        <div className="border-t border-dashed border-white/12 bg-black/30 px-4 py-4 text-center">
-          <p className="text-[10px] font-bold tracking-[0.22em] text-muted-foreground uppercase">التالي</p>
-          <p className="mt-1 text-sm font-extrabold">{upcoming?.q ?? "— نهاية القائمة —"}</p>
-        </div>
+            <div className="border-t border-dashed border-white/12 bg-black/30 px-4 py-4 text-center">
+              <p className="text-[10px] font-bold tracking-[0.22em] text-muted-foreground uppercase">التالي</p>
+              <p className="mt-1 text-sm font-extrabold">{upcoming?.q ?? "— آخر سؤال / النتيجة —"}</p>
+            </div>
+          </>
+        )}
 
         <div className="border-t border-white/10 bg-black/40 px-3 py-3">
           <div className="mb-2 flex items-center gap-2">
@@ -290,7 +343,7 @@ export default function QuizOverlayStage({
       </div>
 
       <Dialog
-        open={winnerOpen && Boolean(winner)}
+        open={winnerOpen && Boolean(winner) && !finished}
         onOpenChange={(open) => {
           setWinnerOpen(open);
           if (!open) setWinner(null);
@@ -313,25 +366,86 @@ export default function QuizOverlayStage({
             </p>
           ) : null}
           <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
-            <Button
-              className="w-full font-extrabold"
-              onClick={() => {
-                setWinnerOpen(false);
-                nextAndStart();
-              }}
-              disabled={list.length < 2}
-            >
-              السؤال التالي وابدأ
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full font-bold"
-              onClick={() => {
-                setWinnerOpen(false);
-                next();
-              }}
-            >
-              السؤال التالي فقط
+            {hasNext ? (
+              <>
+                <Button
+                  className="w-full font-extrabold"
+                  onClick={() => {
+                    setWinnerOpen(false);
+                    nextAndStart();
+                  }}
+                >
+                  السؤال التالي وابدأ
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full font-bold"
+                  onClick={() => {
+                    setWinnerOpen(false);
+                    next();
+                  }}
+                >
+                  السؤال التالي فقط
+                </Button>
+              </>
+            ) : (
+              <Button
+                className="w-full font-extrabold"
+                onClick={() => {
+                  setWinnerOpen(false);
+                  showFinal();
+                }}
+              >
+                النتيجة النهائية
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={finalOpen} onOpenChange={setFinalOpen}>
+        <DialogContent className="max-w-md border-primary/40 bg-[#0c1513] sm:rounded-2xl" dir="rtl">
+          <DialogHeader className="text-center sm:text-center">
+            <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-primary/15 text-primary">
+              <Trophy className="size-7" />
+            </div>
+            <DialogTitle className="text-xl font-extrabold">النتيجة النهائية</DialogTitle>
+            <DialogDescription>
+              بعد {list.length} سؤال — بدون إعادة للأسئلة
+            </DialogDescription>
+          </DialogHeader>
+          {champion ? (
+            <div className="text-center">
+              <p className="text-xs font-bold text-muted-foreground">المتصدّر</p>
+              <p
+                className="mt-1 font-brand text-4xl font-bold"
+                style={{ color: scoreColors[champion[0]] }}
+              >
+                {champion[0]}
+              </p>
+              <p className="mt-1 text-sm font-extrabold text-primary">{champion[1]} نقطة</p>
+            </div>
+          ) : (
+            <p className="text-center text-sm text-muted-foreground">ما انحسبت نقاط بهالجلسة.</p>
+          )}
+          {ranking.length > 0 ? (
+            <div className="max-h-56 space-y-2 overflow-y-auto rounded-2xl border border-white/10 bg-black/30 p-3">
+              {ranking.map(([user, pts], i) => (
+                <div key={user} className="flex items-center justify-between gap-2 text-sm font-bold">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className={i === 0 ? "text-primary" : "text-muted-foreground"}>{i + 1}</span>
+                    <span className="truncate" style={{ color: scoreColors[user] }}>
+                      {user}
+                    </span>
+                  </span>
+                  <span className="tabular-nums text-primary">{pts}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button className="w-full font-extrabold" onClick={() => setFinalOpen(false)}>
+              إغلاق
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,6 +1,7 @@
 export type QuizQuestion = { q: string; a: string };
 
-export const DEFAULT_QUIZ_QUESTIONS: QuizQuestion[] = [
+/** Full question bank (easy + hard). Sessions pick a subset. */
+export const QUIZ_BANK: QuizQuestion[] = [
   { q: "ما هي عاصمة الأردن؟", a: "عمان" },
   { q: "كم عدد أركان الإسلام؟", a: "5" },
   { q: "ما أول شهر في السنة الهجرية؟", a: "محرم" },
@@ -11,35 +12,210 @@ export const DEFAULT_QUIZ_QUESTIONS: QuizQuestion[] = [
   { q: "كم عدد الصلوات المفروضة يومياً؟", a: "5" },
   { q: "ما اسم عملة الأردن؟", a: "دينار" },
   { q: "في أي مدينة أردنية يقع المدرج الروماني؟", a: "عمان" },
+  { q: "ما هي أكبر قارة في العالم؟", a: "اسيا" },
+  { q: "ما أصغر قارة في العالم؟", a: "استراليا" },
+  { q: "كم عدد قارات العالم؟", a: "7" },
+  { q: "ما أطول نهر في العالم؟", a: "النيل" },
+  { q: "ما أكبر محيط في العالم؟", a: "الهادئ" },
+  { q: "ما عاصمة مصر؟", a: "القاهرة" },
+  { q: "ما عاصمة السعودية؟", a: "الرياض" },
+  { q: "ما عاصمة فلسطين؟", a: "القدس" },
+  { q: "ما عاصمة سوريا؟", a: "دمشق" },
+  { q: "ما عاصمة العراق؟", a: "بغداد" },
+  { q: "ما عاصمة لبنان؟", a: "بيروت" },
+  { q: "ما عاصمة الإمارات؟", a: "ابو ظبي" },
+  { q: "ما عاصمة الكويت؟", a: "الكويت" },
+  { q: "ما عاصمة قطر؟", a: "الدوحة" },
+  { q: "ما عاصمة البحرين؟", a: "المنامة" },
+  { q: "ما عاصمة عُمان؟", a: "مسقط" },
+  { q: "ما عاصمة اليمن؟", a: "صنعاء" },
+  { q: "ما عاصمة المغرب؟", a: "الرباط" },
+  { q: "ما عاصمة تونس؟", a: "تونس" },
+  { q: "ما عاصمة الجزائر؟", a: "الجزائر" },
+  { q: "ما عاصمة ليبيا؟", a: "طرابلس" },
+  { q: "ما عاصمة السودان؟", a: "الخرطوم" },
+  { q: "كم حرفاً في الأبجدية العربية؟", a: "28" },
+  { q: "ما أول سورة في القرآن؟", a: "الفاتحة" },
+  { q: "ما آخر سورة في القرآن؟", a: "الناس" },
+  { q: "كم عدد أجزاء القرآن؟", a: "30" },
+  { q: "في أي شهر يصوم المسلمون؟", a: "رمضان" },
+  { q: "كم ركعة في صلاة الظهر؟", a: "4" },
+  { q: "كم ركعة في صلاة العصر؟", a: "4" },
+  { q: "كم ركعة في صلاة المغرب؟", a: "3" },
+  { q: "كم ركعة في صلاة العشاء؟", a: "4" },
+  { q: "ما اسم الجبل الذي رست عليه سفينة نوح؟", a: "الجودي" },
+  { q: "من هو أول الخلفاء الراشدين؟", a: "ابو بكر" },
+  { q: "من هو ثاني الخلفاء الراشدين؟", a: "عمر" },
+  { q: "من هو ثالث الخلفاء الراشدين؟", a: "عثمان" },
+  { q: "من هو رابع الخلفاء الراشدين؟", a: "علي" },
+  { q: "أين يقع البيت الحرام؟", a: "مكة" },
+  { q: "أين يقع المسجد النبوي؟", a: "المدينة" },
+  { q: "ما اسم والد النبي محمد صلى الله عليه وسلم؟", a: "عبد الله" },
+  { q: "ما اسم أم النبي محمد صلى الله عليه وسلم؟", a: "امنة" },
+  { q: "في أي عام هجري فُتحت مكة؟", a: "8" },
+  { q: "كم يوماً في الأسبوع؟", a: "7" },
+  { q: "كم شهراً في السنة الميلادية؟", a: "12" },
+  { q: "كم يوماً في فبراير في السنة الكبيسة؟", a: "29" },
+  { q: "ما ترتيب كوكب الأرض من الشمس؟", a: "3" },
+  { q: "ما أقرب كوكب إلى الشمس؟", a: "عطارد" },
+  { q: "ما أكبر كوكب في المجموعة الشمسية؟", a: "المشتري" },
+  { q: "ما الغاز الأكثر في الغلاف الجوي؟", a: "النيتروجين" },
+  { q: "ما الرمز الكيميائي للماء؟", a: "H2O" },
+  { q: "ما الرمز الكيميائي للذهب؟", a: "Au" },
+  { q: "ما الرمز الكيميائي للحديد؟", a: "Fe" },
+  { q: "من يُنسب إليه اختراع المصباح الكهربائي؟", a: "اديسون" },
+  { q: "من رسم لوحة الموناليزا؟", a: "ليوناردو" },
+  { q: "ما لغة البرازيل الرسمية؟", a: "البرتغالية" },
+  { q: "ما عملة اليابان؟", a: "ين" },
+  { q: "ما عملة الولايات المتحدة؟", a: "دولار" },
+  { q: "ما العملة الأوروبية المشتركة؟", a: "يورو" },
+  { q: "ما أعلى جبل في العالم؟", a: "ايفرست" },
+  { q: "في أي دولة يقع برج إيفل؟", a: "فرنسا" },
+  { q: "ما عاصمة فرنسا؟", a: "باريس" },
+  { q: "ما عاصمة بريطانيا؟", a: "لندن" },
+  { q: "ما عاصمة إيطاليا؟", a: "روما" },
+  { q: "ما عاصمة تركيا؟", a: "انقرة" },
+  { q: "ما عاصمة إيران؟", a: "طهران" },
+  { q: "ما عاصمة روسيا؟", a: "موسكو" },
+  { q: "ما عاصمة الصين؟", a: "بكين" },
+  { q: "ما عاصمة الهند؟", a: "نيودلهي" },
+  { q: "كم لاعباً لكل فريق كرة قدم داخل الملعب؟", a: "11" },
+  { q: "كم دقيقة شوط كرة القدم؟", a: "45" },
+  { q: "كم شوطاً في مباراة كرة القدم؟", a: "2" },
+  { q: "في أي دولة أُقيم أول كأس عالم؟", a: "اوروغواي" },
+  { q: "كم مرة فازت البرازيل بكأس العالم؟", a: "5" },
+  { q: "ما لون بطاقة الإنذار؟", a: "اصفر" },
+  { q: "ما لون بطاقة الطرد؟", a: "احمر" },
+  { q: "ما أشهر نادي لعب فيه ميسي طويلاً؟", a: "برشلونة" },
+  { q: "كم ضلعاً للمثلث؟", a: "3" },
+  { q: "كم ضلعاً للمربع؟", a: "4" },
+  { q: "كم درجة في الزاوية القائمة؟", a: "90" },
+  { q: "كم ساعة في اليوم؟", a: "24" },
+  { q: "كم دقيقة في الساعة؟", a: "60" },
+  { q: "كم ثانية في الدقيقة؟", a: "60" },
+  { q: "ما ناتج 7 × 8؟", a: "56" },
+  { q: "ما ناتج 12 × 12؟", a: "144" },
+  { q: "ما الجذر التربيعي للعدد 81؟", a: "9" },
+  { q: "ما الجذر التربيعي للعدد 144؟", a: "12" },
+  { q: "ما قيمة π التقريبية لمنزلتين؟", a: "3.14" },
+  { q: "في أي محافظة أردنية تقع جرش؟", a: "جرش" },
+  { q: "في أي محافظة أردنية تقع العقبة؟", a: "العقبة" },
+  { q: "في أي محافظة أردنية تقع إربد؟", a: "اربد" },
+  { q: "ما أشهر مدينة أثرية سياحية في الأردن؟", a: "البتراء" },
+  { q: "ما اسم الوادي الصحراوي الملون في الأردن؟", a: "وادي رم" },
+  { q: "ما اسم قلعة جبل عمان التاريخية؟", a: "قلعة عمان" },
+  { q: "ما أعلى قمة جبلية في الأردن؟", a: "ام الدامي" },
+  { q: "ما ميناء الأردن الوحيد؟", a: "العقبة" },
+  { q: "كم لوناً في العلم الأردني؟", a: "4" },
+  { q: "ما لون النجمة في العلم الأردني؟", a: "ابيض" },
+  { q: "في أي سنة استقلّ الأردن؟", a: "1946" },
+  { q: "ما اسم البحر بين السعودية ومصر؟", a: "الاحمر" },
+  { q: "ما اسم المضيق بين المغرب وإسبانيا؟", a: "جبل طارق" },
+  { q: "ما أكبر صحراء حارة في العالم؟", a: "الصحراء الكبرى" },
+  { q: "ما أبرد قارة على الأرض؟", a: "انتاركتيكا" },
+  { q: "ما الحيوان الملقب بسفينة الصحراء؟", a: "الجمل" },
+  { q: "ما أسرع حيوان بري؟", a: "الفهد" },
+  { q: "ما أكبر حيوان على كوكب الأرض؟", a: "الحوت" },
+  { q: "كم قلباً للأخطبوط؟", a: "3" },
+  { q: "ما لون دم الأخطبوط تقريباً؟", a: "ازرق" },
+  { q: "ما فيتامين يكوّنه الجسم من الشمس؟", a: "د" },
+  { q: "كم عظماً تقريباً في جسم الإنسان البالغ؟", a: "206" },
+  { q: "ما أكبر عضو في جسم الإنسان؟", a: "الجلد" },
+  { q: "ما العضو الذي يضخ الدم؟", a: "القلب" },
+  { q: "كم حجرة في القلب؟", a: "4" },
+  { q: "ما عملية صنع الغذاء في النبات؟", a: "التمثيل الضوئي" },
+  { q: "ما الكوكب الأحمر؟", a: "المريخ" },
+  { q: "ما كوكب الحلقات الأشهر؟", a: "زحل" },
+  { q: "من أول إنسان مشى على القمر؟", a: "ارمسترونغ" },
+  { q: "في أي سنة هبط الإنسان على القمر؟", a: "1969" },
+  { q: "ما اسم مهمة الهبوط على القمر؟", a: "ابولو 11" },
+  { q: "ما نظام تشغيل آيفون؟", a: "ios" },
+  { q: "ما اختصار شبكة الويب العالمية؟", a: "www" },
+  { q: "ما لغة بناء صفحات المواقع الأشهر؟", a: "html" },
+  { q: "ما عاصمة كوريا الجنوبية؟", a: "سيول" },
+  { q: "ما عاصمة اليابان؟", a: "طوكيو" },
+  { q: "ما عاصمة البرازيل؟", a: "برازيليا" },
+  { q: "ما عاصمة الأرجنتين؟", a: "بوينس ايرس" },
+  { q: "ما عاصمة كندا؟", a: "اوتاوا" },
+  { q: "ما عاصمة أستراليا؟", a: "كانبرا" },
+  { q: "ما أكبر دولة مساحة؟", a: "روسيا" },
+  { q: "ما أصغر دولة في العالم؟", a: "الفاتيكان" },
+  { q: "ما الدولة العربية الأكبر مساحة؟", a: "الجزائر" },
+  { q: "ما أكثر دول العالم سكاناً؟", a: "الهند" },
+  { q: "ما القناة بين البحر الأحمر والمتوسط؟", a: "السويس" },
+  { q: "ما أطول سلسلة جبال في العالم؟", a: "الانديز" },
+  { q: "ما العنصر الأساسي في الألماس؟", a: "الكربون" },
+  { q: "ما درجة غليان الماء بالمئوية؟", a: "100" },
+  { q: "ما درجة تجمد الماء بالمئوية؟", a: "0" },
+  { q: "كم لوناً في قوس قزح؟", a: "7" },
+  { q: "ما الكوكب الوحيد المعروف بوجود حياة؟", a: "الارض" },
+  { q: "من مكتشف أمريكا في الرواية الشائعة؟", a: "كولومبوس" },
+  { q: "في أي سنة وقعت النكبة؟", a: "1948" },
+  { q: "أين يقع المسجد الأقصى؟", a: "القدس" },
 ];
+
+export const DEFAULT_QUIZ_QUESTIONS = QUIZ_BANK;
+
+export const QUESTION_COUNT_OPTIONS = [10, 15, 20, 25, 30, 40, 50, 60, 75, 100, 125, 150] as const;
+
+export function clampQuestionCount(n: number) {
+  if (!Number.isFinite(n)) return 10;
+  return Math.min(150, Math.max(10, Math.round(n)));
+}
+
+export function shuffleQuestions<T>(items: T[]): T[] {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j]!, arr[i]!];
+  }
+  return arr;
+}
+
+/** Pick a shuffled subset from the bank. */
+export function pickQuizSession(count: number, bank: QuizQuestion[] = QUIZ_BANK): QuizQuestion[] {
+  const n = clampQuestionCount(Math.min(count, bank.length || 10));
+  return shuffleQuestions(bank).slice(0, n);
+}
 
 const PACK_KEY = "al-daboor-quiz-pack";
 
 export type QuizPack = {
+  /** Active session deck (already sized/shuffled). */
   questions: QuizQuestion[];
   durationSec: number;
   index: number;
+  /** How many questions the host wants for the next session. */
+  questionCount: number;
 };
 
 export function loadQuizPack(): QuizPack {
   if (typeof window === "undefined") {
-    return { questions: DEFAULT_QUIZ_QUESTIONS, durationSec: 60, index: 0 };
+    return { questions: QUIZ_BANK.slice(0, 10), durationSec: 60, index: 0, questionCount: 10 };
   }
   try {
     const raw = localStorage.getItem(PACK_KEY);
-    if (!raw) return { questions: DEFAULT_QUIZ_QUESTIONS, durationSec: 60, index: 0 };
+    if (!raw) {
+      return { questions: QUIZ_BANK.slice(0, 10), durationSec: 60, index: 0, questionCount: 10 };
+    }
     const parsed = JSON.parse(raw) as Partial<QuizPack>;
+    const questionCount = clampQuestionCount(
+      typeof parsed.questionCount === "number"
+        ? parsed.questionCount
+        : (parsed.questions?.length ?? 10),
+    );
     const questions =
       Array.isArray(parsed.questions) && parsed.questions.length > 0
         ? parsed.questions.filter((x) => x && typeof x.q === "string" && typeof x.a === "string")
-        : DEFAULT_QUIZ_QUESTIONS;
+        : QUIZ_BANK.slice(0, questionCount);
     return {
       questions,
       durationSec: typeof parsed.durationSec === "number" ? parsed.durationSec : 60,
       index: typeof parsed.index === "number" ? parsed.index : 0,
+      questionCount,
     };
   } catch {
-    return { questions: DEFAULT_QUIZ_QUESTIONS, durationSec: 60, index: 0 };
+    return { questions: QUIZ_BANK.slice(0, 10), durationSec: 60, index: 0, questionCount: 10 };
   }
 }
 
@@ -56,7 +232,6 @@ export function saveQuizPack(pack: QuizPack) {
 export const QUIZ_OVERLAY_PATH = "/quiz/overlay";
 export const QUIZ_POPOUT_NAME = "al-daboor-quiz-window";
 
-/** Try a sized popout. Browsers often block this — callers should fall back to a normal tab link. */
 export function openQuizPopout() {
   if (typeof window === "undefined") return null;
   const w = 460;
@@ -64,11 +239,10 @@ export function openQuizPopout() {
   const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - w) / 2));
   const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - h) / 2));
   try {
-    // No `popup=yes` — that flag makes Chrome block more aggressively.
     return window.open(
       QUIZ_OVERLAY_PATH,
       QUIZ_POPOUT_NAME,
-      `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`,
+      "width=" + w + ",height=" + h + ",left=" + left + ",top=" + top + ",resizable=yes,scrollbars=yes",
     );
   } catch {
     return null;

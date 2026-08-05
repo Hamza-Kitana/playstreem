@@ -20,7 +20,7 @@ function QuizPage() {
       <SectionHeading
         eyebrow="اللعبة الأولى"
         title="أسئلة وأجوبة"
-        subtitle="جهّز الأسئلة هنا، والبث ينفتح بنافذة فوق الصفحة — زي نافذة إضافة الأسئلة."
+        subtitle="اختر من ١٠ إلى ١٥٠ سؤال من المكتبة، خلّص الجولة، وبعد آخر سؤال تطلع النتيجة النهائية بدون تكرار."
       />
       {!chatActive ? (
         <div className="glass mb-6 rounded-2xl p-4 text-center text-sm text-muted-foreground">

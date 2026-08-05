@@ -95,13 +95,16 @@ export default function FlagGame({
       showFinal();
       return;
     }
+    const resume = andStart || session.running;
+    session.stop();
     setIndex((i) => i + 1);
     settled.current = false;
     setWinner(null);
     setWinnerOpen(false);
     setAttempts(0);
     session.clearParticipants();
-    if (andStart) window.setTimeout(() => session.start(), 0);
+    // Next flag during a live round keeps guessing on and resets the countdown.
+    if (resume) window.setTimeout(() => session.start(), 0);
   };
 
   const start = () => {
@@ -277,10 +280,14 @@ export default function FlagGame({
                 size="sm"
                 className="relative mt-6 font-bold"
                 onClick={() => goNext(false)}
-                disabled={session.running}
+                disabled={finished}
               >
                 <RotateCcw className="size-3.5" />
-                {hasNext ? "العلم التالي" : "إنهاء وإظهار النتيجة"}
+                {hasNext
+                  ? session.running
+                    ? "العلم التالي (إعادة العداد)"
+                    : "العلم التالي"
+                  : "إنهاء وإظهار النتيجة"}
               </Button>
             </div>
           </>

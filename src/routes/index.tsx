@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { Armchair, BarChart3, Brain, Flame, MessageSquareQuote, Plug, Sparkles, Star } from "lucide-react";
+import { Armchair, BarChart3, Brain, Flag, Flame, MessageSquareQuote, Plug, Sparkles, Star } from "lucide-react";
 import BrandLogo from "@/components/BrandLogo";
 import { Reveal, SectionHeading } from "@/components/Reveal";
 import { useScrollY } from "@/hooks/useReveal";
@@ -52,6 +52,12 @@ const FEATURES = [
     to: "/phrase" as const,
   },
   {
+    icon: Flag,
+    title: "اعرف العلم",
+    desc: "يطلع علم الدولة — وأول واحد يكتبه صح بالشات يفوز.",
+    to: "/flag" as const,
+  },
+  {
     icon: Flame,
     title: "تفاعل لايف",
     desc: "الشات يحرّك النتائج قدام الجمهور بدون تأخير.",
@@ -74,7 +80,7 @@ const STEPS = [
   {
     n: "٢",
     title: "اختر اللعبة",
-    desc: "من الشريط العلوي افتح «الخدمات» ثم الأسئلة، الكرسي، التصويت، التقييم، أو الجملة.",
+    desc: "من الشريط العلوي افتح «الخدمات» ثم الأسئلة، الكراسي، التصويت، التقييم، الجملة، أو اعرف العلم.",
   },
   {
     n: "٣",

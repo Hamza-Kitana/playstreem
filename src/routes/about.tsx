@@ -3,6 +3,7 @@ import {
   Armchair,
   Brain,
   Eye,
+  Flag,
   Flame,
   Gamepad2,
   Heart,
@@ -84,6 +85,12 @@ const SERVICES = [
     title: "الجملة",
     desc: "تحدد كلاماً معيّناً، واللي يكتبه بالشات يظهر اسمه بهالة كبيرة على الشاشة.",
     to: "/phrase" as const,
+  },
+  {
+    icon: Flag,
+    title: "اعرف العلم",
+    desc: "يظهر علم دولة على الشاشة، وأول مشاهد يكتب اسمها صح في الشات يفوز بالنقطة.",
+    to: "/flag" as const,
   },
 ];
 

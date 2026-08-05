@@ -25,6 +25,7 @@ const SERVICES = [
   { to: "/vote" as const, label: "التصويت" },
   { to: "/rate" as const, label: "تقييم" },
   { to: "/phrase" as const, label: "الجملة" },
+  { to: "/flag" as const, label: "اعرف العلم" },
 ];
 
 function linkClass(active: boolean, compact = false) {

@@ -14,6 +14,7 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as ConnectRouteImport } from './routes/connect'
 import { Route as ContactRouteImport } from './routes/contact'
+import { Route as FlagRouteImport } from './routes/flag'
 import { Route as PhraseRouteImport } from './routes/phrase'
 import { Route as QuizRouteImport } from './routes/quiz'
 import { Route as RateRouteImport } from './routes/rate'
@@ -45,6 +46,11 @@ const ConnectRoute = ConnectRouteImport.update({
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FlagRoute = FlagRouteImport.update({
+  id: '/flag',
+  path: '/flag',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PhraseRoute = PhraseRouteImport.update({
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/chat': typeof ChatRoute
   '/connect': typeof ConnectRoute
   '/contact': typeof ContactRoute
+  '/flag': typeof FlagRoute
   '/phrase': typeof PhraseRoute
   '/quiz': typeof QuizRouteWithChildren
   '/rate': typeof RateRoute
@@ -103,6 +110,7 @@ export interface FileRoutesByTo {
   '/chat': typeof ChatRoute
   '/connect': typeof ConnectRoute
   '/contact': typeof ContactRoute
+  '/flag': typeof FlagRoute
   '/phrase': typeof PhraseRoute
   '/quiz': typeof QuizRouteWithChildren
   '/rate': typeof RateRoute
@@ -118,6 +126,7 @@ export interface FileRoutesById {
   '/chat': typeof ChatRoute
   '/connect': typeof ConnectRoute
   '/contact': typeof ContactRoute
+  '/flag': typeof FlagRoute
   '/phrase': typeof PhraseRoute
   '/quiz': typeof QuizRouteWithChildren
   '/rate': typeof RateRoute
@@ -134,6 +143,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/connect'
     | '/contact'
+    | '/flag'
     | '/phrase'
     | '/quiz'
     | '/rate'
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/connect'
     | '/contact'
+    | '/flag'
     | '/phrase'
     | '/quiz'
     | '/rate'
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/connect'
     | '/contact'
+    | '/flag'
     | '/phrase'
     | '/quiz'
     | '/rate'
@@ -177,6 +189,7 @@ export interface RootRouteChildren {
   ChatRoute: typeof ChatRoute
   ConnectRoute: typeof ConnectRoute
   ContactRoute: typeof ContactRoute
+  FlagRoute: typeof FlagRoute
   PhraseRoute: typeof PhraseRoute
   QuizRoute: typeof QuizRouteWithChildren
   RateRoute: typeof RateRoute
@@ -220,6 +233,13 @@ declare module '@tanstack/react-router' {
       path: '/contact'
       fullPath: '/contact'
       preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/flag': {
+      id: '/flag'
+      path: '/flag'
+      fullPath: '/flag'
+      preLoaderRoute: typeof FlagRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/phrase': {
@@ -290,6 +310,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRoute,
   ConnectRoute: ConnectRoute,
   ContactRoute: ContactRoute,
+  FlagRoute: FlagRoute,
   PhraseRoute: PhraseRoute,
   QuizRoute: QuizRouteWithChildren,
   RateRoute: RateRoute,

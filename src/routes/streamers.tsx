@@ -70,6 +70,13 @@ const VERIFIED: VerifiedStreamer[] = [
     hue: 158,
     note: "موثّق لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
   },
+  {
+    name: "kazroo",
+    slug: "kazroo",
+    tag: "ستريمر موثّق",
+    hue: 164,
+    note: "موثّق لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
+  },
 ];
 
 const GUTTER = "px-4 sm:px-8 lg:px-12 xl:px-16";

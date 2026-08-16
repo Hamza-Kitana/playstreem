@@ -15,6 +15,7 @@ export type GameLink = {
   desc: string;
   icon: LucideIcon;
   accent: string;
+  image: string;
 };
 
 export const GAMES: GameLink[] = [
@@ -25,6 +26,7 @@ export const GAMES: GameLink[] = [
     desc: "أول جواب صحيح من الشات يفوز بالنقطة.",
     icon: Brain,
     accent: "#3dff9a",
+    image: "/games/quiz.png",
   },
   {
     to: "/seat",
@@ -33,6 +35,7 @@ export const GAMES: GameLink[] = [
     desc: "دخول، لفّ، رقم على الكرسي — واحد يطلع كل جولة.",
     icon: Armchair,
     accent: "#5eead4",
+    image: "/games/chairs.png",
   },
   {
     to: "/vote",
@@ -41,6 +44,7 @@ export const GAMES: GameLink[] = [
     desc: "نتائج تتحرك لحظياً مع كل صوت من الشات.",
     icon: BarChart3,
     accent: "#7dd3fc",
+    image: "/games/vote.png",
   },
   {
     to: "/rate",
@@ -49,6 +53,7 @@ export const GAMES: GameLink[] = [
     desc: "الجمهور يقيّم من ٠ إلى ١٠ والمتوسط يظهر فوراً.",
     icon: Star,
     accent: "#fbbf24",
+    image: "/games/rate.png",
   },
   {
     to: "/phrase",
@@ -57,6 +62,7 @@ export const GAMES: GameLink[] = [
     desc: "حدد الكلام — واللي يكتبه يطلع اسمه كبير.",
     icon: MessageSquareQuote,
     accent: "#c4b5fd",
+    image: "/games/phrase.png",
   },
   {
     to: "/flag",
@@ -65,5 +71,6 @@ export const GAMES: GameLink[] = [
     desc: "يطلع العلم — وأول واحد يكتب الدولة يفوز.",
     icon: Flag,
     accent: "#fb7185",
+    image: "/games/flag.png",
   },
 ];

@@ -63,21 +63,25 @@ function Index() {
             <Link
               key={game.to}
               to={game.to}
-              className="group flex min-h-0 flex-col justify-between rounded-3xl border border-white/10 bg-[#121c1a] p-4 transition hover:-translate-y-0.5 hover:border-primary/50 sm:p-5"
-              style={{ boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${game.accent} 18%, transparent)` }}
+              className="group relative min-h-[11rem] overflow-hidden rounded-3xl border border-white/10 sm:min-h-0"
             >
-              <span
-                className="grid size-11 place-items-center rounded-2xl sm:size-12"
-                style={{ background: `color-mix(in oklab, ${game.accent} 22%, #0b1412)`, color: game.accent }}
-              >
-                <Icon className="size-5 sm:size-6" />
-              </span>
-              <div className="mt-auto pt-4">
-                <h2 className="text-base font-extrabold sm:text-xl">{game.title}</h2>
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/60 sm:text-sm sm:leading-6">
+              <img
+                src={game.image}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-black/10" />
+              <div className="relative flex h-full min-h-0 flex-col justify-end p-4 sm:p-5">
+                <span
+                  className="mb-auto grid size-9 place-items-center rounded-xl border border-white/15 bg-black/40 sm:size-10"
+                  style={{ color: game.accent }}
+                >
+                  <Icon className="size-4 sm:size-5" />
+                </span>
+                <h2 className="text-base font-extrabold drop-shadow sm:text-xl">{game.title}</h2>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/80 sm:text-sm sm:leading-6">
                   {game.desc}
                 </p>
-                <p className="mt-3 text-[11px] font-extrabold text-primary">افتح اللعبة ←</p>
               </div>
             </Link>
           );

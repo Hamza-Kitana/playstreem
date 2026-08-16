@@ -20,7 +20,7 @@ function PhrasePage() {
       <SectionHeading
         eyebrow="لعبة تفاعلية"
         title="الجملة"
-        subtitle="أنت تحدد الكلام — واللي يكتبه بالشات يطلع اسمه بهالة نيون قدام الجميع."
+        subtitle="الستريمر يكتب كلمة سرية ما بتطلع على الشاشة — الجمهور يخمنها في الشات واللي يصيب يطلع اسمه."
       />
       {!chatActive ? (
         <div className="glass mb-6 rounded-2xl p-4 text-center text-sm text-muted-foreground">

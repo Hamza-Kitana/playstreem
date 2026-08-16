@@ -59,7 +59,7 @@ export const GAMES: GameLink[] = [
     to: "/phrase",
     label: "الجملة",
     title: "الجملة",
-    desc: "حدد الكلام — واللي يكتبه يطلع اسمه كبير.",
+    desc: "كلمة سرية يخمنها الجمهور في الشات.",
     icon: MessageSquareQuote,
     accent: "#c4b5fd",
     image: "/games/phrase.png",

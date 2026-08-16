@@ -3,6 +3,7 @@ import { ChevronDown, CircleHelp, PlugZap } from "lucide-react";
 import BrandLogo from "@/components/BrandLogo";
 import { useKickChatContext } from "@/contexts/KickChatContext";
 import { useGuide } from "@/contexts/GuideContext";
+import { GAMES } from "@/lib/games";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,18 +20,9 @@ const LINKS = [
   { to: "/streamers" as const, label: "الستريمر الموثقين" },
 ];
 
-const SERVICES = [
-  { to: "/quiz" as const, label: "أسئلة" },
-  { to: "/seat" as const, label: "كراسي" },
-  { to: "/vote" as const, label: "التصويت" },
-  { to: "/rate" as const, label: "تقييم" },
-  { to: "/phrase" as const, label: "الجملة" },
-  { to: "/flag" as const, label: "اعرف العلم" },
-];
-
 function linkClass(active: boolean, compact = false) {
   return `${compact ? "shrink-0 rounded-lg px-2 py-1 text-xs" : "rounded-xl px-3 py-1.5"} font-bold transition ${
-    active ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+    active ? "bg-primary text-primary-foreground" : "text-white/70 hover:bg-white/8 hover:text-white"
   }`;
 }
 
@@ -39,11 +31,11 @@ export default function AppHeader() {
   const { openGuide } = useGuide();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const chatActive = status === "live";
-  const servicesActive = SERVICES.some((s) => pathname === s.to);
+  const gamesActive = GAMES.some((s) => pathname === s.to);
 
   return (
     <header className="fixed inset-x-0 top-0 z-40">
-      <div className="glass mx-auto mt-4 flex max-w-6xl items-center justify-between gap-2 rounded-2xl px-3 py-2.5 sm:px-5">
+      <div className="mx-auto mt-3 flex max-w-[90rem] items-center justify-between gap-2 rounded-2xl border border-white/10 bg-[#0e1614] px-3 py-2.5 sm:px-5">
         <BrandLogo size="sm" />
 
         <nav className="hidden items-center gap-0.5 text-sm lg:flex">
@@ -56,16 +48,14 @@ export default function AppHeader() {
           <DropdownMenu>
             <DropdownMenuTrigger
               className={`inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-sm font-bold outline-none transition ${
-                servicesActive
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                gamesActive ? "bg-primary text-primary-foreground" : "text-white/70 hover:bg-white/8 hover:text-white"
               }`}
             >
-              الخدمات
+              الألعاب
               <ChevronDown className="size-3.5 opacity-70" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="glass min-w-40 border-border/60">
-              {SERVICES.map((item) => (
+            <DropdownMenuContent align="end" className="min-w-44 border-white/10 bg-[#121c1a]">
+              {GAMES.map((item) => (
                 <DropdownMenuItem key={item.to} asChild className="cursor-pointer font-bold">
                   <Link to={item.to}>{item.label}</Link>
                 </DropdownMenuItem>
@@ -84,14 +74,14 @@ export default function AppHeader() {
             <DropdownMenu>
               <DropdownMenuTrigger
                 className={`inline-flex shrink-0 items-center gap-0.5 rounded-lg px-2 py-1 text-xs font-bold outline-none ${
-                  servicesActive ? "bg-primary/15 text-primary" : "text-muted-foreground"
+                  gamesActive ? "bg-primary text-primary-foreground" : "text-white/70"
                 }`}
               >
-                الخدمات
+                الألعاب
                 <ChevronDown className="size-3 opacity-70" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="glass min-w-36 border-border/60">
-                {SERVICES.map((item) => (
+              <DropdownMenuContent align="end" className="min-w-40 border-white/10 bg-[#121c1a]">
+                {GAMES.map((item) => (
                   <DropdownMenuItem key={item.to} asChild className="cursor-pointer font-bold">
                     <Link to={item.to}>{item.label}</Link>
                   </DropdownMenuItem>
@@ -111,7 +101,7 @@ export default function AppHeader() {
             type="button"
             variant="ghost"
             size="icon"
-            className="size-9 shrink-0 rounded-xl text-muted-foreground hover:bg-primary/10 hover:text-primary"
+            className="size-9 shrink-0 rounded-xl text-white/60 hover:bg-white/8 hover:text-primary"
             onClick={openGuide}
             aria-label="إرشادات الموقع"
             title="إرشادات الموقع"
@@ -121,9 +111,7 @@ export default function AppHeader() {
 
           <span
             className={`hidden shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold sm:inline ${
-              chatActive
-                ? "border border-primary/30 bg-primary/15 text-primary"
-                : "bg-secondary text-muted-foreground"
+              chatActive ? "bg-primary text-primary-foreground" : "bg-white/10 text-white/60"
             }`}
           >
             {chatActive ? "مباشر" : "غير متصل"}

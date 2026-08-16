@@ -1,10 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo } from "react";
-import { Armchair, BarChart3, Brain, Flag, Flame, MessageSquareQuote, Plug, Sparkles, Star } from "lucide-react";
-import BrandLogo from "@/components/BrandLogo";
-import { Reveal, SectionHeading } from "@/components/Reveal";
-import { useScrollY } from "@/hooks/useReveal";
+import { PlugZap } from "lucide-react";
+import { useKickChatContext } from "@/contexts/KickChatContext";
+import { GAMES } from "@/lib/games";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -13,178 +12,77 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Al-Daboor منصة ألعاب تفاعلية للبث على كيك: أسئلة وأجوبة، كرسي الاعتراف، التصويت، وتقييم الأشخاص — يقودها الشات لحظياً.",
+          "Al-Daboor منصة ألعاب تفاعلية للبث على كيك: أسئلة، كراسي، تصويت، تقييم، جملة، وأعلام — يقودها الشات لحظياً.",
       },
     ],
   }),
   component: Index,
 });
 
-const FEATURES = [
-  {
-    icon: Brain,
-    title: "أسئلة وأجوبة",
-    desc: "أول من يكتب الجواب الصحيح بالشات يأخذ النقطة.",
-    to: "/quiz" as const,
-  },
-  {
-    icon: Armchair,
-    title: "الكراسي",
-    desc: "اكتبوا دخول، يلفّون حول الدائرة، وأول من يكتب رقم الكرسي يثبت — لين يفوز واحد.",
-    to: "/seat" as const,
-  },
-  {
-    icon: BarChart3,
-    title: "التصويت",
-    desc: "نتائج تتحرك لحظياً مع كل تصويت من الشات.",
-    to: "/vote" as const,
-  },
-  {
-    icon: Star,
-    title: "تقييم شخص",
-    desc: "متوسط وتوزيع التقييمات من 0 إلى 10.",
-    to: "/rate" as const,
-  },
-  {
-    icon: MessageSquareQuote,
-    title: "الجملة",
-    desc: "حدد كلاماً — واللي يكتبه يطلع اسمه بهالة نيون.",
-    to: "/phrase" as const,
-  },
-  {
-    icon: Flag,
-    title: "اعرف العلم",
-    desc: "يطلع علم الدولة — وأول واحد يكتبه صح بالشات يفوز.",
-    to: "/flag" as const,
-  },
-  {
-    icon: Flame,
-    title: "تفاعل لايف",
-    desc: "الشات يحرّك النتائج قدام الجمهور بدون تأخير.",
-    to: "/vote" as const,
-  },
-  {
-    icon: Sparkles,
-    title: "خلفية ثلاثية الأبعاد",
-    desc: "تتفاعل مع السكرول والماوس أثناء التنقل.",
-    to: "/connect" as const,
-  },
-];
-
-const STEPS = [
-  {
-    n: "١",
-    title: "اربط قناتك",
-    desc: "من صفحة الربط حط رابط قناتك أو اسمها، بعدين ابدأ اللعب.",
-  },
-  {
-    n: "٢",
-    title: "اختر اللعبة",
-    desc: "من الشريط العلوي افتح «الخدمات» ثم الأسئلة، الكراسي، التصويت، التقييم، الجملة، أو اعرف العلم.",
-  },
-  {
-    n: "٣",
-    title: "خلي الشات يلعب",
-    desc: "المشاهدون يكتبون في الشات والموقع يقرأ التعليقات تلقائياً.",
-  },
-];
-
 function Index() {
-  const y = useScrollY();
-
-  const heroStyle = useMemo(
-    () => ({
-      transform: `translateY(${y * 0.18}px) scale(${Math.max(1 - y * 0.00035, 0.88)})`,
-      opacity: Math.max(1 - y / 680, 0),
-    }),
-    [y],
-  );
+  const chat = useKickChatContext();
+  const live = chat.status === "live";
 
   return (
-    <>
-      <section className="relative flex min-h-[86vh] flex-col items-center justify-center text-center">
-        <div className="pointer-events-none absolute inset-x-0 top-1/4 -z-0 mx-auto h-72 max-w-3xl rounded-full bg-primary/10 blur-[90px]" />
-        <div style={heroStyle} className="relative flex flex-col items-center">
-          <BrandLogo size="hero" asLink={false} />
-          <h1 className="sr-only">Al-Daboor</h1>
-          <p className="mx-auto mt-8 max-w-lg text-base text-muted-foreground sm:text-lg">
-            حوّل تعليقات بثّك على كيك إلى ألعاب تفاعلية لحظية — أسئلة، كرسي، تصويت، وتقييم.
+    <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row lg:items-stretch lg:gap-6">
+      <aside className="flex shrink-0 flex-col justify-between rounded-3xl border border-white/10 bg-[#101a18] p-5 sm:p-6 lg:w-[22rem] lg:p-7">
+        <div>
+          <p className="text-[11px] font-extrabold tracking-[0.28em] text-primary uppercase">Al-Daboor</p>
+          <h1 className="mt-2 text-3xl font-extrabold leading-tight sm:text-4xl">
+            ألعاب البث
+            <span className="mt-1 block text-primary">من الشات مباشرة</span>
+          </h1>
+          <p className="mt-3 text-sm leading-7 text-white/70">
+            اربط قناتك، اختار لعبة، والجمهور يلعب من كيك. كل كرت يوديك لصفحة اللعبة.
           </p>
-          <div className="mt-9 flex flex-wrap justify-center gap-3">
-            <Button asChild className="h-12 px-8 text-base font-extrabold shadow-[0_0_40px_-8px_var(--neon)]">
-              <Link to="/connect">ابدأ الربط</Link>
-            </Button>
-            <Button asChild variant="outline" className="h-12 border-primary/25 bg-white/3 px-8 text-base backdrop-blur">
-              <a href="#how">كيف تستخدمه؟</a>
-            </Button>
+        </div>
+
+        <div className="mt-6 space-y-3">
+          <div
+            className={cn(
+              "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-extrabold",
+              live ? "bg-primary text-[#0b1412]" : "bg-white/10 text-white/70",
+            )}
+          >
+            <span className={cn("size-2 rounded-full", live ? "animate-pulse bg-[#0b1412]" : "bg-white/40")} />
+            {live ? `متصل · ${chat.channel}` : "غير متصل"}
           </div>
-        </div>
-        <div className="absolute bottom-6 flex flex-col items-center gap-2 text-xs text-muted-foreground">
-          <span>مرّر للأسفل</span>
-          <span className="h-10 w-px animate-pulse bg-gradient-to-b from-primary to-transparent" />
-        </div>
-      </section>
-
-      <section id="how" className="mt-6 scroll-mt-28">
-        <SectionHeading
-          eyebrow="تعليمات سريعة"
-          title="كيف يشتغل Al-Daboor؟"
-          subtitle="ثلاث خطوات فقط وتشعلل البث."
-        />
-        <div className="grid gap-4 md:grid-cols-3">
-          {STEPS.map((s, i) => (
-            <Reveal key={s.n} delay={i * 80}>
-              <div className="glass panel-shine h-full rounded-3xl p-6">
-                <span className="grid size-12 place-items-center rounded-2xl bg-primary/15 text-xl font-extrabold text-primary">
-                  {s.n}
-                </span>
-                <h3 className="mt-4 text-xl font-extrabold">{s.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{s.desc}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      <section className="mt-24">
-        <SectionHeading
-          eyebrow="ألعاب الدبور"
-          title="المميزات والألعاب"
-          subtitle="كل رابط يوديك لصفحة مستقلة من الشريط فوق."
-        />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((f, i) => (
-            <Reveal key={f.title} delay={i * 70}>
-              <Link
-                to={f.to}
-                className="tilt-card glass panel-shine group block h-full rounded-3xl p-6 transition hover:border-primary/35"
-              >
-                <span className="grid size-12 place-items-center rounded-2xl bg-primary/12 text-primary transition group-hover:bg-primary/20">
-                  <f.icon className="size-6" />
-                </span>
-                <h3 className="mt-4 text-xl font-extrabold">{f.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{f.desc}</p>
-              </Link>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
-      <Reveal className="mt-24">
-        <div className="glass neon-ring panel-shine relative overflow-hidden rounded-3xl p-10 text-center">
-          <div className="absolute -top-24 left-1/2 size-72 -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
-          <Plug className="relative mx-auto size-10 text-primary" />
-          <h3 className="relative mt-4 text-3xl font-extrabold sm:text-4xl">
-            جاهز تشعلل مع <span className="shimmer-text font-brand">Al-Daboor</span>؟
-          </h3>
-          <p className="relative mx-auto mt-3 max-w-md text-muted-foreground">
-            اربط قناتك أولاً من صفحة الربط، بعدين روح لأي لعبة من الشريط فوق.
-          </p>
-          <Button asChild className="relative mt-6 h-12 px-8 text-base font-extrabold">
-            <Link to="/connect">صفحة الربط</Link>
+          <Button asChild className="h-12 w-full text-base font-extrabold">
+            <Link to="/connect">
+              <PlugZap className="size-4" />
+              {live ? "إدارة الربط" : "اربط قناتك"}
+            </Link>
           </Button>
         </div>
-      </Reveal>
-    </>
+      </aside>
+
+      <section className="grid min-h-0 flex-1 grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
+        {GAMES.map((game) => {
+          const Icon = game.icon;
+          return (
+            <Link
+              key={game.to}
+              to={game.to}
+              className="group flex min-h-0 flex-col justify-between rounded-3xl border border-white/10 bg-[#121c1a] p-4 transition hover:-translate-y-0.5 hover:border-primary/50 sm:p-5"
+              style={{ boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${game.accent} 18%, transparent)` }}
+            >
+              <span
+                className="grid size-11 place-items-center rounded-2xl sm:size-12"
+                style={{ background: `color-mix(in oklab, ${game.accent} 22%, #0b1412)`, color: game.accent }}
+              >
+                <Icon className="size-5 sm:size-6" />
+              </span>
+              <div className="mt-auto pt-4">
+                <h2 className="text-base font-extrabold sm:text-xl">{game.title}</h2>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-white/60 sm:text-sm sm:leading-6">
+                  {game.desc}
+                </p>
+                <p className="mt-3 text-[11px] font-extrabold text-primary">افتح اللعبة ←</p>
+              </div>
+            </Link>
+          );
+        })}
+      </section>
+    </div>
   );
 }

@@ -18,7 +18,7 @@ function RatePage() {
   return (
     <section>
       <SectionHeading
-        eyebrow="اللعبة الرابعة"
+        eyebrow="لعبة تفاعلية"
         title="تقييم شخص"
         subtitle="أدخل اسم أي شخص ودع الجمهور يقيّمه من 0 إلى 10."
       />

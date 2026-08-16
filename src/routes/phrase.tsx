@@ -18,7 +18,7 @@ function PhrasePage() {
   return (
     <section>
       <SectionHeading
-        eyebrow="من الخدمات"
+        eyebrow="لعبة تفاعلية"
         title="الجملة"
         subtitle="أنت تحدد الكلام — واللي يكتبه بالشات يطلع اسمه بهالة نيون قدام الجميع."
       />

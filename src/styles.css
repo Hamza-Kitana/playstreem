@@ -153,10 +153,9 @@
 }
 
 @utility glass {
-  background: color-mix(in oklab, var(--surface) 58%, transparent);
-  backdrop-filter: blur(20px) saturate(150%);
-  border: 1px solid color-mix(in oklab, var(--neon) 18%, transparent);
-  box-shadow: var(--shadow-deep);
+  background: #121c1a;
+  border: 1px solid color-mix(in oklab, white 12%, transparent);
+  box-shadow: 0 18px 40px -28px oklch(0 0 0 / 70%);
 }
 
 @utility panel-shine {

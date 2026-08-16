@@ -18,7 +18,7 @@ function VotePage() {
   return (
     <section>
       <SectionHeading
-        eyebrow="من الخدمات"
+        eyebrow="لعبة تفاعلية"
         title="التصويت"
         subtitle="نتائج حية تتحرك مع كل تعليق من الشات."
       />

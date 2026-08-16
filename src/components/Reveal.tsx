@@ -33,15 +33,13 @@ export function SectionHeading({
   subtitle?: string;
 }) {
   return (
-    <Reveal className="mx-auto mb-10 max-w-2xl text-center">
-      <span className="inline-flex items-center gap-2 rounded-full border border-accent/40 bg-accent/10 px-4 py-1.5 text-xs font-bold tracking-wide text-accent">
+    <div className="mb-6 text-right">
+      <span className="inline-flex items-center gap-2 rounded-full bg-primary/15 px-3 py-1 text-xs font-extrabold text-primary">
         {eyebrow}
       </span>
-      <h2 className="mt-4 text-3xl font-extrabold sm:text-5xl">
-        <span className="shimmer-text">{title}</span>
-      </h2>
-      {subtitle ? <p className="mt-3 text-muted-foreground sm:text-lg">{subtitle}</p> : null}
-    </Reveal>
+      <h2 className="mt-2 text-2xl font-extrabold sm:text-4xl">{title}</h2>
+      {subtitle ? <p className="mt-2 max-w-2xl text-sm leading-7 text-white/65 sm:text-base">{subtitle}</p> : null}
+    </div>
   );
 }
 

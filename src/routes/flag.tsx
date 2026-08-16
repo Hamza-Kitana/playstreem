@@ -18,7 +18,7 @@ function FlagPage() {
   return (
     <section>
       <SectionHeading
-        eyebrow="من الخدمات"
+        eyebrow="لعبة تفاعلية"
         title="اعرف العلم"
         subtitle="يطلع علم على الشاشة — وأول واحد يكتب اسم الدولة صح في الشات يفوز بالنقطة."
       />

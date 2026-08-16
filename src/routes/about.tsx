@@ -97,7 +97,7 @@ const SERVICES = [
 const STEPS = [
   "افتح الموقع أثناء البث (يفضّل شاشة ثانية).",
   "من صفحة الربط حط رابط كيك أو اسم القناة واضغط «ربط القناة».",
-  "من قائمة الخدمات اختر اللعبة اللي تناسب جو البث.",
+  "من قائمة الألعاب أو الرئيسية اختار اللعبة اللي تناسب جو البث.",
   "خلّ الجمهور يكتب بالشات وشوف النتائج تتحرك قدامك.",
 ];
 
@@ -168,16 +168,16 @@ function AboutPage() {
 
       <section className={`w-full ${GUTTER}`}>
         <SectionHeading
-          eyebrow="الخدمات"
+          eyebrow="الألعاب"
           title="وش تسوي المنصة؟"
-          subtitle="كل خدمة لها صفحة مستقلة من قائمة الخدمات بالشريط."
+          subtitle="كل لعبة لها صفحة مستقلة — من الرئيسية أو من قائمة الألعاب بالشريط."
         />
-        <div className="grid w-full gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="grid w-full gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {SERVICES.map((item, i) => (
             <Reveal key={item.title} delay={i * 60}>
               <Link
                 to={item.to}
-                className="glass panel-shine group block h-full rounded-3xl p-6 transition hover:border-primary/35"
+                className="group block h-full rounded-3xl border border-white/10 bg-[#121c1a] p-6 transition hover:border-primary/50"
               >
                 <span className="grid size-12 place-items-center rounded-2xl bg-primary/12 text-primary transition group-hover:bg-primary/20">
                   <item.icon className="size-6" />

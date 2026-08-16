@@ -32,7 +32,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const chat = useKickChatContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const chatActive = chat.status === "live";
-  const fullBleed = FULL_BLEED.has(pathname);
+  const isHome = pathname === "/";
+  const fullBleed = FULL_BLEED.has(pathname) || isHome;
   const onStreamers = pathname === "/streamers";
   const onChatPage = pathname === "/chat";
   const isOverlay = pathname === "/quiz/overlay";
@@ -61,30 +62,35 @@ export default function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="relative min-h-screen">
+    <div className={cn("relative min-h-screen bg-[#0a1110]", isHome && "h-dvh overflow-hidden")}>
       <Background3D />
       <AppHeader />
       <main
         className={cn(
-          fullBleed ? "w-full max-w-none px-0 pb-16" : "mx-auto max-w-6xl px-4 pb-24 sm:px-6",
-          onStreamers || onChatPage ? "pt-24" : "pt-28 sm:pt-32",
+          isHome
+            ? "h-dvh w-full max-w-none px-3 pt-[4.75rem] pb-3 sm:px-5 sm:pt-[5.25rem]"
+            : fullBleed
+              ? "w-full max-w-none px-0 pt-24 pb-16"
+              : "mx-auto max-w-6xl px-4 pt-28 pb-24 sm:px-6 sm:pt-32",
         )}
       >
         {children}
       </main>
-      <footer className="border-t border-border/50 py-10">
+      {!isHome ? (
+      <footer className="border-t border-white/10 bg-[#0e1614] py-8">
         <div
           className={cn(
-            "flex flex-col items-center gap-2 px-4 text-center sm:px-6",
+            "flex flex-col items-center gap-1 px-4 text-center sm:px-6",
             fullBleed ? "w-full max-w-none" : "mx-auto max-w-6xl",
           )}
         >
           <p className="font-brand text-lg font-bold text-foreground">Al-Daboor</p>
-          <p className="text-sm text-muted-foreground">ألعاب يقودها الشات على كيك</p>
+          <p className="text-sm text-white/55">ألعاب يقودها الشات على كيك</p>
         </div>
       </footer>
+      ) : null}
 
-      {chatActive && !onChatPage ? (
+      {chatActive && !onChatPage && !isHome ? (
         <div className="fixed bottom-5 left-5 z-30 hidden flex-col items-start gap-2 xl:flex">
           <Button
             type="button"

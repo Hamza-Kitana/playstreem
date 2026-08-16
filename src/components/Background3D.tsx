@@ -150,7 +150,7 @@ export default function Background3D() {
   return (
     <div className="pointer-events-none fixed inset-0 -z-10">
       <div className="absolute inset-0 bg-background" />
-      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full opacity-35" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,transparent_35%,var(--background)_92%)]" />
     </div>
   );

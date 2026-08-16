@@ -18,7 +18,7 @@ function QuizPage() {
   return (
     <section>
       <SectionHeading
-        eyebrow="اللعبة الأولى"
+        eyebrow="لعبة تفاعلية"
         title="أسئلة وأجوبة"
         subtitle="اختر من ١٠ إلى ١٥٠ سؤال من المكتبة، خلّص الجولة، وبعد آخر سؤال تطلع النتيجة النهائية بدون تكرار."
       />

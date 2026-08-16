@@ -18,7 +18,7 @@ function SeatPage() {
   return (
     <section>
       <SectionHeading
-        eyebrow="اللعبة الثانية"
+        eyebrow="لعبة تفاعلية"
         title="الكراسي"
         subtitle="اكتبوا «دخول» في الشات، يلفّون حول الدائرة، تظهر أرقام على الكراسي، واللي ما يلحق يطلع لين يفوز واحد."
       />

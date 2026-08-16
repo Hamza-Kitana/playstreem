@@ -4,12 +4,13 @@ import {
   Brain,
   Flag,
   MessageSquareQuote,
+  Puzzle,
   Star,
   type LucideIcon,
 } from "lucide-react";
 
 export type GameLink = {
-  to: "/quiz" | "/seat" | "/vote" | "/rate" | "/phrase" | "/flag";
+  to: "/quiz" | "/seat" | "/vote" | "/rate" | "/phrase" | "/flag" | "/riddle";
   label: string;
   title: string;
   desc: string;
@@ -72,5 +73,14 @@ export const GAMES: GameLink[] = [
     icon: Flag,
     accent: "#fb7185",
     image: "/games/flag.png",
+  },
+  {
+    to: "/riddle",
+    label: "ألغاز",
+    title: "الألغاز",
+    desc: "ألغاز صعبة تحتاج تفكير — أول حل صحيح من الشات يفوز.",
+    icon: Puzzle,
+    accent: "#fbbf24",
+    image: "/games/riddle.png",
   },
 ];

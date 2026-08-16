@@ -9,6 +9,7 @@ import {
   Heart,
   MessageSquareQuote,
   PlugZap,
+  Puzzle,
   Sparkles,
   Star,
   Target,
@@ -92,6 +93,12 @@ const SERVICES = [
     desc: "يظهر علم دولة على الشاشة، وأول مشاهد يكتب اسمها صح في الشات يفوز بالنقطة.",
     to: "/flag" as const,
   },
+  {
+    icon: Puzzle,
+    title: "الألغاز",
+    desc: "أحاجي تحتاج تفكير — الحل مخفي، وأول مشاهد يصيب في الشات يفوز بالنقطة.",
+    to: "/riddle" as const,
+  },
 ];
 
 const STEPS = [
@@ -129,7 +136,7 @@ function AboutPage() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
                 {[
-                  { k: "٥+", v: "ألعاب أساسية" },
+                  { k: "٧", v: "ألعاب جاهزة" },
                   { k: "١", v: "حط رابط البث" },
                   { k: "RTL", v: "واجهة عربية" },
                   { k: "Live", v: "شات كيك مباشر" },

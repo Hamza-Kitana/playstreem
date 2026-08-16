@@ -18,6 +18,7 @@ import { Route as FlagRouteImport } from './routes/flag'
 import { Route as PhraseRouteImport } from './routes/phrase'
 import { Route as QuizRouteImport } from './routes/quiz'
 import { Route as RateRouteImport } from './routes/rate'
+import { Route as RiddleRouteImport } from './routes/riddle'
 import { Route as SeatRouteImport } from './routes/seat'
 import { Route as StreamersRouteImport } from './routes/streamers'
 import { Route as VoteRouteImport } from './routes/vote'
@@ -68,6 +69,11 @@ const RateRoute = RateRouteImport.update({
   path: '/rate',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RiddleRoute = RiddleRouteImport.update({
+  id: '/riddle',
+  path: '/riddle',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SeatRoute = SeatRouteImport.update({
   id: '/seat',
   path: '/seat',
@@ -99,6 +105,7 @@ export interface FileRoutesByFullPath {
   '/phrase': typeof PhraseRoute
   '/quiz': typeof QuizRouteWithChildren
   '/rate': typeof RateRoute
+  '/riddle': typeof RiddleRoute
   '/seat': typeof SeatRoute
   '/streamers': typeof StreamersRoute
   '/vote': typeof VoteRoute
@@ -114,6 +121,7 @@ export interface FileRoutesByTo {
   '/phrase': typeof PhraseRoute
   '/quiz': typeof QuizRouteWithChildren
   '/rate': typeof RateRoute
+  '/riddle': typeof RiddleRoute
   '/seat': typeof SeatRoute
   '/streamers': typeof StreamersRoute
   '/vote': typeof VoteRoute
@@ -130,6 +138,7 @@ export interface FileRoutesById {
   '/phrase': typeof PhraseRoute
   '/quiz': typeof QuizRouteWithChildren
   '/rate': typeof RateRoute
+  '/riddle': typeof RiddleRoute
   '/seat': typeof SeatRoute
   '/streamers': typeof StreamersRoute
   '/vote': typeof VoteRoute
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/phrase'
     | '/quiz'
     | '/rate'
+    | '/riddle'
     | '/seat'
     | '/streamers'
     | '/vote'
@@ -162,6 +172,7 @@ export interface FileRouteTypes {
     | '/phrase'
     | '/quiz'
     | '/rate'
+    | '/riddle'
     | '/seat'
     | '/streamers'
     | '/vote'
@@ -177,6 +188,7 @@ export interface FileRouteTypes {
     | '/phrase'
     | '/quiz'
     | '/rate'
+    | '/riddle'
     | '/seat'
     | '/streamers'
     | '/vote'
@@ -193,6 +205,7 @@ export interface RootRouteChildren {
   PhraseRoute: typeof PhraseRoute
   QuizRoute: typeof QuizRouteWithChildren
   RateRoute: typeof RateRoute
+  RiddleRoute: typeof RiddleRoute
   SeatRoute: typeof SeatRoute
   StreamersRoute: typeof StreamersRoute
   VoteRoute: typeof VoteRoute
@@ -263,6 +276,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/riddle': {
+      id: '/riddle'
+      path: '/riddle'
+      fullPath: '/riddle'
+      preLoaderRoute: typeof RiddleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/seat': {
       id: '/seat'
       path: '/seat'
@@ -314,6 +334,7 @@ const rootRouteChildren: RootRouteChildren = {
   PhraseRoute: PhraseRoute,
   QuizRoute: QuizRouteWithChildren,
   RateRoute: RateRoute,
+  RiddleRoute: RiddleRoute,
   SeatRoute: SeatRoute,
   StreamersRoute: StreamersRoute,
   VoteRoute: VoteRoute,
@@ -321,3 +342,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

@@ -92,9 +92,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: "اربط بثّك على كيك وشغّل ألعاباً تفاعلية مع Al-Daboor.",
       },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
+      { property: "og:image", content: "/favicon.png" },
+      { name: "twitter:card", content: "summary" },
+      { name: "twitter:image", content: "/favicon.png" },
     ],
     links: [
+      { rel: "icon", href: "/favicon.png", type: "image/png" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {

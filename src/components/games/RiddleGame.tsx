@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { pickRiddleRound, riddleMatches, RIDDLE_BANK, RIDDLE_ROUND, type Riddle } from "@/lib/riddles";
+import { pickRiddleRound, riddleMatches, RIDDLE_BANK, RIDDLE_COUNTS, type Riddle } from "@/lib/riddles";
 import { cn } from "@/lib/utils";
 
 type Winner = { user: string; answer: string; color: string };
@@ -24,7 +24,8 @@ export default function RiddleGame({
   messages: ChatMessage[];
   chatActive: boolean;
 }) {
-  const [deck, setDeck] = useState<Riddle[]>(() => pickRiddleRound());
+  const [roundCount, setRoundCount] = useState<(typeof RIDDLE_COUNTS)[number]>(10);
+  const [deck, setDeck] = useState<Riddle[]>(() => pickRiddleRound(RIDDLE_BANK, 10));
   const [index, setIndex] = useState(0);
   const [scores, setScores] = useState<Record<string, number>>({});
   const [scoreColors, setScoreColors] = useState<Record<string, string>>({});
@@ -102,7 +103,7 @@ export default function RiddleGame({
 
   const restartAll = () => {
     session.stop();
-    setDeck(pickRiddleRound());
+    setDeck(pickRiddleRound(RIDDLE_BANK, roundCount));
     setIndex(0);
     setScores({});
     setScoreColors({});
@@ -128,7 +129,34 @@ export default function RiddleGame({
     <div className="mx-auto max-w-3xl space-y-5">
       <div className="glass rounded-3xl border border-primary/20 p-4 sm:p-5">
         <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[9rem] flex-1">
+          <div className="min-w-[8rem] flex-1">
+            <label className="mb-1.5 block text-xs font-bold text-muted-foreground">عدد الألغاز</label>
+            <select
+              value={roundCount}
+              disabled={session.running || (!finished && index > 0)}
+              onChange={(e) => {
+                const n = Number(e.target.value) as (typeof RIDDLE_COUNTS)[number];
+                setRoundCount(n);
+                setDeck(pickRiddleRound(RIDDLE_BANK, n));
+                setIndex(0);
+                setScores({});
+                setScoreColors({});
+                setWinner(null);
+                setAttempts(0);
+                setFinished(false);
+                setFinalOpen(false);
+                settled.current = false;
+              }}
+              className="border-input bg-background h-11 w-full rounded-md border px-3 text-sm font-bold"
+            >
+              {RIDDLE_COUNTS.map((n) => (
+                <option key={n} value={n}>
+                  {n} لغز
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-[8rem] flex-1">
             <label className="mb-1.5 block text-xs font-bold text-muted-foreground">مدة اللغز</label>
             <select
               value={session.durationSec}
@@ -145,7 +173,7 @@ export default function RiddleGame({
           </div>
           {finished ? (
             <Button className="h-11 font-extrabold" onClick={restartAll}>
-              <RotateCcw className="size-4" /> جولة جديدة ({RIDDLE_ROUND} ألغاز)
+              <RotateCcw className="size-4" /> جولة جديدة ({roundCount} ألغاز)
             </Button>
           ) : session.running ? (
             <Button variant="destructive" className="h-11 font-extrabold" onClick={() => session.stop()}>
@@ -158,8 +186,8 @@ export default function RiddleGame({
           )}
         </div>
         <p className="mt-3 text-[11px] leading-5 text-muted-foreground">
-          ألغاز تحتاج تفكير — الحل ما يظهر على الشاشة. الجمهور يخمن في الشات، وأول جواب صحيح يفوز. فيه {RIDDLE_BANK.length}{" "}
-          لغز، والجولة {RIDDLE_ROUND} بدون تكرار. تقدر تفتح تلميح أو تشوف الحل أنت بس.
+          ألغاز تحتاج تفكير — الحل ما يظهر على الشاشة. الجمهور يخمن في الشات، وأول جواب صحيح يفوز. المكتبة فيها{" "}
+          {RIDDLE_BANK.length} لغز. اختار ١٠ أو ٢٠ أو ٥٠ أو ١٠٠ للجولة، بدون تكرار داخل الجولة. تقدر تفتح تلميح أو تشوف الحل أنت بس.
         </p>
         {!chatActive ? (
           <p className="mt-1 text-[11px] font-bold text-destructive">اربط كيك قبل البدء.</p>

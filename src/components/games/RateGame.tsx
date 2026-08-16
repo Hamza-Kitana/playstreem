@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Star, UserRound } from "lucide-react";
-import type { ChatMessage } from "@/hooks/useKickChat";
+import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
 import { useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
 import SessionControls from "@/components/games/SessionControls";
@@ -45,11 +45,13 @@ export default function RateGame({
   }, [session.setOnExpire]);
 
   useNewMessages(messages, session.running, (m) => {
-    if (session.hasParticipated(m.user)) return;
+    const who = participantKey(m);
+    if (!who) return;
+    if (session.hasParticipated(who)) return;
     const t = normalizeAr(m.text);
     const n = Number(t.split(" ")[0]);
     if (!Number.isFinite(n) || n < 0 || n > 10) return;
-    if (!session.tryClaim(m.user)) return;
+    if (!session.tryClaim(who)) return;
     setRatings((r) => [...r, Math.round(n)]);
   });
 
@@ -101,7 +103,7 @@ export default function RateGame({
           canStart={Boolean(name.trim())}
           startLabel="بدء التقييم"
           stopLabel="إيقاف التقييم"
-          hint="كل مشاهد يرسل تقييم واحد فقط من ٠ إلى ١٠ أثناء الجلسة."
+          hint="كل حساب يقيّم مرة واحدة فقط من ٠ إلى ١٠ — أول رقم يُحتسب والباقي يُتجاهل."
           onDurationChange={session.setDurationSec}
           onStart={start}
           onStop={stop}

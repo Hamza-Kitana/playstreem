@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Crown, Play, RotateCcw, Square, Trophy } from "lucide-react";
-import type { ChatMessage } from "@/hooks/useKickChat";
+import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
 import { formatClock, useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
 import { Button } from "@/components/ui/button";
@@ -81,11 +81,12 @@ export default function QuizOverlayStage({
   }, [session.running]);
 
   useNewMessages(messages, session.running && !finished, (m) => {
-    if (!answerKey || settled.current) return;
-    if (session.hasParticipated(m.user)) return;
+    const who = participantKey(m);
+    if (!answerKey || settled.current || !who) return;
+    if (session.hasParticipated(who)) return;
     const text = normalizeAr(m.text);
     if (!text) return;
-    if (!session.tryClaim(m.user)) return;
+    if (!session.tryClaim(who)) return;
     setAttempts((n) => n + 1);
     if (!answersMatch(text, answerKey)) return;
     settled.current = true;

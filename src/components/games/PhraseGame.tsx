@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Eye, EyeOff, Lock, MessageSquareQuote, Sparkles, Users } from "lucide-react";
-import type { ChatMessage } from "@/hooks/useKickChat";
+import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
 import { useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
 import SessionControls from "@/components/games/SessionControls";
@@ -42,13 +42,14 @@ export default function PhraseGame({
   const latest = hits[0] ?? null;
 
   useNewMessages(messages, session.running, (m) => {
+    const who = participantKey(m);
     if (!target) return;
-    if (session.hasParticipated(m.user)) return;
+    if (!who || session.hasParticipated(who)) return;
 
     const text = normalizeAr(m.text);
     if (!text) return;
     if (text !== target) return;
-    if (!session.tryClaim(m.user)) return;
+    if (!session.tryClaim(who)) return;
 
     hitSeq += 1;
     setHits((prev) => [{ id: hitSeq, user: m.user, color: m.color, at: Date.now() }, ...prev].slice(0, 40));

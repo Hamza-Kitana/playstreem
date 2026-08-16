@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Crown, Flag, Play, RotateCcw, Square, Trophy } from "lucide-react";
-import type { ChatMessage } from "@/hooks/useKickChat";
+import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
 import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
 import { Button } from "@/components/ui/button";
@@ -67,11 +67,12 @@ export default function FlagGame({
   }, [session.running]);
 
   useNewMessages(messages, session.running && !finished, (m) => {
-    if (!current || settled.current) return;
-    if (session.hasParticipated(m.user)) return;
+    const who = participantKey(m);
+    if (!current || settled.current || !who) return;
+    if (session.hasParticipated(who)) return;
     const text = normalizeAr(m.text);
     if (!text) return;
-    if (!session.tryClaim(m.user)) return;
+    if (!session.tryClaim(who)) return;
     setAttempts((n) => n + 1);
     if (!answersMatch(text, current)) return;
     settled.current = true;

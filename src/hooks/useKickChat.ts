@@ -3,11 +3,46 @@ import { clearKickSession, saveKickSession } from "@/lib/kick-session";
 
 export type ChatMessage = {
   key: number;
+  /** Display name in chat. */
   user: string;
+  /** Stable Kick account id/slug — used so each person can act once. */
+  userKey: string;
   color: string;
   text: string;
   at: number;
 };
+
+type KickSender = {
+  id?: number | string;
+  username?: string;
+  slug?: string;
+  identity?: { color?: string };
+};
+
+/** Unique key for one-vote / one-rating / one-attempt rules. */
+export function participantKey(m: Pick<ChatMessage, "user" | "userKey">) {
+  return (m.userKey || m.user).trim().toLowerCase();
+}
+
+function identityFromSender(sender?: KickSender | null) {
+  const username = String(sender?.username ?? "").trim();
+  const slug = String(sender?.slug ?? "").trim();
+  const id = sender?.id;
+  const user = username || slug || "مشاهد";
+  const userKey =
+    id != null && String(id).trim() !== ""
+      ? `id:${id}`
+      : slug
+        ? `slug:${slug.toLowerCase()}`
+        : username
+          ? `user:${username.toLowerCase()}`
+          : "";
+  return {
+    user,
+    userKey,
+    color: sender?.identity?.color ?? "#8ef0c0",
+  };
+}
 
 export type ChatStatus = "idle" | "connecting" | "live" | "error";
 
@@ -23,10 +58,12 @@ export function useKickChat() {
   const [channel, setChannel] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
-  const push = useCallback((user: string, text: string, color: string) => {
+  const seenIds = useRef(new Set<string>());
+
+  const push = useCallback((user: string, userKey: string, text: string, color: string) => {
     counter += 1;
     setMessages((prev) => {
-      const next = [...prev, { key: counter, user, text, color, at: Date.now() }];
+      const next = [...prev, { key: counter, user, userKey, text, color, at: Date.now() }];
       return next.length > 220 ? next.slice(next.length - 220) : next;
     });
   }, []);
@@ -47,6 +84,7 @@ export function useKickChat() {
   const connect = useCallback(
     (chatroomId: number, label: string, slug?: string) => {
       disconnectSockets();
+      seenIds.current.clear();
       setError(null);
       setStatus("connecting");
       setChannel(label);
@@ -84,16 +122,24 @@ export function useKickChat() {
           const frame = JSON.parse(String(ev.data)) as { event?: string; data?: string };
           if (!frame.event?.includes("ChatMessage") || !frame.data) return;
           const payload = JSON.parse(frame.data) as {
+            id?: string | number;
             content?: string;
-            sender?: { username?: string; identity?: { color?: string } };
+            sender?: KickSender;
+            user?: KickSender;
           };
+          const mid = payload.id != null ? String(payload.id) : "";
+          if (mid) {
+            if (seenIds.current.has(mid)) return;
+            seenIds.current.add(mid);
+            if (seenIds.current.size > 400) {
+              const first = seenIds.current.values().next().value;
+              if (first) seenIds.current.delete(first);
+            }
+          }
           const text = payload.content?.trim();
           if (!text) return;
-          push(
-            payload.sender?.username ?? "مشاهد",
-            text,
-            payload.sender?.identity?.color ?? "#8ef0c0",
-          );
+          const ident = identityFromSender(payload.sender ?? payload.user);
+          push(ident.user, ident.userKey, text, ident.color);
         } catch {
           /* ignore malformed frames */
         }

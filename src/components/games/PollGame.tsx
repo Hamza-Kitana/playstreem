@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { BarChart3, Plus, Trash2 } from "lucide-react";
-import type { ChatMessage } from "@/hooks/useKickChat";
+import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
 import { useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
 import SessionControls from "@/components/games/SessionControls";
@@ -51,10 +51,12 @@ export default function PollGame({
   const session = useGameSession(60);
 
   useNewMessages(messages, session.running, (m) => {
-    if (session.hasParticipated(m.user)) return;
+    const who = participantKey(m);
+    if (!who) return;
+    if (session.hasParticipated(who)) return;
     const idx = resolveVoteIndex(m.text, options);
     if (idx < 0) return;
-    if (!session.tryClaim(m.user)) return;
+    if (!session.tryClaim(who)) return;
     setVotes((v) => v.map((c, i) => (i === idx ? c + 1 : c)));
   });
 
@@ -84,7 +86,7 @@ export default function PollGame({
         canStart={options.length >= 2}
         startLabel="بدء التصويت"
         stopLabel="إيقاف التصويت"
-        hint="كل مشاهد يصوّت مرة واحدة فقط: يكتب نص الخيار (نعم، لا…) أو رقمه (١، ٢، ٣…)."
+        hint="كل حساب يصوّت مرة واحدة فقط في الجلسة — حتى لو كتب أكثر من تعليق. يكتب نص الخيار أو رقمه."
         onDurationChange={session.setDurationSec}
         onStart={start}
         onStop={stop}

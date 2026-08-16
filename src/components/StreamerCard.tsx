@@ -30,11 +30,11 @@ export default function StreamerCard({ streamer, expanded, onHoverChange, isLive
       tabIndex={0}
       className={cn(
         "streamer-card group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[1.75rem] border outline-none",
-        "origin-center transition-[transform,box-shadow,border-color,opacity] duration-500 ease-out",
+        "transition-[transform,box-shadow,border-color] duration-300 ease-out",
         "focus-visible:ring-2 focus-visible:ring-primary/60",
         expanded
-          ? "z-30 scale-[1.12] border-primary/70 shadow-[0_0_0_1px_color-mix(in_oklab,var(--neon)_45%,transparent),0_32px_90px_-20px_color-mix(in_oklab,var(--neon)_60%,transparent)] sm:scale-[1.18] lg:scale-[1.22]"
-          : "z-0 border-white/10 bg-secondary/20 hover:border-primary/35",
+          ? "-translate-y-1.5 z-10 border-primary/55 shadow-[0_16px_40px_-24px_oklch(0_0_0_/_0.8)]"
+          : "z-0 border-white/10 hover:border-primary/35",
       )}
       style={{
         background: `radial-gradient(120% 80% at 50% 0%, oklch(0.35 0.08 ${hue} / 0.35), transparent 55%),
@@ -61,12 +61,7 @@ export default function StreamerCard({ streamer, expanded, onHoverChange, isLive
       </div>
 
       {/* Always-on muted Kick player */}
-      <div
-        className={cn(
-          "relative overflow-hidden bg-black/40 transition-[aspect-ratio,min-height] duration-500",
-          expanded ? "aspect-video min-h-[14rem] sm:min-h-[16rem]" : "aspect-[16/11]",
-        )}
-      >
+      <div className="relative aspect-video overflow-hidden bg-black">
         <iframe
           title={`بث ${name}`}
           src={playerSrc}

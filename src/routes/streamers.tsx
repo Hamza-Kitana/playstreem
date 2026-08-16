@@ -22,18 +22,25 @@ export const Route = createFileRoute("/streamers")({
 
 const VERIFIED: VerifiedStreamer[] = [
   {
+    name: "kazroo",
+    slug: "kazroo",
+    tag: "ستريمر موثّق",
+    hue: 164,
+    note: "موثّق لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
+  },
+  {
     name: "salahat8",
     slug: "salahat8",
     tag: "رائد المنصة",
     hue: 152,
-    note: "وجه موثّق عند Al-Daboor — البث يشتغل مكتوم على الكرت، والهوفر يكبّره.",
+    note: "وجه موثّق عند Al-Daboor — البث يشتغل مكتوم على الكرت.",
   },
   {
     name: "xsybx",
     slug: "xsybx",
     tag: "طاقة لايف",
     hue: 168,
-    note: "ستريمر موثّق بطاقة عالية — مرّر عشان تشوف البث أكبر.",
+    note: "ستريمر موثّق بطاقة عالية — شوف البث على الكرت.",
   },
   {
     name: "sarfndi-m",
@@ -68,13 +75,6 @@ const VERIFIED: VerifiedStreamer[] = [
     slug: "rivo_gaming",
     tag: "ستريمر موثّق",
     hue: 158,
-    note: "موثّق لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
-  },
-  {
-    name: "kazroo",
-    slug: "kazroo",
-    tag: "ستريمر موثّق",
-    hue: 164,
     note: "موثّق لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
   },
 ];
@@ -137,7 +137,7 @@ function StreamersPage() {
               <span className="shimmer-text">الستريمر الموثقين</span>
             </h1>
             <p className="mt-1.5 max-w-xl text-sm leading-6 text-muted-foreground sm:mx-0 sm:ms-auto">
-              بث مكتوم على الكرت · LIVE لمن أونلاين · مرّر عشان يكبّر
+              بث مكتوم على الكرت · LIVE لمن أونلاين
             </p>
           </div>
 
@@ -163,23 +163,15 @@ function StreamersPage() {
           </p>
         </div>
 
-        <div className="grid w-full gap-5 overflow-visible pt-2 pb-6 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4 xl:gap-6">
+        <div className="grid w-full gap-5 pt-2 pb-6 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4 xl:gap-6">
           {VERIFIED.map((s, i) => (
-            <Reveal key={s.slug} delay={i * 50} className="h-full overflow-visible">
-              <div
-                className={
-                  expandedSlug && expandedSlug !== s.slug
-                    ? "h-full opacity-45 transition-opacity duration-500"
-                    : "h-full opacity-100 transition-opacity duration-500"
-                }
-              >
-                <StreamerCard
-                  streamer={s}
-                  expanded={expandedSlug === s.slug}
-                  onHoverChange={setExpandedSlug}
-                  isLive={liveMap[s.slug] ?? null}
-                />
-              </div>
+            <Reveal key={s.slug} delay={i * 40} className="h-full">
+              <StreamerCard
+                streamer={s}
+                expanded={expandedSlug === s.slug}
+                onHoverChange={setExpandedSlug}
+                isLive={liveMap[s.slug] ?? null}
+              />
             </Reveal>
           ))}
         </div>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { MessageSquareQuote, Sparkles, Users } from "lucide-react";
+import { Eye, EyeOff, Lock, MessageSquareQuote, Sparkles, Users } from "lucide-react";
 import type { ChatMessage } from "@/hooks/useKickChat";
 import { useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
@@ -7,6 +7,14 @@ import SessionControls from "@/components/games/SessionControls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GameCard } from "@/components/Reveal";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Hit = {
   id: number;
@@ -26,6 +34,8 @@ export default function PhraseGame({
 }) {
   const [phrase, setPhrase] = useState("");
   const [hits, setHits] = useState<Hit[]>([]);
+  const [wordOpen, setWordOpen] = useState(false);
+  const [showWord, setShowWord] = useState(false);
   const session = useGameSession(90);
 
   const target = useMemo(() => normalizeAr(phrase), [phrase]);
@@ -65,24 +75,93 @@ export default function PhraseGame({
         canStart={Boolean(target)}
         startLabel="بدء الجلسة"
         stopLabel="إيقاف الجلسة"
-        hint="اكتب الكلمة سرّاً هنا — ما بتطلع على الشاشة. الجمهور يخمن في الشات، واللي يصيب يطلع اسمه."
+        hint="اضغط «اكتب الكلمة السرية» وحطها بنافذة خاصة. ما بتطلع على شاشة البث — الجمهور يخمن في الشات."
         onDurationChange={session.setDurationSec}
         onStart={start}
         onStop={() => session.stop()}
       />
 
-      <label className="block space-y-2">
-        <span className="text-sm font-bold">الكلمة السرية (للستريمر فقط — مخفية عن البث)</span>
-        <Input
-          type="password"
-          autoComplete="off"
-          value={phrase}
-          onChange={(e) => setPhrase(e.target.value)}
-          placeholder="اكتب الكلمة وما تطلعش قدام الكاميرا"
-          className="h-12 text-base font-bold"
-          disabled={session.running}
-        />
-      </label>
+      <button
+        type="button"
+        disabled={session.running}
+        onClick={() => {
+          setShowWord(false);
+          setWordOpen(true);
+        }}
+        className="flex w-full items-center gap-4 rounded-3xl border-2 border-dashed border-primary/50 bg-primary/10 px-5 py-5 text-right transition hover:border-primary hover:bg-primary/15 disabled:opacity-50"
+      >
+        <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-[0_0_28px_-8px_var(--neon)]">
+          <Lock className="size-7" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-lg font-extrabold sm:text-xl">
+            {target ? "الكلمة السرية جاهزة" : "اضغط هنا واكتب الكلمة السرية"}
+          </span>
+          <span className="mt-1 block text-sm text-muted-foreground">
+            {target
+              ? "مخفية عن الشاشة — اضغط للتعديل قبل البدء"
+              : "نافذة للستريمر فقط، الجمهور ما يشوف الكلمة"}
+          </span>
+        </span>
+      </button>
+
+      <Dialog
+        open={wordOpen}
+        onOpenChange={(open) => {
+          setWordOpen(open);
+          if (!open) setShowWord(false);
+        }}
+      >
+        <DialogContent className="max-w-md border-primary/40 bg-[#0e1715] sm:rounded-3xl" dir="rtl">
+          <DialogHeader className="text-right">
+            <div className="mx-auto mb-2 grid size-14 place-items-center rounded-2xl bg-primary/15 text-primary">
+              <Lock className="size-7" />
+            </div>
+            <DialogTitle className="text-center text-2xl font-extrabold">اكتب الكلمة هنا</DialogTitle>
+            <DialogDescription className="text-center">
+              هاي النافذة إلك أنت. سكّرها قبل ما توجّه الكاميرا على الشاشة.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="relative">
+            <Input
+              autoFocus
+              type={showWord ? "text" : "password"}
+              autoComplete="off"
+              value={phrase}
+              onChange={(e) => setPhrase(e.target.value)}
+              placeholder="مثال: بيتزا"
+              className="h-14 border-primary/40 bg-black/40 pe-12 text-center text-xl font-extrabold"
+              disabled={session.running}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && phrase.trim()) {
+                  setWordOpen(false);
+                  setShowWord(false);
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="absolute top-1/2 left-3 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground hover:text-foreground"
+              onClick={() => setShowWord((v) => !v)}
+              aria-label={showWord ? "إخفاء الكلمة" : "إظهار الكلمة"}
+            >
+              {showWord ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+            </button>
+          </div>
+          <DialogFooter className="sm:justify-center">
+            <Button
+              className="h-12 w-full font-extrabold"
+              disabled={!phrase.trim()}
+              onClick={() => {
+                setWordOpen(false);
+                setShowWord(false);
+              }}
+            >
+              تم — أخفي الكلمة
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Spotlight — never reveal the secret word */}
       <div className="relative overflow-hidden rounded-[1.75rem] border border-primary/25 bg-gradient-to-br from-primary/15 via-secondary/40 to-background p-8 text-center sm:p-12">

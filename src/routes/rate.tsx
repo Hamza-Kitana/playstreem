@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/rate")({
   head: () => ({
-    meta: [{ title: "تقييم شخص — Al-Daboor" }],
+    meta: [{ title: "بطولة تقييم الأشخاص — Al-Daboor" }],
   }),
   component: RatePage,
 });
@@ -19,8 +19,8 @@ function RatePage() {
     <section>
       <SectionHeading
         eyebrow="لعبة تفاعلية"
-        title="تقييم شخص"
-        subtitle="أدخل اسم أي شخص ودع الجمهور يقيّمه من 0 إلى 10."
+        title="بطولة تقييم الأشخاص"
+        subtitle="أضف المعايير والأسماء، ثم قيّم كل شخص معيارًا معيارًا قبل عرض الترتيب النهائي."
       />
       {!chatActive ? (
         <div className="glass mb-6 rounded-2xl p-4 text-center text-sm text-muted-foreground">

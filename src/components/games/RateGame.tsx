@@ -5,6 +5,14 @@ import { useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
 import SessionControls from "@/components/games/SessionControls";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { GameCard } from "@/components/Reveal";
 
@@ -19,11 +27,12 @@ export default function RateGame({
   const [personInput, setPersonInput] = useState("");
   const [criteria, setCriteria] = useState<string[]>([]);
   const [people, setPeople] = useState<string[]>([]);
-  const [currentPersonIndex, setCurrentPersonIndex] = useState(0);
-  const [currentCriterionIndex, setCurrentCriterionIndex] = useState(0);
+  const [selectedPerson, setSelectedPerson] = useState("");
+  const [selectedCriterion, setSelectedCriterion] = useState("");
+  const [criteriaDialogOpen, setCriteriaDialogOpen] = useState(true);
+  const [peopleDialogOpen, setPeopleDialogOpen] = useState(false);
   const [ratings, setRatings] = useState<number[]>([]);
   const [showFinalResults, setShowFinalResults] = useState(false);
-  const [finished, setFinished] = useState(false);
   const [roundResults, setRoundResults] = useState<
     { person: string; criterion: string; avg: number; count: number }[]
   >([]);
@@ -32,9 +41,6 @@ export default function RateGame({
   const ratingsRef = useRef(ratings);
   const roundLockedRef = useRef(false);
   ratingsRef.current = ratings;
-
-  const currentCriterion = criteria[currentCriterionIndex] ?? "";
-  const currentPerson = people[currentPersonIndex] ?? "";
 
   const roundAvg = useMemo(
     () => (ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0),
@@ -48,24 +54,54 @@ export default function RateGame({
     return [...items, clean];
   };
 
+  const addCriterion = useCallback(() => {
+    setCriteria((prev) => addUnique(prev, criterionInput));
+    setCriterionInput("");
+  }, [criterionInput]);
+
+  const addPerson = useCallback(() => {
+    setPeople((prev) => addUnique(prev, personInput));
+    setPersonInput("");
+  }, [personInput]);
+
+  useEffect(() => {
+    if (!selectedCriterion && criteria.length > 0) {
+      setSelectedCriterion(criteria[0] ?? "");
+    }
+  }, [criteria, selectedCriterion]);
+
+  useEffect(() => {
+    if (!selectedPerson && people.length > 0) {
+      setSelectedPerson(people[0] ?? "");
+    }
+  }, [people, selectedPerson]);
+
   const commitRound = useCallback(() => {
     if (roundLockedRef.current) return;
     roundLockedRef.current = true;
 
     const current = ratingsRef.current;
-    if (!currentPerson || !currentCriterion) return;
+    if (!selectedPerson || !selectedCriterion) return;
 
     const a = current.length ? current.reduce((x, y) => x + y, 0) / current.length : 0;
-    setRoundResults((prev) => [
-      ...prev,
-      {
-        person: currentPerson,
-        criterion: currentCriterion,
+    setRoundResults((prev) => {
+      const next = [...prev];
+      const idx = next.findIndex(
+        (x) => x.person === selectedPerson && x.criterion === selectedCriterion,
+      );
+      const record = {
+        person: selectedPerson,
+        criterion: selectedCriterion,
         avg: current.length ? a : 0,
         count: current.length,
-      },
-    ]);
-  }, [currentCriterion, currentPerson]);
+      };
+      if (idx >= 0) {
+        next[idx] = record;
+        return next;
+      }
+      return [...next, record];
+    });
+  }, [selectedCriterion, selectedPerson]);
 
   useEffect(() => {
     session.setOnExpire(() => {
@@ -92,7 +128,7 @@ export default function RateGame({
   const maxD = Math.max(...dist, 1);
 
   const start = () => {
-    if (!currentPerson || !currentCriterion || finished) return;
+    if (!selectedPerson || !selectedCriterion) return;
     roundLockedRef.current = false;
     setRatings([]);
     session.start();
@@ -103,34 +139,10 @@ export default function RateGame({
     session.stop();
   };
 
-  const nextRound = () => {
-    if (session.running) return;
-    if (!roundLockedRef.current) commitRound();
-    setShowFinalResults(false);
-    setRatings([]);
-
-    const hasMoreCriteria = currentCriterionIndex < criteria.length - 1;
-    const hasMorePeople = currentPersonIndex < people.length - 1;
-
-    if (hasMoreCriteria) {
-      setCurrentCriterionIndex((i) => i + 1);
-      return;
-    }
-    if (hasMorePeople) {
-      setCurrentPersonIndex((i) => i + 1);
-      setCurrentCriterionIndex(0);
-      return;
-    }
-    setFinished(true);
-  };
-
   const resetTournament = () => {
     session.stop();
-    setCurrentPersonIndex(0);
-    setCurrentCriterionIndex(0);
     setRatings([]);
     setRoundResults([]);
-    setFinished(false);
     setShowFinalResults(false);
     roundLockedRef.current = false;
   };
@@ -159,101 +171,158 @@ export default function RateGame({
 
   return (
     <GameCard id="rate" className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
+      <Dialog open={criteriaDialogOpen} onOpenChange={setCriteriaDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>إعداد التصنيفات</DialogTitle>
+            <DialogDescription>أضف الأشياء التي تريد تقييم الأشخاص عليها.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                value={criterionInput}
+                onChange={(e) => setCriterionInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  addCriterion();
+                }}
+                placeholder="مثال: القوة"
+              />
+              <Button type="button" onClick={addCriterion}>
+                إضافة
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {criteria.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className="rounded-full bg-secondary px-3 py-1 text-xs font-bold"
+                  onClick={() => setCriteria((prev) => prev.filter((x) => x !== c))}
+                >
+                  {c} ×
+                </button>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              disabled={criteria.length === 0}
+              onClick={() => {
+                setCriteriaDialogOpen(false);
+                setPeopleDialogOpen(true);
+              }}
+            >
+              التالي: إعداد الأشخاص
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={peopleDialogOpen} onOpenChange={setPeopleDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>إعداد الأشخاص</DialogTitle>
+            <DialogDescription>أضف الأشخاص الذين تريد تقييمهم.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                value={personInput}
+                onChange={(e) => setPersonInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  addPerson();
+                }}
+                placeholder="مثال: محمد"
+              />
+              <Button type="button" onClick={addPerson}>
+                إضافة
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {people.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className="rounded-full bg-secondary px-3 py-1 text-xs font-bold"
+                  onClick={() => setPeople((prev) => prev.filter((x) => x !== p))}
+                >
+                  {p} ×
+                </button>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              disabled={people.length === 0}
+              onClick={() => setPeopleDialogOpen(false)}
+            >
+              بدء التقييم
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="space-y-5">
         <div className="flex items-center gap-2">
           <Star className="size-5 text-accent" />
           <h4 className="text-lg font-extrabold">بطولة تقييم الأشخاص</h4>
         </div>
 
-        <div className="space-y-3 rounded-2xl border border-border/70 bg-secondary/35 p-4">
-          <p className="text-sm font-bold">١) أضف معايير التقييم</p>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Target className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={criterionInput}
-                onChange={(e) => setCriterionInput(e.target.value)}
-                placeholder="مثال: السرعة، القوة، الذكاء..."
-                className="h-11 pr-10"
-                disabled={session.running || roundResults.length > 0}
-              />
-            </div>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={session.running || roundResults.length > 0}
-              onClick={() => {
-                setCriteria((prev) => addUnique(prev, criterionInput));
-                setCriterionInput("");
-              }}
-            >
-              إضافة
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {criteria.map((c) => (
-              <button
-                key={c}
-                type="button"
-                className="rounded-full bg-background px-3 py-1 text-xs font-bold"
-                disabled={session.running || roundResults.length > 0}
-                onClick={() => setCriteria((prev) => prev.filter((x) => x !== c))}
-              >
-                {c} ×
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-3 rounded-2xl border border-border/70 bg-secondary/35 p-4">
-          <p className="text-sm font-bold">٢) أضف أسماء الأشخاص</p>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Users className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={personInput}
-                onChange={(e) => setPersonInput(e.target.value)}
-                placeholder="اكتب اسم الشخص"
-                className="h-11 pr-10"
-                disabled={session.running || roundResults.length > 0}
-              />
-            </div>
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={session.running || roundResults.length > 0}
-              onClick={() => {
-                setPeople((prev) => addUnique(prev, personInput));
-                setPersonInput("");
-              }}
-            >
-              إضافة
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {people.map((p) => (
-              <button
-                key={p}
-                type="button"
-                className="rounded-full bg-background px-3 py-1 text-xs font-bold"
-                disabled={session.running || roundResults.length > 0}
-                onClick={() => setPeople((prev) => prev.filter((x) => x !== p))}
-              >
-                {p} ×
-              </button>
-            ))}
-          </div>
+        <div className="grid gap-3 rounded-2xl border border-border/70 bg-secondary/35 p-4 md:grid-cols-2">
+          <Button type="button" variant="secondary" onClick={() => setCriteriaDialogOpen(true)}>
+            <Target className="size-4" />
+            تعديل التصنيفات ({criteria.length})
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => setPeopleDialogOpen(true)}>
+            <Users className="size-4" />
+            تعديل الأشخاص ({people.length})
+          </Button>
         </div>
 
         <div className="rounded-2xl border border-border/70 bg-background/40 p-4">
-          <p className="text-sm font-extrabold">٣) الجولة الحالية</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            الشخص: <span className="font-bold text-foreground">{currentPerson || "—"}</span>
-            {" · المعيار: "}
-            <span className="font-bold text-foreground">{currentCriterion || "—"}</span>
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            التقدم: {progressDone} / {progressTotal || 0}
+          <p className="text-sm font-extrabold">اختيار الجولة (حر)</p>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <label className="space-y-1 text-xs font-bold text-muted-foreground">
+              الشخص
+              <select
+                value={selectedPerson}
+                disabled={session.running || people.length === 0}
+                onChange={(e) => setSelectedPerson(e.target.value)}
+                className="border-input bg-background focus-visible:ring-ring h-11 w-full rounded-md border px-3 text-sm font-bold text-foreground outline-none focus-visible:ring-2"
+              >
+                {people.length === 0 ? <option value="">أضف أشخاص أولاً</option> : null}
+                {people.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1 text-xs font-bold text-muted-foreground">
+              التصنيف
+              <select
+                value={selectedCriterion}
+                disabled={session.running || criteria.length === 0}
+                onChange={(e) => setSelectedCriterion(e.target.value)}
+                className="border-input bg-background focus-visible:ring-ring h-11 w-full rounded-md border px-3 text-sm font-bold text-foreground outline-none focus-visible:ring-2"
+              >
+                {criteria.length === 0 ? <option value="">أضف تصنيفات أولاً</option> : null}
+                {criteria.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            التقدم: {progressDone} / {progressTotal || 0} جولة معتمدة
           </p>
         </div>
 
@@ -263,7 +332,7 @@ export default function RateGame({
           durationSec={session.durationSec}
           left={session.left}
           participantCount={session.participantCount}
-          canStart={Boolean(currentPerson && currentCriterion) && !finished}
+          canStart={Boolean(selectedPerson && selectedCriterion)}
           startLabel="بدء التقييم"
           stopLabel="إيقاف واعتماد الجولة"
           hint="كل حساب يقيّم مرة واحدة فقط لكل جولة من 0 إلى 10."
@@ -275,16 +344,8 @@ export default function RateGame({
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
-            variant="outline"
-            disabled={session.running || finished || !currentPerson || !currentCriterion}
-            onClick={nextRound}
-          >
-            اعتماد والانتقال للجولة التالية
-          </Button>
-          <Button
-            type="button"
             variant="secondary"
-            disabled={!finished}
+            disabled={roundResults.length === 0}
             onClick={() => setShowFinalResults(true)}
           >
             عرض النتيجة النهائية

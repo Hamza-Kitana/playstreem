@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Medal, Star, Target, Users } from "lucide-react";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
-import { useGameSession } from "@/hooks/useGameSession";
+import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
-import SessionControls from "@/components/games/SessionControls";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,6 +34,7 @@ export default function RateGame({
   const [peopleDialogOpen, setPeopleDialogOpen] = useState(false);
   const [ratings, setRatings] = useState<number[]>([]);
   const [showFinalResults, setShowFinalResults] = useState(false);
+  const [finalLoading, setFinalLoading] = useState(false);
   const [roundResults, setRoundResults] = useState<
     { person: string; criterion: string; avg: number; count: number }[]
   >([]);
@@ -42,6 +42,7 @@ export default function RateGame({
 
   const ratingsRef = useRef(ratings);
   const roundLockedRef = useRef(false);
+  const revealTimeoutRef = useRef<number | null>(null);
   ratingsRef.current = ratings;
 
   const roundAvg = useMemo(
@@ -146,6 +147,7 @@ export default function RateGame({
     setSelectedPerson(person);
     setSelectedCriterion(criterion);
     setShowFinalResults(false);
+    setFinalLoading(false);
     roundLockedRef.current = false;
     setRatings([]);
     session.start();
@@ -153,12 +155,23 @@ export default function RateGame({
   };
 
   const resetTournament = () => {
+    if (revealTimeoutRef.current) {
+      window.clearTimeout(revealTimeoutRef.current);
+      revealTimeoutRef.current = null;
+    }
     session.stop();
     setRatings([]);
     setRoundResults([]);
     setShowFinalResults(false);
+    setFinalLoading(false);
     roundLockedRef.current = false;
   };
+
+  useEffect(() => {
+    return () => {
+      if (revealTimeoutRef.current) window.clearTimeout(revealTimeoutRef.current);
+    };
+  }, []);
 
   const ranking = useMemo(() => {
     const byPerson = new Map<string, { total: number; votedCriteria: number; voters: number }>();
@@ -181,6 +194,21 @@ export default function RateGame({
   const progressDone = roundResults.length;
   const progressTotal = people.length * criteria.length;
   const pct = (roundAvg / 10) * 100;
+  const currentRoundLabel =
+    selectedPerson && selectedCriterion
+      ? `${selectedPerson} · ${selectedCriterion}`
+      : "لا توجد جولة حالية";
+
+  const revealFinalResults = () => {
+    if (roundResults.length === 0 || finalLoading) return;
+    setFinalLoading(true);
+    setShowFinalResults(false);
+    revealTimeoutRef.current = window.setTimeout(() => {
+      setFinalLoading(false);
+      setShowFinalResults(true);
+      revealTimeoutRef.current = null;
+    }, 2600);
+  };
 
   return (
     <GameCard id="rate" className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
@@ -339,7 +367,7 @@ export default function RateGame({
           </Button>
         </div>
 
-        <div className="rounded-2xl border border-border/70 bg-background/40 p-4">
+        <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-background/90 to-secondary/30 p-4">
           <p className="text-sm font-extrabold">الأشخاص (كروت)</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {people.length === 0 ? (
@@ -347,6 +375,8 @@ export default function RateGame({
             ) : null}
             {people.map((person) => {
               const doneForPerson = roundResults.filter((r) => r.person === person).length;
+              const allDone = criteria.length > 0 && doneForPerson >= criteria.length;
+              const initials = person.slice(0, 1).toUpperCase();
               return (
                 <button
                   key={person}
@@ -356,12 +386,27 @@ export default function RateGame({
                     setActivePerson(person);
                     setPersonDialogOpen(true);
                   }}
-                  className="rounded-2xl border border-border/70 bg-secondary/30 p-4 text-right transition hover:bg-secondary/50 disabled:opacity-60"
+                  className="group rounded-2xl border border-border/70 bg-secondary/25 p-4 text-right transition hover:-translate-y-0.5 hover:bg-secondary/50 disabled:opacity-60"
                 >
-                  <p className="text-base font-extrabold">{person}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    الجولات المنجزة: {doneForPerson} / {criteria.length}
-                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-base font-extrabold">{person}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        الجولات المنجزة: {doneForPerson} / {criteria.length}
+                      </p>
+                    </div>
+                    <div className="grid size-10 place-items-center rounded-full bg-primary/20 text-sm font-black text-primary">
+                      {initials}
+                    </div>
+                  </div>
+                  <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-background/70">
+                    <div
+                      className={`h-full rounded-full transition-all ${allDone ? "bg-emerald-400" : "bg-primary"}`}
+                      style={{
+                        width: `${criteria.length > 0 ? (doneForPerson / criteria.length) * 100 : 0}%`,
+                      }}
+                    />
+                  </div>
                 </button>
               );
             })}
@@ -371,27 +416,52 @@ export default function RateGame({
           </p>
         </div>
 
-        <SessionControls
-          running={session.running}
-          chatActive={chatActive}
-          durationSec={session.durationSec}
-          left={session.left}
-          participantCount={session.participantCount}
-          canStart={Boolean(selectedPerson && selectedCriterion)}
-          startLabel="بدء التقييم"
-          stopLabel="إيقاف واعتماد الجولة"
-          hint="كل حساب يقيّم مرة واحدة فقط لكل جولة من 0 إلى 10."
-          onDurationChange={session.setDurationSec}
-          onStart={start}
-          onStop={stop}
-        />
+        <div className="rounded-2xl border border-border/70 bg-secondary/35 p-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[10rem] flex-1">
+              <p className="mb-1.5 text-xs font-bold text-muted-foreground">مدة الجولة</p>
+              <select
+                value={session.durationSec}
+                disabled={session.running}
+                onChange={(e) => session.setDurationSec(Number(e.target.value))}
+                className="border-input bg-background focus-visible:ring-ring h-11 w-full rounded-md border px-3 text-sm font-bold outline-none focus-visible:ring-2"
+              >
+                {DURATION_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="min-w-[12rem] rounded-xl bg-background/60 px-3 py-2 text-sm">
+              <p className="text-xs text-muted-foreground">الجولة الحالية</p>
+              <p className="font-extrabold">{currentRoundLabel}</p>
+              <p className="text-xs text-muted-foreground">
+                {session.running
+                  ? `متبقي ${session.left == null ? "بدون حد" : formatClock(session.left)}`
+                  : "بانتظار اختيار بدء من الكروت"}
+              </p>
+            </div>
+            {session.running ? (
+              <Button type="button" variant="destructive" onClick={stop}>
+                إيقاف واعتماد الجولة
+              </Button>
+            ) : null}
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            كل حساب يقيم مرة واحدة فقط لكل جولة. اختيار بدء يتم من نافذة الشخص.
+          </p>
+          {!chatActive ? (
+            <p className="mt-1 text-[11px] font-bold text-destructive">اربط كيك قبل البدء.</p>
+          ) : null}
+        </div>
 
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             variant="secondary"
             disabled={roundResults.length === 0}
-            onClick={() => setShowFinalResults(true)}
+            onClick={revealFinalResults}
           >
             عرض النتيجة النهائية
           </Button>
@@ -437,7 +507,13 @@ export default function RateGame({
 
       <div className="rounded-2xl bg-secondary/40 p-5">
         <h4 className="mb-4 text-lg font-extrabold">النتائج</h4>
-        {showFinalResults ? (
+        {finalLoading ? (
+          <div className="space-y-3 text-center">
+            <div className="mx-auto size-12 animate-spin rounded-full border-4 border-primary/30 border-t-primary" />
+            <p className="text-sm font-bold">جاري تجهيز النتائج النهائية...</p>
+            <p className="text-xs text-muted-foreground">لحظات التشويق قبل الإعلان</p>
+          </div>
+        ) : showFinalResults ? (
           ranking.length === 0 ? (
             <p className="text-sm text-muted-foreground">لا توجد نتائج كافية للعرض.</p>
           ) : (
@@ -485,12 +561,19 @@ export default function RateGame({
             ))}
           </div>
         )}
-        {showFinalResults ? (
+        {showFinalResults || finalLoading ? (
           <Button
             variant="ghost"
             className="mt-4 w-full"
-            disabled={session.running}
-            onClick={() => setShowFinalResults(false)}
+            disabled={session.running || finalLoading}
+            onClick={() => {
+              if (revealTimeoutRef.current) {
+                window.clearTimeout(revealTimeoutRef.current);
+                revealTimeoutRef.current = null;
+              }
+              setFinalLoading(false);
+              setShowFinalResults(false);
+            }}
           >
             إخفاء النتيجة النهائية
           </Button>

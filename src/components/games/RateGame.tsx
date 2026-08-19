@@ -15,6 +15,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { GameCard } from "@/components/Reveal";
 
+const RATE_SETUP_STORAGE_KEY = "rate-game-setup-v1";
+
 export default function RateGame({
   messages,
   chatActive,
@@ -68,6 +70,32 @@ export default function RateGame({
   }, [personInput]);
 
   useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(RATE_SETUP_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { criteria?: unknown; people?: unknown };
+      if (Array.isArray(parsed.criteria)) {
+        setCriteria(parsed.criteria.filter((x): x is string => typeof x === "string"));
+      }
+      if (Array.isArray(parsed.people)) {
+        setPeople(parsed.people.filter((x): x is string => typeof x === "string"));
+      }
+    } catch {
+      // Ignore invalid stored state.
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      RATE_SETUP_STORAGE_KEY,
+      JSON.stringify({
+        criteria,
+        people,
+      }),
+    );
+  }, [criteria, people]);
+
+  useEffect(() => {
     if (!selectedCriterion && criteria.length > 0) {
       setSelectedCriterion(criteria[0] ?? "");
     }
@@ -75,6 +103,18 @@ export default function RateGame({
 
   useEffect(() => {
     if (!selectedPerson && people.length > 0) {
+      setSelectedPerson(people[0] ?? "");
+    }
+  }, [people, selectedPerson]);
+
+  useEffect(() => {
+    if (selectedCriterion && !criteria.includes(selectedCriterion)) {
+      setSelectedCriterion(criteria[0] ?? "");
+    }
+  }, [criteria, selectedCriterion]);
+
+  useEffect(() => {
+    if (selectedPerson && !people.includes(selectedPerson)) {
       setSelectedPerson(people[0] ?? "");
     }
   }, [people, selectedPerson]);
@@ -211,7 +251,7 @@ export default function RateGame({
   };
 
   return (
-    <GameCard id="rate" className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
+    <GameCard id="rate" className="space-y-6">
       <Dialog open={criteriaDialogOpen} onOpenChange={setCriteriaDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -248,6 +288,14 @@ export default function RateGame({
             </div>
           </div>
           <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={criteria.length === 0}
+              onClick={() => setCriteria([])}
+            >
+              إزالة كل التصنيفات
+            </Button>
             <Button
               type="button"
               disabled={criteria.length === 0}
@@ -298,6 +346,14 @@ export default function RateGame({
             </div>
           </div>
           <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={people.length === 0}
+              onClick={() => setPeople([])}
+            >
+              إزالة كل الأشخاص
+            </Button>
             <Button
               type="button"
               disabled={people.length === 0}
@@ -356,7 +412,7 @@ export default function RateGame({
           <h4 className="text-lg font-extrabold">بطولة تقييم الأشخاص</h4>
         </div>
 
-        <div className="grid gap-3 rounded-2xl border border-border/70 bg-secondary/35 p-4 md:grid-cols-2">
+        <div className="grid gap-3 rounded-2xl border border-border/70 bg-gradient-to-l from-secondary/20 to-secondary/45 p-4 md:grid-cols-2">
           <Button type="button" variant="secondary" onClick={() => setCriteriaDialogOpen(true)}>
             <Target className="size-4" />
             تعديل التصنيفات ({criteria.length})
@@ -367,9 +423,9 @@ export default function RateGame({
           </Button>
         </div>
 
-        <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-background/90 to-secondary/30 p-4">
+        <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-background/90 to-secondary/30 p-5 shadow-[0_0_0_1px_hsl(var(--border)/0.25)]">
           <p className="text-sm font-extrabold">الأشخاص (كروت)</p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {people.length === 0 ? (
               <p className="text-sm text-muted-foreground">أضف أشخاص أولاً من نافذة الإعداد.</p>
             ) : null}
@@ -386,7 +442,7 @@ export default function RateGame({
                     setActivePerson(person);
                     setPersonDialogOpen(true);
                   }}
-                  className="group rounded-2xl border border-border/70 bg-secondary/25 p-4 text-right transition hover:-translate-y-0.5 hover:bg-secondary/50 disabled:opacity-60"
+                  className="group rounded-2xl border border-border/70 bg-gradient-to-br from-secondary/35 to-background/30 p-4 text-right transition hover:-translate-y-0.5 hover:border-primary/45 hover:from-secondary/55 hover:to-background/50 disabled:opacity-60"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -395,7 +451,7 @@ export default function RateGame({
                         الجولات المنجزة: {doneForPerson} / {criteria.length}
                       </p>
                     </div>
-                    <div className="grid size-10 place-items-center rounded-full bg-primary/20 text-sm font-black text-primary">
+                    <div className="grid size-10 place-items-center rounded-full bg-primary/20 text-sm font-black text-primary ring-1 ring-primary/35">
                       {initials}
                     </div>
                   </div>
@@ -416,7 +472,7 @@ export default function RateGame({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-border/70 bg-secondary/35 p-4">
+        <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-secondary/35 to-background/35 p-4">
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[10rem] flex-1">
               <p className="mb-1.5 text-xs font-bold text-muted-foreground">مدة الجولة</p>
@@ -459,7 +515,7 @@ export default function RateGame({
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
-            variant="secondary"
+            variant="default"
             disabled={roundResults.length === 0}
             onClick={revealFinalResults}
           >
@@ -505,63 +561,43 @@ export default function RateGame({
         </div>
       </div>
 
-      <div className="rounded-2xl bg-secondary/40 p-5">
-        <h4 className="mb-4 text-lg font-extrabold">النتائج</h4>
-        {finalLoading ? (
-          <div className="space-y-3 text-center">
-            <div className="mx-auto size-12 animate-spin rounded-full border-4 border-primary/30 border-t-primary" />
-            <p className="text-sm font-bold">جاري تجهيز النتائج النهائية...</p>
-            <p className="text-xs text-muted-foreground">لحظات التشويق قبل الإعلان</p>
-          </div>
-        ) : showFinalResults ? (
-          ranking.length === 0 ? (
-            <p className="text-sm text-muted-foreground">لا توجد نتائج كافية للعرض.</p>
-          ) : (
-            <div className="space-y-2">
-              {ranking.map((r, i) => (
-                <div
-                  key={r.person}
-                  className={`animate-pop-in flex items-center justify-between rounded-xl px-3 py-2 ${
-                    i < 3 ? "bg-gradient-to-l from-primary/20 to-accent/20" : "bg-background/50"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex size-7 items-center justify-center rounded-full bg-background text-xs font-extrabold">
-                      {i + 1}
-                    </span>
-                    <span className="font-bold">{r.person}</span>
-                    {i < 3 ? <Medal className="size-4 text-accent" /> : null}
-                  </div>
-                  <span className="text-sm">
-                    <span className="font-extrabold text-primary">{r.avg.toFixed(2)}</span>
-                    <span className="text-muted-foreground"> · {r.voters} صوت</span>
-                  </span>
-                </div>
-              ))}
+      {finalLoading || showFinalResults ? (
+        <div className="rounded-2xl bg-secondary/40 p-5">
+          <h4 className="mb-4 text-lg font-extrabold">النتائج النهائية</h4>
+          {finalLoading ? (
+            <div className="space-y-3 text-center">
+              <div className="mx-auto size-12 animate-spin rounded-full border-4 border-primary/30 border-t-primary" />
+              <p className="text-sm font-bold">جاري تجهيز النتائج النهائية...</p>
+              <p className="text-xs text-muted-foreground">لحظات التشويق قبل الإعلان</p>
             </div>
-          )
-        ) : (
-          <div className="space-y-2">
-            {roundResults.length === 0 ? (
-              <p className="text-sm text-muted-foreground">لم تُحسم أي جولة بعد.</p>
-            ) : null}
-            {roundResults.map((h, i) => (
-              <div
-                key={`${h.person}-${h.criterion}-${i}`}
-                className="animate-pop-in flex items-center justify-between rounded-xl bg-background/50 px-3 py-2"
-              >
-                <span className="font-bold">
-                  {h.person} · <span className="text-muted-foreground">{h.criterion}</span>
-                </span>
-                <span className="text-sm">
-                  <span className="font-extrabold text-primary">{h.avg.toFixed(1)}</span>
-                  <span className="text-muted-foreground"> / {h.count} صوت</span>
-                </span>
+          ) : showFinalResults ? (
+            ranking.length === 0 ? (
+              <p className="text-sm text-muted-foreground">لا توجد نتائج كافية للعرض.</p>
+            ) : (
+              <div className="space-y-2">
+                {ranking.map((r, i) => (
+                  <div
+                    key={r.person}
+                    className={`animate-pop-in flex items-center justify-between rounded-xl px-3 py-2 ${
+                      i < 3 ? "bg-gradient-to-l from-primary/20 to-accent/20" : "bg-background/50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex size-7 items-center justify-center rounded-full bg-background text-xs font-extrabold">
+                        {i + 1}
+                      </span>
+                      <span className="font-bold">{r.person}</span>
+                      {i < 3 ? <Medal className="size-4 text-accent" /> : null}
+                    </div>
+                    <span className="text-sm">
+                      <span className="font-extrabold text-primary">{r.avg.toFixed(2)}</span>
+                      <span className="text-muted-foreground"> · {r.voters} صوت</span>
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-        {showFinalResults || finalLoading ? (
+            )
+          ) : null}
           <Button
             variant="ghost"
             className="mt-4 w-full"
@@ -577,8 +613,8 @@ export default function RateGame({
           >
             إخفاء النتيجة النهائية
           </Button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </GameCard>
   );
 }

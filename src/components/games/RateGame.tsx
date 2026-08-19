@@ -29,6 +29,8 @@ export default function RateGame({
   const [people, setPeople] = useState<string[]>([]);
   const [selectedPerson, setSelectedPerson] = useState("");
   const [selectedCriterion, setSelectedCriterion] = useState("");
+  const [personDialogOpen, setPersonDialogOpen] = useState(false);
+  const [activePerson, setActivePerson] = useState("");
   const [criteriaDialogOpen, setCriteriaDialogOpen] = useState(true);
   const [peopleDialogOpen, setPeopleDialogOpen] = useState(false);
   const [ratings, setRatings] = useState<number[]>([]);
@@ -137,6 +139,17 @@ export default function RateGame({
   const stop = () => {
     commitRound();
     session.stop();
+  };
+
+  const startRoundFor = (person: string, criterion: string) => {
+    if (session.running) return;
+    setSelectedPerson(person);
+    setSelectedCriterion(criterion);
+    setShowFinalResults(false);
+    roundLockedRef.current = false;
+    setRatings([]);
+    session.start();
+    setPersonDialogOpen(false);
   };
 
   const resetTournament = () => {
@@ -268,6 +281,47 @@ export default function RateGame({
         </DialogContent>
       </Dialog>
 
+      <Dialog open={personDialogOpen} onOpenChange={setPersonDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{activePerson || "الشخص"}</DialogTitle>
+            <DialogDescription>اختر التصنيف وابدأ الجولة مباشرة.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {criteria.length === 0 ? (
+              <p className="text-sm text-muted-foreground">أضف تصنيفات أولاً.</p>
+            ) : null}
+            {criteria.map((criterion) => {
+              const existing = roundResults.find(
+                (r) => r.person === activePerson && r.criterion === criterion,
+              );
+              return (
+                <div
+                  key={`${activePerson}-${criterion}`}
+                  className="flex items-center justify-between rounded-xl border border-border/70 bg-secondary/20 px-3 py-2"
+                >
+                  <div>
+                    <p className="font-bold">{criterion}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {existing
+                        ? `آخر نتيجة: ${existing.avg.toFixed(1)} (${existing.count} صوت)`
+                        : "لا توجد نتيجة بعد"}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    disabled={session.running || !chatActive}
+                    onClick={() => startRoundFor(activePerson, criterion)}
+                  >
+                    بدء
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="space-y-5">
         <div className="flex items-center gap-2">
           <Star className="size-5 text-accent" />
@@ -286,40 +340,31 @@ export default function RateGame({
         </div>
 
         <div className="rounded-2xl border border-border/70 bg-background/40 p-4">
-          <p className="text-sm font-extrabold">اختيار الجولة (حر)</p>
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <label className="space-y-1 text-xs font-bold text-muted-foreground">
-              الشخص
-              <select
-                value={selectedPerson}
-                disabled={session.running || people.length === 0}
-                onChange={(e) => setSelectedPerson(e.target.value)}
-                className="border-input bg-background focus-visible:ring-ring h-11 w-full rounded-md border px-3 text-sm font-bold text-foreground outline-none focus-visible:ring-2"
-              >
-                {people.length === 0 ? <option value="">أضف أشخاص أولاً</option> : null}
-                {people.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-1 text-xs font-bold text-muted-foreground">
-              التصنيف
-              <select
-                value={selectedCriterion}
-                disabled={session.running || criteria.length === 0}
-                onChange={(e) => setSelectedCriterion(e.target.value)}
-                className="border-input bg-background focus-visible:ring-ring h-11 w-full rounded-md border px-3 text-sm font-bold text-foreground outline-none focus-visible:ring-2"
-              >
-                {criteria.length === 0 ? <option value="">أضف تصنيفات أولاً</option> : null}
-                {criteria.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </label>
+          <p className="text-sm font-extrabold">الأشخاص (كروت)</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {people.length === 0 ? (
+              <p className="text-sm text-muted-foreground">أضف أشخاص أولاً من نافذة الإعداد.</p>
+            ) : null}
+            {people.map((person) => {
+              const doneForPerson = roundResults.filter((r) => r.person === person).length;
+              return (
+                <button
+                  key={person}
+                  type="button"
+                  disabled={session.running}
+                  onClick={() => {
+                    setActivePerson(person);
+                    setPersonDialogOpen(true);
+                  }}
+                  className="rounded-2xl border border-border/70 bg-secondary/30 p-4 text-right transition hover:bg-secondary/50 disabled:opacity-60"
+                >
+                  <p className="text-base font-extrabold">{person}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    الجولات المنجزة: {doneForPerson} / {criteria.length}
+                  </p>
+                </button>
+              );
+            })}
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
             التقدم: {progressDone} / {progressTotal || 0} جولة معتمدة

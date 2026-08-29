@@ -14,6 +14,13 @@ export type FpsHud = {
 
 export type FpsEndOutcome = "survived" | "defeated";
 
+export type HealInfo = {
+  kind: MobKind;
+  amount: number;
+  hp: number;
+  maxHp: number;
+};
+
 type Mob = {
   id: number;
   kind: MobKind;
@@ -61,6 +68,8 @@ export type ZombieFpsEngine = {
 };
 
 const PLAYER_MAX_HP = 100;
+/** Small sustain reward for picking off zombies. */
+const ZOMBIE_KILL_HEAL = 10;
 const MAX_ALIVE = 42;
 const MOVE_SPEED = 6.8;
 const FIRE_COOLDOWN = 0.13;
@@ -73,8 +82,12 @@ const ZOMBIE_SPEED = 2.05;
 const BOSS_SPEED = 1.15;
 const ZOMBIE_DAMAGE = 14;
 const BOSS_DAMAGE = 32;
-const ARENA = 32;
+const ARENA = 44;
 const WALL = ARENA / 2 - 0.75;
+/** Single zombie gate — far end of the arena opposite the player start. */
+const SPAWN_X = 0;
+const SPAWN_Z = -(WALL - 1.15);
+const SPAWN_SPREAD = 1.05;
 
 function makeNoiseTexture(size = 256, tint: [number, number, number], contrast = 28) {
   const canvas = document.createElement("canvas");
@@ -439,11 +452,12 @@ export function createZombieFpsEngine(
   opts: {
     onHud?: (hud: FpsHud) => void;
     onDefeat?: () => void;
+    onHeal?: (info: HealInfo) => void;
   } = {},
 ): ZombieFpsEngine {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x040606);
-  scene.fog = new THREE.FogExp2(0x08110c, 0.038);
+  scene.fog = new THREE.FogExp2(0x08110c, 0.03);
 
   const camera = new THREE.PerspectiveCamera(78, 1, 0.05, 140);
   camera.position.set(0, 1.67, 0);
@@ -479,26 +493,26 @@ export function createZombieFpsEngine(
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.near = 1;
   sun.shadow.camera.far = 60;
-  sun.shadow.camera.left = -22;
-  sun.shadow.camera.right = 22;
-  sun.shadow.camera.top = 22;
-  sun.shadow.camera.bottom = -22;
+  sun.shadow.camera.left = -28;
+  sun.shadow.camera.right = 28;
+  sun.shadow.camera.top = 28;
+  sun.shadow.camera.bottom = -28;
   sun.shadow.bias = -0.00025;
   scene.add(sun);
 
-  const neon = new THREE.PointLight(0x34d399, 1.1, 28, 2);
+  const neon = new THREE.PointLight(0x34d399, 1.1, 34, 2);
   neon.position.set(0, 5.5, 0);
   scene.add(neon);
-  const danger = new THREE.PointLight(0xfb7185, 0.55, 22, 2);
-  danger.position.set(-9, 2.4, -9);
+  const danger = new THREE.PointLight(0xfb7185, 0.55, 28, 2);
+  danger.position.set(-12, 2.4, -12);
   scene.add(danger);
   const danger2 = danger.clone();
-  danger2.position.set(9, 2.4, 9);
+  danger2.position.set(12, 2.4, 12);
   scene.add(danger2);
 
   // Arena materials
   const floorTex = makeNoiseTexture(256, [18, 28, 22], 22);
-  floorTex.repeat.set(10, 10);
+  floorTex.repeat.set(14, 14);
   const wallTex = makeNoiseTexture(256, [14, 20, 18], 30);
   wallTex.repeat.set(4, 2);
 
@@ -550,12 +564,12 @@ export function createZombieFpsEngine(
     metalness: 0.1,
   });
   for (const [x, z, s, rot] of [
-    [-7.5, -6, 1.5, 0.2],
-    [8, 5, 1.9, -0.4],
-    [-4, 9, 1.25, 0.7],
-    [6, -8, 1.6, 0.1],
-    [0, -10, 1.1, 0.3],
-    [-10, 2, 1.35, -0.2],
+    [-10, -8, 1.5, 0.2],
+    [11, 7, 1.9, -0.4],
+    [-5.5, 12, 1.25, 0.7],
+    [8, -11, 1.6, 0.1],
+    [0, -13.5, 1.1, 0.3],
+    [-13.5, 3, 1.35, -0.2],
   ] as const) {
     const crate = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), crateMat);
     crate.position.set(x, s / 2, z);
@@ -564,6 +578,40 @@ export function createZombieFpsEngine(
     crate.receiveShadow = true;
     scene.add(crate);
   }
+
+  // Single zombie spawn gate (visible portal at the far wall).
+  const spawnGate = new THREE.Group();
+  spawnGate.position.set(SPAWN_X, 0, SPAWN_Z);
+  const portalRing = new THREE.Mesh(
+    new THREE.RingGeometry(1.35, 2.15, 36),
+    new THREE.MeshBasicMaterial({
+      color: 0x34d399,
+      transparent: true,
+      opacity: 0.6,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    }),
+  );
+  portalRing.rotation.x = -Math.PI / 2;
+  portalRing.position.y = 0.03;
+  portalRing.name = "portalRing";
+  spawnGate.add(portalRing);
+  const portalBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.55, 1.55, 4.8, 28, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0x22c55e,
+      transparent: true,
+      opacity: 0.14,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    }),
+  );
+  portalBeam.position.y = 2.4;
+  spawnGate.add(portalBeam);
+  const spawnLight = new THREE.PointLight(0x4ade80, 2.4, 16, 2);
+  spawnLight.position.y = 2.6;
+  spawnGate.add(spawnLight);
+  scene.add(spawnGate);
 
   // Atmospheric dust
   const dustGeo = new THREE.BufferGeometry();
@@ -613,6 +661,7 @@ export function createZombieFpsEngine(
   let bob = 0;
   let shake = 0;
   let damagePulse = 0;
+  let healPulse = 0;
   let kills = 0;
   let spawned = 0;
   let bossesSpawned = 0;
@@ -659,23 +708,10 @@ export function createZombieFpsEngine(
 
   const spawnOne = (kind: MobKind, from: string) => {
     const boss = kind === "boss";
-    const side = Math.floor(Math.random() * 4);
-    const edge = WALL - 1.4;
-    let x = 0;
-    let z = 0;
-    if (side === 0) {
-      x = (Math.random() * 2 - 1) * edge;
-      z = -edge;
-    } else if (side === 1) {
-      x = edge;
-      z = (Math.random() * 2 - 1) * edge;
-    } else if (side === 2) {
-      x = (Math.random() * 2 - 1) * edge;
-      z = edge;
-    } else {
-      x = -edge;
-      z = (Math.random() * 2 - 1) * edge;
-    }
+    const angle = Math.random() * Math.PI * 2;
+    const dist = Math.random() * SPAWN_SPREAD;
+    const x = SPAWN_X + Math.cos(angle) * dist;
+    const z = SPAWN_Z + Math.sin(angle) * dist;
 
     const { root, hpFill, hpLabel } = makeZombieMesh(kind, from);
     root.position.set(x, 0, z);
@@ -709,6 +745,31 @@ export function createZombieFpsEngine(
       if (mobs.length < MAX_ALIVE) spawnOne(kind, from);
       else queue.push({ kind, from });
     }
+  };
+
+  const applyKillHeal = (mob: Mob) => {
+    const before = hp;
+    if (mob.kind === "boss") {
+      hp = PLAYER_MAX_HP;
+    } else {
+      hp = Math.min(PLAYER_MAX_HP, hp + ZOMBIE_KILL_HEAL);
+    }
+    const amount = Math.round(hp - before);
+    if (amount <= 0) return;
+
+    healPulse = 1;
+    spawnSpark(
+      camera.position.clone().setY(1.35),
+      mob.kind === "boss" ? 0xa7f3d0 : 0x4ade80,
+      mob.kind === "boss" ? 26 : 14,
+    );
+    opts.onHeal?.({
+      kind: mob.kind,
+      amount,
+      hp: Math.round(hp),
+      maxHp: PLAYER_MAX_HP,
+    });
+    emitHud();
   };
 
   const fire = () => {
@@ -753,6 +814,7 @@ export function createZombieFpsEngine(
             0xf87171,
             mob.kind === "boss" ? 28 : 18,
           );
+          applyKillHeal(mob);
           scene.remove(mob.root);
           disposeObject(mob.root);
           const idx = mobs.indexOf(mob);
@@ -824,6 +886,7 @@ export function createZombieFpsEngine(
       recoil = Math.max(0, recoil - dt * 7);
       shake = Math.max(0, shake - dt * 3.5);
       damagePulse = Math.max(0, damagePulse - dt * 1.8);
+      healPulse = Math.max(0, healPulse - dt * 2.4);
       muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt * 22);
       if (flashMesh.material instanceof THREE.MeshBasicMaterial) {
         flashMesh.material.opacity = Math.max(0, flashMesh.material.opacity - dt * 10);
@@ -949,10 +1012,16 @@ export function createZombieFpsEngine(
       }
 
       dust.rotation.y += dt * 0.02;
+
+      const gatePulse = 0.55 + Math.sin(livedSec * 3.2) * 0.2;
+      spawnLight.intensity = 1.8 + gatePulse * 0.9;
+      const ringMat = portalRing.material as THREE.MeshBasicMaterial;
+      ringMat.opacity = 0.42 + gatePulse * 0.28;
+      portalRing.rotation.z += dt * 0.55;
     }
 
-    // subtle damage vignette via exposure
-    renderer.toneMappingExposure = 1.15 - damagePulse * 0.35;
+    // Damage/heal feedback via exposure tint.
+    renderer.toneMappingExposure = 1.15 - damagePulse * 0.35 + healPulse * 0.28;
 
     hudAcc += dt;
     if (hudAcc > 0.1) {

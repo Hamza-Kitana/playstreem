@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Crosshair, Maximize2, Minimize2, Skull, Trophy, Zap } from "lucide-react";
+import { Crosshair, Heart, Maximize2, Minimize2, Skull, Trophy, Zap } from "lucide-react";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
 import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
-import type { FpsHud, ZombieFpsEngine } from "@/lib/zombie-fps-engine";
+import type { FpsHud, HealInfo, ZombieFpsEngine } from "@/lib/zombie-fps-engine";
 import { Button } from "@/components/ui/button";
 import { GameCard } from "@/components/Reveal";
 import { cn } from "@/lib/utils";
 
-const BOSS_EVERY_OPTIONS = [5, 10, 15, 20, 25, 30] as const;
+const BOSS_EVERY_OPTIONS = [5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100, 125, 150] as const;
 const PLAYER_MAX_HP = 100;
 
 type Contributor = {
@@ -22,7 +22,13 @@ type Contributor = {
 type FeedItem = {
   id: number;
   text: string;
-  tone: "zombie" | "boss" | "gift";
+  tone: "zombie" | "boss" | "gift" | "heal";
+};
+
+type HealToast = {
+  id: number;
+  text: string;
+  kind: HealInfo["kind"];
 };
 
 type EndState = {
@@ -107,6 +113,8 @@ export default function ZombieShooterGame({
     locked: false,
   });
   const [feed, setFeed] = useState<FeedItem[]>([]);
+  const [healToast, setHealToast] = useState<HealToast | null>(null);
+  const [hpBarFlash, setHpBarFlash] = useState<"heal" | null>(null);
   const [endState, setEndState] = useState<EndState | null>(null);
   const [endReveal, setEndReveal] = useState(false);
 
@@ -119,6 +127,8 @@ export default function ZombieShooterGame({
   const contributorsRef = useRef(emptyContributors());
   const bossEveryRef = useRef(bossEvery);
   const feedId = useRef(1);
+  const healToastTimer = useRef<number | null>(null);
+  const hpFlashTimer = useRef<number | null>(null);
   const playingRef = useRef(false);
   const endHandled = useRef(false);
   const stopSessionRef = useRef(session.stop);
@@ -128,6 +138,24 @@ export default function ZombieShooterGame({
   const pushFeed = (text: string, tone: FeedItem["tone"]) => {
     const id = feedId.current++;
     setFeed((prev) => [{ id, text, tone }, ...prev].slice(0, 8));
+  };
+
+  const showHealFeedback = (info: HealInfo) => {
+    const text =
+      info.kind === "boss"
+        ? `هيل كامل +${info.amount}`
+        : `+${info.amount} دم`;
+    const id = Date.now();
+    setHealToast({ id, text, kind: info.kind });
+    setHpBarFlash("heal");
+    pushFeed(
+      info.kind === "boss" ? `قتلت وحش → هيل كامل (+${info.amount})` : `قتلت زومبي → +${info.amount} دم`,
+      "heal",
+    );
+    if (healToastTimer.current) window.clearTimeout(healToastTimer.current);
+    if (hpFlashTimer.current) window.clearTimeout(hpFlashTimer.current);
+    healToastTimer.current = window.setTimeout(() => setHealToast(null), 1300);
+    hpFlashTimer.current = window.setTimeout(() => setHpBarFlash(null), 700);
   };
 
   const enqueueSpawn = (kind: PendingSpawn["kind"], from: string, count = 1) => {
@@ -223,6 +251,7 @@ export default function ZombieShooterGame({
       engine = createZombieFpsEngine(mountRef.current, {
         onHud: setHud,
         onDefeat: () => finishGameRef.current("defeated"),
+        onHeal: showHealFeedback,
       });
       if (cancelled) {
         engine.dispose();
@@ -393,7 +422,7 @@ export default function ZombieShooterGame({
             </label>
           </div>
 
-          <div className="grid gap-3 rounded-2xl border border-border/70 bg-gradient-to-br from-rose-500/10 to-emerald-500/10 p-4 sm:grid-cols-3">
+          <div className="grid gap-3 rounded-2xl border border-border/70 bg-gradient-to-br from-rose-500/10 to-emerald-500/10 p-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-xl bg-background/50 p-3">
               <p className="text-xs text-muted-foreground">تعليق زومبي</p>
               <p className="mt-1 text-sm font-extrabold">ينزل زومبي واحد</p>
@@ -403,9 +432,18 @@ export default function ZombieShooterGame({
               <p className="mt-1 text-sm font-extrabold">وحش كبير صعب</p>
             </div>
             <div className="rounded-xl bg-background/50 p-3">
-              <p className="text-xs text-muted-foreground">هدايا كيك</p>
-              <p className="mt-1 text-sm font-extrabold">٥٠→٣ وحوش · ١٠٠→٦</p>
+              <p className="text-xs text-muted-foreground">قتل زومبي</p>
+              <p className="mt-1 text-sm font-extrabold text-emerald-300">+10 دم</p>
             </div>
+            <div className="rounded-xl bg-background/50 p-3">
+              <p className="text-xs text-muted-foreground">قتل وحش كبير</p>
+              <p className="mt-1 text-sm font-extrabold text-fuchsia-300">هيل كامل 100%</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4">
+            <p className="text-xs font-bold text-muted-foreground">هدايا كيك</p>
+            <p className="mt-1 text-sm font-extrabold">٥٠→٣ وحوش · ١٠٠→٦ وحوش</p>
           </div>
 
           <Button
@@ -528,6 +566,35 @@ export default function ZombieShooterGame({
               </div>
             </div>
 
+            {healToast ? (
+              <div
+                key={healToast.id}
+                className={cn(
+                  "pointer-events-none absolute left-1/2 top-[38%] z-40 animate-heal-rise",
+                  healToast.kind === "boss"
+                    ? "text-fuchsia-200"
+                    : "text-emerald-200",
+                )}
+              >
+                <div
+                  className={cn(
+                    "flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-base font-extrabold shadow-lg backdrop-blur-md",
+                    healToast.kind === "boss"
+                      ? "border-fuchsia-400/50 bg-fuchsia-500/20"
+                      : "border-emerald-400/50 bg-emerald-500/20",
+                  )}
+                >
+                  <Heart
+                    className={cn(
+                      "size-5",
+                      healToast.kind === "boss" ? "fill-fuchsia-300" : "fill-emerald-300",
+                    )}
+                  />
+                  {healToast.text}
+                </div>
+              </div>
+            ) : null}
+
             {/* Bottom HP */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-4 pt-14">
               <div className="mx-auto mb-2 max-w-lg text-center text-[11px] font-bold text-emerald-100/80">
@@ -535,7 +602,14 @@ export default function ZombieShooterGame({
               </div>
               <div className="mx-auto h-3 max-w-lg overflow-hidden rounded-full border border-white/10 bg-white/10">
                 <div
-                  className={`h-full rounded-full transition-all ${hud.hp <= 30 ? "bg-rose-500" : "bg-emerald-400"}`}
+                  className={cn(
+                    "h-full rounded-full transition-all duration-300",
+                    hpBarFlash === "heal"
+                      ? "bg-emerald-300 shadow-[0_0_18px_rgba(74,222,128,0.75)]"
+                      : hud.hp <= 30
+                        ? "bg-rose-500"
+                        : "bg-emerald-400",
+                  )}
                   style={{ width: `${hud.hp}%` }}
                 />
               </div>
@@ -568,10 +642,13 @@ export default function ZombieShooterGame({
                       ? "bg-fuchsia-500/15 text-fuchsia-200"
                       : f.tone === "gift"
                         ? "bg-amber-500/15 text-amber-200"
-                        : "bg-emerald-500/10 text-emerald-100"
+                        : f.tone === "heal"
+                          ? "bg-emerald-500/20 text-emerald-100"
+                          : "bg-emerald-500/10 text-emerald-100"
                   }`}
                 >
                   {f.tone === "boss" ? <Zap className="mr-1 inline size-3.5" /> : null}
+                  {f.tone === "heal" ? <Heart className="mr-1 inline size-3.5 fill-emerald-300" /> : null}
                   {f.text}
                 </div>
               ))}

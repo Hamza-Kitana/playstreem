@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Crosshair, Heart, Maximize2, Minimize2, Skull, Trophy, Zap } from "lucide-react";
+import { Crosshair, Heart, Maximize2, Minimize2, Rocket, Skull, Swords, Trophy, Zap } from "lucide-react";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
 import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
-import type { FpsHud, HealInfo, ZombieFpsEngine } from "@/lib/zombie-fps-engine";
+import type { FpsHud, HealInfo, WeaponUnlockInfo, ZombieFpsEngine } from "@/lib/zombie-fps-engine";
 import { Button } from "@/components/ui/button";
 import { GameCard } from "@/components/Reveal";
 import { cn } from "@/lib/utils";
@@ -22,7 +22,7 @@ type Contributor = {
 type FeedItem = {
   id: number;
   text: string;
-  tone: "zombie" | "boss" | "gift" | "heal";
+  tone: "zombie" | "boss" | "gift" | "heal" | "weapon";
 };
 
 type HealToast = {
@@ -111,6 +111,11 @@ export default function ZombieShooterGame({
     comments: 0,
     bosses: 0,
     locked: false,
+    weapon: "rifle",
+    weaponLabel: "بندقية",
+    rifleTier: 0,
+    hasRpg: false,
+    hasRiflePlus: false,
   });
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [healToast, setHealToast] = useState<HealToast | null>(null);
@@ -156,6 +161,10 @@ export default function ZombieShooterGame({
     if (hpFlashTimer.current) window.clearTimeout(hpFlashTimer.current);
     healToastTimer.current = window.setTimeout(() => setHealToast(null), 1300);
     hpFlashTimer.current = window.setTimeout(() => setHpBarFlash(null), 700);
+  };
+
+  const showWeaponUnlock = (info: WeaponUnlockInfo) => {
+    pushFeed(info.message, "weapon");
   };
 
   const enqueueSpawn = (kind: PendingSpawn["kind"], from: string, count = 1) => {
@@ -252,6 +261,7 @@ export default function ZombieShooterGame({
         onHud: setHud,
         onDefeat: () => finishGameRef.current("defeated"),
         onHeal: showHealFeedback,
+        onWeaponUnlock: showWeaponUnlock,
       });
       if (cancelled) {
         engine.dispose();
@@ -332,6 +342,11 @@ export default function ZombieShooterGame({
       comments: 0,
       bosses: 0,
       locked: false,
+      weapon: "rifle",
+      weaponLabel: "بندقية",
+      rifleTier: 0,
+      hasRpg: false,
+      hasRiflePlus: false,
     });
     playingRef.current = true;
     setPhase("playing");
@@ -437,7 +452,22 @@ export default function ZombieShooterGame({
             </div>
             <div className="rounded-xl bg-background/50 p-3">
               <p className="text-xs text-muted-foreground">قتل وحش كبير</p>
-              <p className="mt-1 text-sm font-extrabold text-fuchsia-300">هيل كامل 100%</p>
+              <p className="mt-1 text-sm font-extrabold text-fuchsia-300">هيل كامل + ترقية سلاح</p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 rounded-2xl border border-border/70 bg-secondary/30 p-4 sm:grid-cols-3">
+            <div className="rounded-xl bg-background/50 p-3">
+              <p className="text-xs text-muted-foreground">بعد أول وحش</p>
+              <p className="mt-1 text-sm font-extrabold text-amber-300">بندقية قوية + آر بي جي</p>
+            </div>
+            <div className="rounded-xl bg-background/50 p-3">
+              <p className="text-xs text-muted-foreground">كل وحش إضافي</p>
+              <p className="mt-1 text-sm font-extrabold text-amber-200">ترقية البندقية (حتى 3)</p>
+            </div>
+            <div className="rounded-xl bg-background/50 p-3">
+              <p className="text-xs text-muted-foreground">تبديل السلاح</p>
+              <p className="mt-1 text-sm font-extrabold">سكرول الماوس</p>
             </div>
           </div>
 
@@ -595,6 +625,39 @@ export default function ZombieShooterGame({
               </div>
             ) : null}
 
+            {/* Weapon HUD */}
+            <div className="pointer-events-none absolute bottom-24 left-4 z-30 space-y-2">
+              <div className="rounded-2xl border border-white/15 bg-black/65 px-3 py-2 backdrop-blur-md">
+                <p className="text-[10px] font-bold text-muted-foreground">السلاح الحالي</p>
+                <p className="mt-0.5 flex items-center gap-1.5 text-sm font-extrabold text-emerald-100">
+                  {hud.weapon === "rpg" ? (
+                    <Rocket className="size-4 text-orange-400" />
+                  ) : hud.weapon === "rifle_plus" ? (
+                    <Swords className="size-4 text-amber-300" />
+                  ) : (
+                    <Crosshair className="size-4 text-emerald-300" />
+                  )}
+                  {hud.weaponLabel}
+                </p>
+                <p className="mt-1 text-[10px] font-bold text-muted-foreground">سكرول للتبديل</p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <WeaponChip active={hud.weapon === "rifle"} label="بندقية" />
+                {hud.hasRiflePlus ? (
+                  <WeaponChip
+                    active={hud.weapon === "rifle_plus"}
+                    label={hud.rifleTier > 0 ? `بندقية+ ${hud.rifleTier}` : "بندقية+"}
+                    accent="amber"
+                  />
+                ) : null}
+                {hud.hasRpg ? (
+                  <WeaponChip active={hud.weapon === "rpg"} label="آر بي جي" accent="orange" />
+                ) : (
+                  <WeaponChip locked label="آر بي جي" />
+                )}
+              </div>
+            </div>
+
             {/* Bottom HP */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-4 pt-14">
               <div className="mx-auto mb-2 max-w-lg text-center text-[11px] font-bold text-emerald-100/80">
@@ -625,7 +688,7 @@ export default function ZombieShooterGame({
                   <Crosshair className="mx-auto size-8 text-emerald-300" />
                   <p className="mt-3 text-lg font-extrabold text-emerald-100">اضغط للعب</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    زر التكبير فوق دائمًا شغال · أو اضغط F · ثم اضغط هنا للعب
+                    سكرول يغيّر السلاح · زر التكبير فوق · أو F · ثم اضغط هنا للعب
                   </p>
                 </div>
               </button>
@@ -644,11 +707,14 @@ export default function ZombieShooterGame({
                         ? "bg-amber-500/15 text-amber-200"
                         : f.tone === "heal"
                           ? "bg-emerald-500/20 text-emerald-100"
-                          : "bg-emerald-500/10 text-emerald-100"
+                          : f.tone === "weapon"
+                            ? "bg-amber-500/20 text-amber-100"
+                            : "bg-emerald-500/10 text-emerald-100"
                   }`}
                 >
                   {f.tone === "boss" ? <Zap className="mr-1 inline size-3.5" /> : null}
                   {f.tone === "heal" ? <Heart className="mr-1 inline size-3.5 fill-emerald-300" /> : null}
+                  {f.tone === "weapon" ? <Rocket className="mr-1 inline size-3.5 text-amber-300" /> : null}
                   {f.text}
                 </div>
               ))}
@@ -739,6 +805,39 @@ export default function ZombieShooterGame({
         </div>
       ) : null}
     </GameCard>
+  );
+}
+
+function WeaponChip({
+  label,
+  active,
+  locked,
+  accent = "emerald",
+}: {
+  label: string;
+  active?: boolean;
+  locked?: boolean;
+  accent?: "emerald" | "amber" | "orange";
+}) {
+  const accentClass =
+    accent === "amber"
+      ? "border-amber-400/60 bg-amber-500/20 text-amber-100"
+      : accent === "orange"
+        ? "border-orange-400/60 bg-orange-500/20 text-orange-100"
+        : "border-emerald-400/60 bg-emerald-500/20 text-emerald-100";
+  return (
+    <span
+      className={cn(
+        "rounded-full border px-2.5 py-1 text-[10px] font-extrabold backdrop-blur-sm",
+        locked
+          ? "border-white/10 bg-black/35 text-white/35"
+          : active
+            ? accentClass
+            : "border-white/15 bg-black/45 text-white/70",
+      )}
+    >
+      {label}
+    </span>
   );
 }
 

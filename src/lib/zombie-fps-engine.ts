@@ -10,6 +10,21 @@ export type FpsHud = {
   comments: number;
   bosses: number;
   locked: boolean;
+  weapon: WeaponId;
+  weaponLabel: string;
+  rifleTier: number;
+  hasRpg: boolean;
+  hasRiflePlus: boolean;
+};
+
+export type WeaponId = "rifle" | "rifle_plus" | "rpg";
+
+export type WeaponUnlockInfo = {
+  rifleTier: number;
+  hasRpg: boolean;
+  hasRiflePlus: boolean;
+  weapon: WeaponId;
+  message: string;
 };
 
 export type FpsEndOutcome = "survived" | "defeated";
@@ -48,6 +63,23 @@ type FxSpark = {
   life: number;
 };
 
+type FxExplosion = {
+  mesh: THREE.Mesh;
+  life: number;
+  maxLife: number;
+};
+
+type WeaponSpec = {
+  id: WeaponId;
+  label: string;
+  damage: number;
+  cooldown: number;
+  recoil: number;
+  shake: number;
+  flashColor: number;
+  sparkColor: number;
+};
+
 export type ZombieFpsEngine = {
   dispose: () => void;
   enqueue: (kind: MobKind, from: string, count?: number) => void;
@@ -72,9 +104,18 @@ const PLAYER_MAX_HP = 100;
 const ZOMBIE_KILL_HEAL = 10;
 const MAX_ALIVE = 42;
 const MOVE_SPEED = 6.8;
-const FIRE_COOLDOWN = 0.13;
-/** Shots feel impactful but zombies tank several hits. */
-const HIT_DAMAGE = 22;
+/** Base assault rifle. */
+const RIFLE_DAMAGE = 22;
+const RIFLE_COOLDOWN = 0.13;
+/** Upgraded rifle tiers unlocked by boss kills. */
+const RIFLE_PLUS_DAMAGE = [38, 48, 58] as const;
+const RIFLE_PLUS_COOLDOWN = [0.15, 0.14, 0.13] as const;
+const MAX_RIFLE_TIER = 3;
+/** RPG — heavy splash damage, slow reload. */
+const RPG_DIRECT_DAMAGE = 260;
+const RPG_SPLASH_DAMAGE = 165;
+const RPG_SPLASH_RADIUS = 6.8;
+const RPG_COOLDOWN = 1.75;
 const ZOMBIE_HP = 170;
 /** Threshold boss — huge sponge, many shots to drop. */
 const BOSS_HP = 1400;
@@ -380,10 +421,10 @@ function makeZombieMesh(kind: MobKind, fromName: string) {
   return { root: g, hpFill: hp.fill, hpLabel: hp.hpLabel };
 }
 
-function makeWeapon() {
+function makeRifleWeapon(tier = 0) {
   const weapon = new THREE.Group();
   const metal = new THREE.MeshStandardMaterial({
-    color: 0x111827,
+    color: tier > 0 ? 0x1f2937 : 0x111827,
     metalness: 0.85,
     roughness: 0.28,
   });
@@ -392,12 +433,13 @@ function makeWeapon() {
     metalness: 0.25,
     roughness: 0.55,
   });
+  const accentColors = [0x2dd4bf, 0xfbbf24, 0xf472b6, 0xa78bfa] as const;
   const accent = new THREE.MeshStandardMaterial({
-    color: 0x2dd4bf,
+    color: accentColors[tier] ?? accentColors[0],
     metalness: 0.55,
     roughness: 0.25,
-    emissive: 0x0f766e,
-    emissiveIntensity: 0.35,
+    emissive: tier > 0 ? 0x7c2d12 : 0x0f766e,
+    emissiveIntensity: tier > 0 ? 0.55 : 0.35,
   });
 
   const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.18, 0.72), metal);
@@ -408,14 +450,14 @@ function makeWeapon() {
   handguard.position.set(0.28, -0.18, -1.05);
   weapon.add(handguard);
 
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.038, 0.62, 12), metal);
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.038, 0.62 + tier * 0.04, 12), metal);
   barrel.rotation.x = Math.PI / 2;
   barrel.position.set(0.28, -0.14, -1.42);
   weapon.add(barrel);
 
   const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.1, 10), metal);
   muzzle.rotation.x = Math.PI / 2;
-  muzzle.position.set(0.28, -0.14, -1.74);
+  muzzle.position.set(0.28, -0.14, -1.74 - tier * 0.03);
   muzzle.name = "muzzle";
   weapon.add(muzzle);
 
@@ -432,15 +474,77 @@ function makeWeapon() {
   mag.position.set(0.28, -0.42, -0.58);
   weapon.add(mag);
 
-  const optic = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.22), accent);
+  const optic = new THREE.Mesh(new THREE.BoxGeometry(0.06 + tier * 0.01, 0.08, 0.22 + tier * 0.04), accent);
   optic.position.set(0.28, -0.06, -0.72);
   weapon.add(optic);
 
+  if (tier > 0) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.03, 0.5), accent);
+    rail.position.set(0.28, -0.1, -0.95);
+    weapon.add(rail);
+  }
+
   const flash = new THREE.Mesh(
-    new THREE.SphereGeometry(0.08, 10, 10),
-    new THREE.MeshBasicMaterial({ color: 0xffe566, transparent: true, opacity: 0 }),
+    new THREE.SphereGeometry(0.08 + tier * 0.02, 10, 10),
+    new THREE.MeshBasicMaterial({ color: tier > 0 ? 0xffc857 : 0xffe566, transparent: true, opacity: 0 }),
   );
-  flash.position.set(0.28, -0.14, -1.86);
+  flash.position.set(0.28, -0.14, -1.86 - tier * 0.03);
+  flash.name = "flash";
+  weapon.add(flash);
+
+  return weapon;
+}
+
+function makeRpgWeapon() {
+  const weapon = new THREE.Group();
+  const tube = new THREE.MeshStandardMaterial({
+    color: 0x334155,
+    metalness: 0.7,
+    roughness: 0.35,
+  });
+  const warhead = new THREE.MeshStandardMaterial({
+    color: 0x166534,
+    metalness: 0.45,
+    roughness: 0.4,
+    emissive: 0x14532d,
+    emissiveIntensity: 0.35,
+  });
+  const gripMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.7, metalness: 0.2 });
+
+  const launcher = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 1.05), tube);
+  launcher.position.set(0.3, -0.22, -0.95);
+  weapon.add(launcher);
+
+  const mouth = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, 0.18, 12), tube);
+  mouth.rotation.x = Math.PI / 2;
+  mouth.position.set(0.3, -0.2, -1.52);
+  mouth.name = "muzzle";
+  weapon.add(mouth);
+
+  const rocket = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.55, 12), warhead);
+  rocket.rotation.x = Math.PI / 2;
+  rocket.position.set(0.3, -0.2, -1.18);
+  weapon.add(rocket);
+
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.18, 12), warhead);
+  nose.rotation.x = -Math.PI / 2;
+  nose.position.set(0.3, -0.2, -1.52);
+  weapon.add(nose);
+
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.24, 0.14), gripMat);
+  grip.position.set(0.3, -0.42, -0.55);
+  grip.rotation.x = 0.3;
+  weapon.add(grip);
+
+  const sight = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, 0.12), warhead);
+  sight.position.set(0.3, -0.04, -0.82);
+  weapon.add(sight);
+
+  const flash = new THREE.Mesh(
+    new THREE.SphereGeometry(0.16, 10, 10),
+    new THREE.MeshBasicMaterial({ color: 0xff7b00, transparent: true, opacity: 0 }),
+  );
+  flash.position.set(0.3, -0.2, -1.62);
   flash.name = "flash";
   weapon.add(flash);
 
@@ -453,6 +557,7 @@ export function createZombieFpsEngine(
     onHud?: (hud: FpsHud) => void;
     onDefeat?: () => void;
     onHeal?: (info: HealInfo) => void;
+    onWeaponUnlock?: (info: WeaponUnlockInfo) => void;
   } = {},
 ): ZombieFpsEngine {
   const scene = new THREE.Scene();
@@ -635,11 +740,18 @@ export function createZombieFpsEngine(
   );
   scene.add(dust);
 
-  // Weapon
-  const weapon = makeWeapon();
-  camera.add(weapon);
+  // Weapons
+  let activeWeapon: WeaponId = "rifle";
+  let rifleTier = 0;
+  let hasRiflePlus = false;
+  let hasRpg = false;
+  const weaponGroups: Partial<Record<WeaponId, THREE.Group>> = {
+    rifle: makeRifleWeapon(0),
+  };
+  camera.add(weaponGroups.rifle!);
   scene.add(camera);
-  const flashMesh = weapon.getObjectByName("flash") as THREE.Mesh;
+  let activeWeaponGroup = weaponGroups.rifle!;
+  let flashMesh = activeWeaponGroup.getObjectByName("flash") as THREE.Mesh;
   const muzzleLight = new THREE.PointLight(0xffd27a, 0, 7, 2);
   muzzleLight.position.set(0.28, -0.14, -1.7);
   camera.add(muzzleLight);
@@ -648,6 +760,7 @@ export function createZombieFpsEngine(
   const mobs: Mob[] = [];
   const queue: SpawnJob[] = [];
   const sparks: FxSpark[] = [];
+  const explosions: FxExplosion[] = [];
   const raycaster = new THREE.Raycaster();
   const clock = new THREE.Clock();
   const tmpV = new THREE.Vector3();
@@ -772,17 +885,171 @@ export function createZombieFpsEngine(
     emitHud();
   };
 
-  const fire = () => {
-    if (ended || fireCd > 0) return;
-    fireCd = FIRE_COOLDOWN;
-    recoil = 1;
-    shake = Math.max(shake, 0.22);
-    muzzleLight.intensity = 4.5;
+  const getWeaponSpec = (): WeaponSpec => {
+    if (activeWeapon === "rpg") {
+      return {
+        id: "rpg",
+        label: "آر بي جي",
+        damage: RPG_DIRECT_DAMAGE,
+        cooldown: RPG_COOLDOWN,
+        recoil: 2,
+        shake: 1.15,
+        flashColor: 0xff7b00,
+        sparkColor: 0xf97316,
+      };
+    }
+    if (activeWeapon === "rifle_plus" && rifleTier > 0) {
+      const tierIdx = rifleTier - 1;
+      return {
+        id: "rifle_plus",
+        label: `بندقية+ ${rifleTier}`,
+        damage: RIFLE_PLUS_DAMAGE[tierIdx] ?? RIFLE_PLUS_DAMAGE[0],
+        cooldown: RIFLE_PLUS_COOLDOWN[tierIdx] ?? RIFLE_PLUS_COOLDOWN[0],
+        recoil: 1.1,
+        shake: 0.28,
+        flashColor: 0xffc857,
+        sparkColor: 0xfbbf24,
+      };
+    }
+    return {
+      id: "rifle",
+      label: "بندقية",
+      damage: RIFLE_DAMAGE,
+      cooldown: RIFLE_COOLDOWN,
+      recoil: 1,
+      shake: 0.22,
+      flashColor: 0xffe566,
+      sparkColor: 0x4ade80,
+    };
+  };
+
+  const ownedWeapons = (): WeaponId[] => {
+    const list: WeaponId[] = ["rifle"];
+    if (hasRiflePlus) list.push("rifle_plus");
+    if (hasRpg) list.push("rpg");
+    return list;
+  };
+
+  const bindActiveWeaponVisuals = () => {
+    for (const id of ["rifle", "rifle_plus", "rpg"] as const) {
+      const group = weaponGroups[id];
+      if (group) group.visible = id === activeWeapon;
+    }
+    activeWeaponGroup = weaponGroups[activeWeapon] ?? weaponGroups.rifle!;
+    flashMesh = activeWeaponGroup.getObjectByName("flash") as THREE.Mesh;
+  };
+
+  const setActiveWeapon = (id: WeaponId) => {
+    if (!ownedWeapons().includes(id)) return;
+    activeWeapon = id;
+    bindActiveWeaponVisuals();
+    emitHud();
+  };
+
+  const cycleWeapon = (dir: 1 | -1) => {
+    const owned = ownedWeapons();
+    const idx = owned.indexOf(activeWeapon);
+    const next = owned[(idx + dir + owned.length) % owned.length]!;
+    setActiveWeapon(next);
+  };
+
+  const upgradeWeaponsFromBoss = () => {
+    let message = "";
+    if (!hasRiflePlus) {
+      hasRiflePlus = true;
+      hasRpg = true;
+      rifleTier = 1;
+      weaponGroups.rifle_plus = makeRifleWeapon(rifleTier);
+      weaponGroups.rpg = makeRpgWeapon();
+      camera.add(weaponGroups.rifle_plus);
+      camera.add(weaponGroups.rpg!);
+      setActiveWeapon("rifle_plus");
+      message = "فتحت بندقية قوية + آر بي جي — غيّر السلاح بالسكرول";
+    } else if (rifleTier < MAX_RIFLE_TIER) {
+      rifleTier += 1;
+      if (weaponGroups.rifle_plus) {
+        camera.remove(weaponGroups.rifle_plus);
+        disposeObject(weaponGroups.rifle_plus);
+      }
+      weaponGroups.rifle_plus = makeRifleWeapon(rifleTier);
+      camera.add(weaponGroups.rifle_plus);
+      bindActiveWeaponVisuals();
+      message = `ترقية البندقية للمستوى ${rifleTier}`;
+    } else {
+      message = "أقصى ترقية للبندقية — استخدم آر بي جي!";
+    }
+    opts.onWeaponUnlock?.({
+      rifleTier,
+      hasRpg,
+      hasRiflePlus,
+      weapon: activeWeapon,
+      message,
+    });
+    emitHud();
+  };
+
+  const killMob = (mob: Mob) => {
+    kills += 1;
+    spawnSpark(
+      mob.root.position.clone().setY(mob.kind === "boss" ? 2.4 : 1.2),
+      0xf87171,
+      mob.kind === "boss" ? 28 : 18,
+    );
+    if (mob.kind === "boss") upgradeWeaponsFromBoss();
+    applyKillHeal(mob);
+    scene.remove(mob.root);
+    disposeObject(mob.root);
+    const idx = mobs.indexOf(mob);
+    if (idx >= 0) mobs.splice(idx, 1);
+  };
+
+  const damageMob = (mob: Mob, amount: number, hitPoint?: THREE.Vector3) => {
+    mob.hp -= amount;
+    paintHpBar(mob.hpFill, mob.hpLabel, mob.hp, mob.maxHp, mob.kind === "boss");
+    if (hitPoint) {
+      spawnSpark(hitPoint, mob.kind === "boss" ? 0xe879f9 : 0x4ade80, activeWeapon === "rpg" ? 18 : 12);
+    }
+    mob.root.position.add(
+      tmpV
+        .set(
+          camera.position.x - mob.root.position.x,
+          0,
+          camera.position.z - mob.root.position.z,
+        )
+        .normalize()
+        .multiplyScalar(mob.kind === "boss" ? -0.08 : -0.16),
+    );
+    if (mob.hp <= 0) killMob(mob);
+  };
+
+  const spawnExplosion = (pos: THREE.Vector3) => {
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.35, 20, 20),
+      new THREE.MeshBasicMaterial({
+        color: 0xff6b00,
+        transparent: true,
+        opacity: 0.85,
+        depthWrite: false,
+      }),
+    );
+    mesh.position.copy(pos);
+    mesh.position.y = Math.max(0.5, pos.y);
+    scene.add(mesh);
+    explosions.push({ mesh, life: 0.55, maxLife: 0.55 });
+    spawnSpark(pos, 0xffedd5, 32);
+    spawnSpark(pos, 0xf97316, 22);
+  };
+
+  const flashMuzzle = (spec: WeaponSpec) => {
+    muzzleLight.color.setHex(spec.flashColor);
+    muzzleLight.intensity = activeWeapon === "rpg" ? 8 : 4.5;
     if (flashMesh.material instanceof THREE.MeshBasicMaterial) {
       flashMesh.material.opacity = 1;
-      flashMesh.scale.setScalar(1.4 + Math.random());
+      flashMesh.scale.setScalar(activeWeapon === "rpg" ? 2.2 : 1.4 + Math.random());
     }
+  };
 
+  const fireRifle = (spec: WeaponSpec) => {
     raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
     const hits = raycaster.intersectObjects(
       mobs.map((m) => m.root),
@@ -793,40 +1060,49 @@ export function createZombieFpsEngine(
       let root: THREE.Object3D | null = hit.object;
       while (root && !mobs.some((m) => m.root === root)) root = root.parent;
       const mob = mobs.find((m) => m.root === root);
-      if (mob) {
-        mob.hp -= HIT_DAMAGE;
-        paintHpBar(mob.hpFill, mob.hpLabel, mob.hp, mob.maxHp, mob.kind === "boss");
-        spawnSpark(hit.point, mob.kind === "boss" ? 0xe879f9 : 0x4ade80, 12);
-        mob.root.position.add(
-          tmpV
-            .set(
-              camera.position.x - mob.root.position.x,
-              0,
-              camera.position.z - mob.root.position.z,
-            )
-            .normalize()
-            .multiplyScalar(mob.kind === "boss" ? -0.08 : -0.16),
-        );
-        if (mob.hp <= 0) {
-          kills += 1;
-          spawnSpark(
-            mob.root.position.clone().setY(mob.kind === "boss" ? 2.4 : 1.2),
-            0xf87171,
-            mob.kind === "boss" ? 28 : 18,
-          );
-          applyKillHeal(mob);
-          scene.remove(mob.root);
-          disposeObject(mob.root);
-          const idx = mobs.indexOf(mob);
-          if (idx >= 0) mobs.splice(idx, 1);
-        }
-      }
+      if (mob) damageMob(mob, spec.damage, hit.point);
     } else {
-      // wall spark fallback ahead
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
       spawnSpark(camera.position.clone().add(dir.multiplyScalar(4)), 0xfbbf24, 4);
     }
+  };
+
+  const fireRpg = () => {
+    raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    let impact = camera.position.clone().add(dir.clone().multiplyScalar(24));
+    const hits = raycaster.intersectObjects(
+      mobs.map((m) => m.root),
+      true,
+    );
+    if (hits.length > 0) {
+      impact = hits[0]!.point.clone();
+    } else {
+      const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      const hitPoint = new THREE.Vector3();
+      if (raycaster.ray.intersectPlane(ground, hitPoint)) impact = hitPoint;
+    }
+    spawnExplosion(impact);
+    for (const mob of [...mobs]) {
+      const dist = Math.hypot(mob.root.position.x - impact.x, mob.root.position.z - impact.z);
+      if (dist > RPG_SPLASH_RADIUS) continue;
+      const falloff = 1 - dist / RPG_SPLASH_RADIUS;
+      const dmg = dist < 1.2 ? RPG_DIRECT_DAMAGE : RPG_SPLASH_DAMAGE * falloff;
+      damageMob(mob, dmg, impact);
+    }
+  };
+
+  const fire = () => {
+    if (ended || fireCd > 0) return;
+    const spec = getWeaponSpec();
+    fireCd = spec.cooldown;
+    recoil = spec.recoil;
+    shake = Math.max(shake, spec.shake);
+    flashMuzzle(spec);
+    if (activeWeapon === "rpg") fireRpg();
+    else fireRifle(spec);
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
@@ -858,14 +1134,22 @@ export function createZombieFpsEngine(
     pointerLocked = document.pointerLockElement === renderer.domElement;
   };
 
+  const onWheel = (e: WheelEvent) => {
+    if (!pointerLocked || ended) return;
+    e.preventDefault();
+    cycleWeapon(e.deltaY > 0 ? 1 : -1);
+  };
+
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   renderer.domElement.addEventListener("mousedown", onMouseDown);
+  renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
   window.addEventListener("mouseup", onMouseUp);
   window.addEventListener("mousemove", onMouseMove);
   document.addEventListener("pointerlockchange", onLockChange);
 
   const emitHud = () => {
+    const spec = getWeaponSpec();
     opts.onHud?.({
       hp: Math.max(0, Math.round(hp)),
       kills,
@@ -874,6 +1158,11 @@ export function createZombieFpsEngine(
       comments: zombieComments,
       bosses: bossesSpawned,
       locked: pointerLocked,
+      weapon: activeWeapon,
+      weaponLabel: spec.label,
+      rifleTier,
+      hasRpg,
+      hasRiflePlus,
     });
   };
 
@@ -933,12 +1222,12 @@ export function createZombieFpsEngine(
         camera.position.y += (Math.random() - 0.5) * shake * 0.06;
       }
 
-      weapon.position.set(
+      activeWeaponGroup.position.set(
         0.3 + bobX - recoil * 0.02,
         -0.3 + Math.abs(Math.sin(bob)) * 0.025 - recoil * 0.055,
         -0.42 - recoil * 0.1,
       );
-      weapon.rotation.set(0.04 + recoil * 0.22, 0.1, 0.035 + bobX * 0.4);
+      activeWeaponGroup.rotation.set(0.04 + recoil * 0.22, 0.1, 0.035 + bobX * 0.4);
 
       if (shooting && pointerLocked) fire();
 
@@ -1011,6 +1300,22 @@ export function createZombieFpsEngine(
         }
       }
 
+      for (let i = explosions.length - 1; i >= 0; i--) {
+        const ex = explosions[i]!;
+        ex.life -= dt;
+        const t = 1 - ex.life / ex.maxLife;
+        const scale = 1 + t * 5.5;
+        ex.mesh.scale.setScalar(scale);
+        const mat = ex.mesh.material as THREE.MeshBasicMaterial;
+        mat.opacity = Math.max(0, 0.85 * (1 - t));
+        if (ex.life <= 0) {
+          scene.remove(ex.mesh);
+          ex.mesh.geometry.dispose();
+          mat.dispose();
+          explosions.splice(i, 1);
+        }
+      }
+
       dust.rotation.y += dt * 0.02;
 
       const gatePulse = 0.55 + Math.sin(livedSec * 3.2) * 0.2;
@@ -1042,6 +1347,7 @@ export function createZombieFpsEngine(
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       renderer.domElement.removeEventListener("mousedown", onMouseDown);
+      renderer.domElement.removeEventListener("wheel", onWheel);
       window.removeEventListener("mouseup", onMouseUp);
       window.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("pointerlockchange", onLockChange);
@@ -1054,6 +1360,11 @@ export function createZombieFpsEngine(
         scene.remove(s.mesh);
         s.mesh.geometry.dispose();
         (s.mesh.material as THREE.Material).dispose();
+      }
+      for (const ex of explosions) {
+        scene.remove(ex.mesh);
+        ex.mesh.geometry.dispose();
+        (ex.mesh.material as THREE.Material).dispose();
       }
       floorTex.dispose();
       wallTex.dispose();
@@ -1070,6 +1381,11 @@ export function createZombieFpsEngine(
       comments: zombieComments,
       bosses: bossesSpawned,
       locked: pointerLocked,
+      weapon: activeWeapon,
+      weaponLabel: getWeaponSpec().label,
+      rifleTier,
+      hasRpg,
+      hasRiflePlus,
     }),
     getStats: () => ({
       kills,

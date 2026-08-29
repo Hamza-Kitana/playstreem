@@ -1,34 +1,161 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="750" viewBox="0 0 1200 750" fill="none">
   <defs>
-    <radialGradient id="bg" cx="50%" cy="45%" r="70%">
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
       <stop offset="0%" stop-color="#1a3d2c"/>
-      <stop offset="55%" stop-color="#0b1410"/>
-      <stop offset="100%" stop-color="#050706"/>
+      <stop offset="45%" stop-color="#0a1410"/>
+      <stop offset="100%" stop-color="#030504"/>
+    </radialGradient>
+    <radialGradient id="bossGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ff4500" stop-opacity="0.55"/>
+      <stop offset="55%" stop-color="#dc2626" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#7f1d1d" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="muzzle" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="35%" stop-color="#fbbf24" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#f97316" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="neon" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#3dff9a"/>
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="55%" stop-color="#a855f7"/>
       <stop offset="100%" stop-color="#fb7185"/>
     </linearGradient>
+    <linearGradient id="floor" x1="600" y1="280" x2="600" y2="720" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#14532d" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#052e16" stop-opacity="0.55"/>
+    </linearGradient>
+    <filter id="blur" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12"/>
+    </filter>
+    <filter id="soft" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="4"/>
+    </filter>
   </defs>
+
   <rect width="1200" height="750" fill="url(#bg)"/>
-  <g opacity="0.18" stroke="#3dff9a">
-    <path d="M80 120 H1120 M80 220 H1120 M80 320 H1120 M80 420 H1120 M80 520 H1120 M80 620 H1120"/>
-    <path d="M160 60 V690 M320 60 V690 M480 60 V690 M640 60 V690 M800 60 V690 M960 60 V690"/>
+
+  <!-- vignette -->
+  <rect width="1200" height="750" fill="url(#bg)" opacity="0.35"/>
+  <ellipse cx="600" cy="360" rx="560" ry="320" fill="#000" opacity="0.22"/>
+
+  <!-- arena floor -->
+  <path d="M120 290 L1080 290 L1200 720 L0 720 Z" fill="url(#floor)"/>
+  <g opacity="0.22" stroke="#34d399" stroke-width="1.5">
+    <line x1="600" y1="290" x2="600" y2="720"/>
+    <line x1="420" y1="290" x2="180" y2="720"/>
+    <line x1="780" y1="290" x2="1020" y2="720"/>
+    <line x1="300" y1="290" x2="0" y2="520"/>
+    <line x1="900" y1="290" x2="1200" y2="520"/>
+    <line x1="120" y1="420" x2="1080" y2="420"/>
+    <line x1="60" y1="560" x2="1140" y2="560"/>
   </g>
-  <rect x="90" y="80" width="1020" height="590" rx="28" stroke="url(#neon)" stroke-width="6" fill="rgba(8,16,12,0.55)"/>
-  <circle cx="380" cy="390" r="54" fill="#3f7a4a"/>
-  <circle cx="360" cy="375" r="7" fill="#86efac"/>
-  <circle cx="400" cy="375" r="7" fill="#86efac"/>
-  <circle cx="560" cy="300" r="78" fill="#4c1d95" opacity="0.9"/>
-  <circle cx="560" cy="300" r="62" fill="#a855f7"/>
-  <circle cx="535" cy="280" r="10" fill="#f0abfc"/>
-  <circle cx="585" cy="280" r="10" fill="#f0abfc"/>
-  <circle cx="820" cy="420" r="34" fill="#0f766e"/>
-  <rect x="845" y="408" width="70" height="22" rx="6" fill="#5eead4"/>
-  <circle cx="820" cy="420" r="12" fill="#ecfdf5"/>
-  <circle cx="900" cy="390" r="6" fill="#ffe08a"/>
-  <circle cx="930" cy="372" r="5" fill="#fbbf24"/>
-  <circle cx="955" cy="355" r="4" fill="#ffe08a"/>
-  <text x="600" y="180" text-anchor="middle" fill="#ecfdf5" font-family="Segoe UI, Arial" font-size="64" font-weight="800">ZOMBIE ARENA</text>
-  <text x="600" y="235" text-anchor="middle" fill="#fb7185" font-family="Segoe UI, Arial" font-size="28" font-weight="700">CHAT DROPS THE HORDE</text>
+
+  <!-- far wall gates -->
+  <rect x="170" y="248" width="110" height="42" rx="4" fill="#0f1a14" stroke="#34d399" stroke-width="2" opacity="0.7"/>
+  <rect x="545" y="248" width="110" height="42" rx="4" fill="#0f1a14" stroke="#34d399" stroke-width="2" opacity="0.7"/>
+  <rect x="920" y="248" width="110" height="42" rx="4" fill="#0f1a14" stroke="#34d399" stroke-width="2" opacity="0.7"/>
+
+  <!-- boss aura -->
+  <ellipse cx="600" cy="255" rx="180" ry="120" fill="url(#bossGlow)" filter="url(#blur)"/>
+
+  <!-- mega boss silhouette -->
+  <g transform="translate(600 255)">
+    <ellipse cx="0" cy="78" rx="95" ry="18" fill="#ff4500" opacity="0.35" filter="url(#soft)"/>
+    <path d="M-52 70 C-48 10 -28 -18 0 -22 C28 -18 48 10 52 70 Z" fill="#1c0a0a"/>
+    <path d="M-34 -8 C-30 -42 -12 -58 0 -60 C12 -58 30 -42 34 -8 Z" fill="#2a0f0f"/>
+    <circle cx="-14" cy="-18" r="7" fill="#ffea00"/>
+    <circle cx="14" cy="-18" r="7" fill="#ffea00"/>
+    <path d="M-22 -52 L-10 -78 L-2 -52 Z" fill="#ea580c"/>
+    <path d="M22 -52 L10 -78 L2 -52 Z" fill="#ea580c"/>
+    <path d="M0 -68 L0 -88" stroke="#fb923c" stroke-width="4" stroke-linecap="round"/>
+    <ellipse cx="0" cy="-74" rx="24" ry="7" fill="none" stroke="#f97316" stroke-width="3"/>
+    <rect x="-58" y="8" width="22" height="28" rx="4" fill="#111" stroke="#7f1d1d" stroke-width="2"/>
+    <rect x="36" y="8" width="22" height="28" rx="4" fill="#111" stroke="#7f1d1d" stroke-width="2"/>
+  </g>
+
+  <!-- zombie horde -->
+  <g opacity="0.92">
+    <g transform="translate(310 340)">
+      <ellipse cx="0" cy="52" rx="28" ry="8" fill="#000" opacity="0.35"/>
+      <circle cx="0" cy="18" r="16" fill="#274a32"/>
+      <rect x="-12" y="30" width="24" height="28" rx="6" fill="#1f3d28"/>
+      <circle cx="-5" cy="14" r="3" fill="#86efac"/>
+      <circle cx="5" cy="14" r="3" fill="#86efac"/>
+    </g>
+    <g transform="translate(430 390)">
+      <ellipse cx="0" cy="48" rx="24" ry="7" fill="#000" opacity="0.35"/>
+      <circle cx="0" cy="16" r="14" fill="#274a32"/>
+      <rect x="-10" y="26" width="20" height="24" rx="5" fill="#1f3d28"/>
+      <circle cx="-4" cy="12" r="2.5" fill="#86efac"/>
+      <circle cx="4" cy="12" r="2.5" fill="#86efac"/>
+    </g>
+    <g transform="translate(770 360)">
+      <ellipse cx="0" cy="50" rx="26" ry="8" fill="#000" opacity="0.35"/>
+      <circle cx="0" cy="17" r="15" fill="#274a32"/>
+      <rect x="-11" y="28" width="22" height="26" rx="5" fill="#1f3d28"/>
+      <circle cx="-4" cy="13" r="3" fill="#86efac"/>
+      <circle cx="4" cy="13" r="3" fill="#86efac"/>
+    </g>
+    <g transform="translate(890 410)">
+      <ellipse cx="0" cy="44" rx="22" ry="6" fill="#000" opacity="0.35"/>
+      <circle cx="0" cy="14" r="12" fill="#274a32"/>
+      <rect x="-9" y="22" width="18" height="22" rx="4" fill="#1f3d28"/>
+      <circle cx="-3" cy="11" r="2.5" fill="#86efac"/>
+      <circle cx="3" cy="11" r="2.5" fill="#86efac"/>
+    </g>
+    <g transform="translate(520 430)">
+      <ellipse cx="0" cy="42" rx="20" ry="6" fill="#000" opacity="0.35"/>
+      <circle cx="0" cy="13" r="11" fill="#274a32"/>
+      <rect x="-8" y="20" width="16" height="20" rx="4" fill="#1f3d28"/>
+      <circle cx="-3" cy="10" r="2" fill="#86efac"/>
+      <circle cx="3" cy="10" r="2" fill="#86efac"/>
+    </g>
+  </g>
+
+  <!-- bullet tracers -->
+  <g opacity="0.75">
+    <line x1="700" y1="520" x2="640" y2="330" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+    <line x1="720" y1="540" x2="760" y2="360" stroke="#fde68a" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="640" cy="330" r="4" fill="#fef08a"/>
+    <circle cx="760" cy="360" r="3" fill="#fde68a"/>
+  </g>
+
+  <!-- muzzle flash -->
+  <circle cx="930" cy="610" r="48" fill="url(#muzzle)" filter="url(#soft)"/>
+  <polygon points="900,610 860,595 860,625" fill="#fef08a" opacity="0.9"/>
+  <polygon points="930,580 945,540 915,540" fill="#fde68a" opacity="0.75"/>
+
+  <!-- weapon silhouette -->
+  <g transform="translate(860 620)">
+    <rect x="0" y="-8" width="180" height="18" rx="4" fill="#111827"/>
+    <rect x="120" y="-12" width="70" height="26" rx="3" fill="#1f2937"/>
+    <rect x="20" y="-4" width="90" height="10" rx="2" fill="#374151"/>
+    <rect x="-20" y="-2" width="28" height="6" rx="2" fill="#4b5563"/>
+  </g>
+
+  <!-- FPS crosshair -->
+  <g stroke="#34d399" stroke-width="3" stroke-linecap="round" opacity="0.9">
+    <line x1="600" y1="350" x2="600" y2="390"/>
+    <line x1="600" y1="430" x2="600" y2="470"/>
+    <line x1="560" y1="410" x2="600" y2="410"/>
+    <line x1="640" y1="410" x2="600" y2="410"/>
+    <circle cx="600" cy="410" r="26" fill="none" stroke-width="2" opacity="0.45"/>
+  </g>
+
+  <!-- chat spawn sparks -->
+  <g fill="#a855f7" opacity="0.85">
+    <circle cx="150" cy="120" r="4"/>
+    <circle cx="180" cy="95" r="3"/>
+    <circle cx="210" cy="130" r="3.5"/>
+    <circle cx="1020" cy="110" r="4"/>
+    <circle cx="1050" cy="140" r="3"/>
+    <circle cx="990" cy="145" r="3"/>
+  </g>
+
+  <!-- neon frame -->
+  <rect x="36" y="36" width="1128" height="678" rx="28" stroke="url(#neon)" stroke-width="4" fill="none" opacity="0.55"/>
+  <rect x="56" y="56" width="1088" height="638" rx="22" stroke="#34d399" stroke-width="1" fill="rgba(4,12,8,0.25)" opacity="0.35"/>
+
+  <!-- top scan glow -->
+  <rect x="0" y="0" width="1200" height="120" fill="url(#bg)" opacity="0.5"/>
 </svg>

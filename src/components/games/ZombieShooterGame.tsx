@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Crosshair, Skull, Trophy, Zap } from "lucide-react";
+import { Crosshair, Maximize2, Minimize2, Skull, Trophy, Zap } from "lucide-react";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
 import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
 import type { FpsHud, ZombieFpsEngine } from "@/lib/zombie-fps-engine";
 import { Button } from "@/components/ui/button";
 import { GameCard } from "@/components/Reveal";
+import { cn } from "@/lib/utils";
 
 const BOSS_EVERY_OPTIONS = [5, 10, 15, 20, 25, 30] as const;
 const PLAYER_MAX_HP = 100;
@@ -34,12 +35,17 @@ type EndState = {
 };
 
 function isZombieTrigger(text: string) {
+  const raw = text.trim().toLowerCase();
+  if (!raw) return false;
+  if (raw.includes("zombie") || raw.includes("زومبي") || raw.includes("زومبى")) return true;
   const t = normalizeAr(text);
   if (!t) return false;
-  if (t === "زومبي" || t === "zombie" || t === "زومبى") return true;
-  const first = t.split(" ")[0] ?? "";
-  return first === "زومبي" || first === "zombie" || first === "زومبى";
+  if (/(zombie|زومبي)/i.test(t)) return true;
+  const compact = t.replace(/\s+/g, "");
+  return compact.includes("زومبي") || compact.includes("zombie");
 }
+
+type PendingSpawn = { kind: "zombie" | "boss"; from: string; count: number };
 
 function bossesFromKicks(amount: number) {
   if (!Number.isFinite(amount) || amount < 50) return 0;
@@ -90,6 +96,7 @@ export default function ZombieShooterGame({
 }) {
   const [bossEvery, setBossEvery] = useState(20);
   const [phase, setPhase] = useState<"lobby" | "playing" | "ended">("lobby");
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [hud, setHud] = useState<FpsHud>({
     hp: PLAYER_MAX_HP,
     kills: 0,
@@ -104,8 +111,11 @@ export default function ZombieShooterGame({
   const [endReveal, setEndReveal] = useState(false);
 
   const session = useGameSession(180);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const mountRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<ZombieFpsEngine | null>(null);
+  const pendingSpawnsRef = useRef<PendingSpawn[]>([]);
+  const zombieCommentCountRef = useRef(0);
   const contributorsRef = useRef(emptyContributors());
   const bossEveryRef = useRef(bossEvery);
   const feedId = useRef(1);
@@ -120,12 +130,31 @@ export default function ZombieShooterGame({
     setFeed((prev) => [{ id, text, tone }, ...prev].slice(0, 8));
   };
 
+  const enqueueSpawn = (kind: PendingSpawn["kind"], from: string, count = 1) => {
+    const eng = engineRef.current;
+    if (eng && !eng.isEnded()) {
+      eng.enqueue(kind, from, count);
+      return;
+    }
+    // Engine may still be loading — keep jobs until it is ready.
+    pendingSpawnsRef.current.push({ kind, from, count });
+  };
+
+  const flushPendingSpawns = (eng: ZombieFpsEngine) => {
+    const jobs = pendingSpawnsRef.current;
+    pendingSpawnsRef.current = [];
+    for (const job of jobs) eng.enqueue(job.kind, job.from, job.count);
+  };
+
   const finishGameRef = useRef<(outcome: EndState["outcome"]) => void>(() => undefined);
   finishGameRef.current = (outcome) => {
     if (endHandled.current) return;
     endHandled.current = true;
     playingRef.current = false;
     stopSessionRef.current();
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined);
+    }
     const eng = engineRef.current;
     eng?.markEnded(outcome);
     const stats = eng?.getStats();
@@ -150,26 +179,32 @@ export default function ZombieShooterGame({
   }, [session]);
 
   useNewMessages(messages, phase === "playing", (m) => {
-    const eng = engineRef.current;
-    if (!eng || eng.isEnded()) return;
+    if (endHandled.current) return;
 
     if (m.kind === "gift" && m.giftAmount) {
       const bosses = bossesFromKicks(m.giftAmount);
       if (bosses <= 0) return;
-      eng.enqueue("boss", m.user, bosses);
+      enqueueSpawn("boss", m.user, bosses);
       bumpContributor(contributorsRef.current, m, "bosses", bosses);
       pushFeed(`${m.user} أرسل ${m.giftAmount} كيك → ${bosses} وحوش`, "gift");
       return;
     }
 
+    if (m.kind === "gift") return;
     if (!isZombieTrigger(m.text)) return;
-    const comments = eng.bumpZombieComment();
-    eng.enqueue("zombie", m.user, 1);
+
+    zombieCommentCountRef.current += 1;
+    const comments = zombieCommentCountRef.current;
+    enqueueSpawn("zombie", m.user, 1);
     bumpContributor(contributorsRef.current, m, "zombies", 1);
     pushFeed(`${m.user} أنزل زومبي`, "zombie");
+    setHud((h) => ({ ...h, comments, queued: h.queued + 1 }));
+
+    // Keep engine counter in sync when available.
+    engineRef.current?.bumpZombieComment();
 
     if (comments > 0 && comments % bossEveryRef.current === 0) {
-      eng.enqueue("boss", m.user, 1);
+      enqueueSpawn("boss", m.user, 1);
       bumpContributor(contributorsRef.current, m, "bosses", 1);
       pushFeed(`وحش كبير! بعد ${bossEveryRef.current} تعليق زومبي`, "boss");
     }
@@ -194,6 +229,10 @@ export default function ZombieShooterGame({
         return;
       }
       engineRef.current = engine;
+      flushPendingSpawns(engine);
+      // Sync comment counter for HUD after catch-up spawns.
+      const missing = Math.max(0, zombieCommentCountRef.current - engine.getStats().zombieComments);
+      for (let i = 0; i < missing; i++) engine.bumpZombieComment();
     })();
 
     return () => {
@@ -203,9 +242,35 @@ export default function ZombieShooterGame({
     };
   }, [phase]);
 
+  useEffect(() => {
+    const onFs = () => {
+      const active = document.fullscreenElement === stageRef.current;
+      setIsFullscreen(active);
+      window.setTimeout(() => engineRef.current?.resize(), 50);
+    };
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    const el = stageRef.current;
+    if (!el) return;
+    try {
+      if (document.fullscreenElement === el) {
+        await document.exitFullscreen();
+      } else {
+        await el.requestFullscreen();
+      }
+    } catch {
+      // ignore browser fullscreen denials
+    }
+  };
+
   const startMatch = () => {
     if (!chatActive) return;
     contributorsRef.current = emptyContributors();
+    pendingSpawnsRef.current = [];
+    zombieCommentCountRef.current = 0;
     endHandled.current = false;
     setFeed([]);
     setEndState(null);
@@ -265,8 +330,8 @@ export default function ZombieShooterGame({
             <div className="pointer-events-none absolute -right-10 top-0 size-56 rounded-full bg-emerald-400/10 blur-3xl" />
             <p className="text-sm font-extrabold text-emerald-200">تجربة FPS كاملة</p>
             <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">
-              منظور أول شخص، سلاح بيدك، تمشي داخل ماب مغلقة، وتصوّب بالماوس. الشاشة كبيرة ومخصصة
-              للبث على شاشة ثانية.
+              منظور أول شخص واقعي، سلاح بيدك، تمشي داخل ماب مغلقة، وتصوّب بالماوس. تقدر تكبّر اللعبة
+              لملء الشاشة كاملة أثناء البث.
             </p>
             <div className="mt-4 grid gap-2 text-xs font-bold text-muted-foreground sm:grid-cols-3">
               <div className="rounded-xl bg-background/50 px-3 py-2">حركة: WASD</div>
@@ -340,43 +405,97 @@ export default function ZombieShooterGame({
 
       {phase === "playing" ? (
         <div className="space-y-3">
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
-            <Stat label="الدم" value={`${hud.hp}%`} danger={hud.hp <= 30} />
-            <Stat label="قتلى" value={String(hud.kills)} />
-            <Stat label="أحياء" value={String(hud.alive)} />
-            <Stat label="طابور" value={String(hud.queued)} />
-            <Stat label="تعليقات زومبي" value={String(hud.comments)} />
-            <Stat label="الوقت" value={session.left == null ? "∞" : formatClock(session.left)} />
-          </div>
-
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-muted-foreground">
             <span>
               الوحش الكبير القادم بعد <span className="text-fuchsia-300">{nextBossIn}</span> تعليق ·
               وحوش نزلت: <span className="text-fuchsia-300">{hud.bosses}</span>
             </span>
-            <Button type="button" variant="destructive" size="sm" onClick={stopMatch}>
-              إنهاء الجولة
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" size="sm" onClick={toggleFullscreen}>
+                {isFullscreen ? (
+                  <Minimize2 className="size-3.5" />
+                ) : (
+                  <Maximize2 className="size-3.5" />
+                )}
+                {isFullscreen ? "تصغير" : "ملء الشاشة"}
+              </Button>
+              <Button type="button" variant="destructive" size="sm" onClick={stopMatch}>
+                إنهاء الجولة
+              </Button>
+            </div>
           </div>
 
-          <div className="relative overflow-hidden rounded-2xl border border-emerald-400/35 bg-black shadow-[0_0_0_1px_rgba(61,255,154,0.12),0_20px_60px_rgba(0,0,0,0.45)]">
+          <div
+            ref={stageRef}
+            className={cn(
+              "relative overflow-hidden border border-emerald-400/35 bg-black shadow-[0_0_0_1px_rgba(61,255,154,0.12),0_20px_60px_rgba(0,0,0,0.45)]",
+              isFullscreen ? "rounded-none" : "rounded-2xl",
+            )}
+          >
             <div
               ref={mountRef}
-              className="relative h-[min(78vh,820px)] min-h-[520px] w-full cursor-crosshair"
+              className={cn(
+                "relative w-full cursor-crosshair bg-black",
+                isFullscreen ? "h-screen min-h-screen" : "h-[min(82vh,900px)] min-h-[560px]",
+              )}
             />
 
-            {/* Crosshair */}
-            <div className="pointer-events-none absolute inset-0 grid place-items-center">
-              <div className="relative size-8">
-                <span className="absolute top-1/2 left-0 h-[2px] w-full -translate-y-1/2 bg-emerald-300/90" />
-                <span className="absolute top-0 left-1/2 h-full w-[2px] -translate-x-1/2 bg-emerald-300/90" />
-                <span className="absolute top-1/2 left-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
+            {/* Top HUD */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-wrap items-start justify-between gap-2 bg-gradient-to-b from-black/75 to-transparent p-3 sm:p-4">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                <Stat label="الدم" value={`${hud.hp}%`} danger={hud.hp <= 30} compact />
+                <Stat label="قتلى" value={String(hud.kills)} compact />
+                <Stat label="أحياء" value={String(hud.alive)} compact />
+                <Stat label="طابور" value={String(hud.queued)} compact />
+                <Stat label="زومبي" value={String(hud.comments)} compact />
+                <Stat
+                  label="وقت"
+                  value={session.left == null ? "∞" : formatClock(session.left)}
+                  compact
+                />
+              </div>
+              <div className="pointer-events-auto flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="bg-black/55"
+                  onClick={toggleFullscreen}
+                >
+                  {isFullscreen ? (
+                    <Minimize2 className="size-3.5" />
+                  ) : (
+                    <Maximize2 className="size-3.5" />
+                  )}
+                  {isFullscreen ? "تصغير" : "تكبير"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  className="bg-rose-600/90"
+                  onClick={stopMatch}
+                >
+                  إنهاء
+                </Button>
               </div>
             </div>
 
-            {/* HP bar overlay */}
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4 pt-10">
-              <div className="mx-auto h-2.5 max-w-md overflow-hidden rounded-full bg-white/10">
+            {/* Crosshair */}
+            <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
+              <div className="relative size-9 opacity-90">
+                <span className="absolute top-1/2 left-[2px] right-[2px] h-[2px] -translate-y-1/2 bg-emerald-200/95" />
+                <span className="absolute top-[2px] bottom-[2px] left-1/2 w-[2px] -translate-x-1/2 bg-emerald-200/95" />
+                <span className="absolute top-1/2 left-1/2 size-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
+              </div>
+            </div>
+
+            {/* Bottom HP */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-4 pt-14">
+              <div className="mx-auto mb-2 max-w-lg text-center text-[11px] font-bold text-emerald-100/80">
+                الوحش القادم بعد {nextBossIn} تعليق · وحوش: {hud.bosses}
+              </div>
+              <div className="mx-auto h-3 max-w-lg overflow-hidden rounded-full border border-white/10 bg-white/10">
                 <div
                   className={`h-full rounded-full transition-all ${hud.hp <= 30 ? "bg-rose-500" : "bg-emerald-400"}`}
                   style={{ width: `${hud.hp}%` }}
@@ -387,37 +506,39 @@ export default function ZombieShooterGame({
             {!hud.locked ? (
               <button
                 type="button"
-                className="absolute inset-0 z-10 grid place-items-center bg-black/55 backdrop-blur-[2px]"
+                className="absolute inset-0 z-30 grid place-items-center bg-black/60 backdrop-blur-[2px]"
                 onClick={() => engineRef.current?.requestPointerLock()}
               >
-                <div className="rounded-2xl border border-emerald-400/40 bg-black/70 px-6 py-5 text-center">
+                <div className="rounded-2xl border border-emerald-400/40 bg-black/75 px-6 py-5 text-center">
                   <Crosshair className="mx-auto size-8 text-emerald-300" />
                   <p className="mt-3 text-lg font-extrabold text-emerald-100">اضغط للعب</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    يقفل الماوس للنظر · WASD للمشي · يسار للإطلاق
+                    يقفل الماوس · WASD · إطلاق يسار · زر تكبير لملء الشاشة
                   </p>
                 </div>
               </button>
             ) : null}
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2">
-            {feed.map((f) => (
-              <div
-                key={f.id}
-                className={`animate-pop-in rounded-xl px-3 py-2 text-xs font-bold ${
-                  f.tone === "boss"
-                    ? "bg-fuchsia-500/15 text-fuchsia-200"
-                    : f.tone === "gift"
-                      ? "bg-amber-500/15 text-amber-200"
-                      : "bg-emerald-500/10 text-emerald-100"
-                }`}
-              >
-                {f.tone === "boss" ? <Zap className="mr-1 inline size-3.5" /> : null}
-                {f.text}
-              </div>
-            ))}
-          </div>
+          {!isFullscreen ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {feed.map((f) => (
+                <div
+                  key={f.id}
+                  className={`animate-pop-in rounded-xl px-3 py-2 text-xs font-bold ${
+                    f.tone === "boss"
+                      ? "bg-fuchsia-500/15 text-fuchsia-200"
+                      : f.tone === "gift"
+                        ? "bg-amber-500/15 text-amber-200"
+                        : "bg-emerald-500/10 text-emerald-100"
+                  }`}
+                >
+                  {f.tone === "boss" ? <Zap className="mr-1 inline size-3.5" /> : null}
+                  {f.text}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -506,11 +627,36 @@ export default function ZombieShooterGame({
   );
 }
 
-function Stat({ label, value, danger }: { label: string; value: string; danger?: boolean }) {
+function Stat({
+  label,
+  value,
+  danger,
+  compact,
+}: {
+  label: string;
+  value: string;
+  danger?: boolean;
+  compact?: boolean;
+}) {
   return (
-    <div className="rounded-xl border border-border/60 bg-secondary/30 px-3 py-2">
-      <p className="text-[10px] font-bold text-muted-foreground">{label}</p>
-      <p className={`text-lg font-black tabular-nums ${danger ? "text-rose-400" : ""}`}>{value}</p>
+    <div
+      className={cn(
+        "rounded-xl border border-border/60 bg-secondary/30",
+        compact ? "border-white/10 bg-black/45 px-2.5 py-1.5 backdrop-blur" : "px-3 py-2",
+      )}
+    >
+      <p className={cn("font-bold text-muted-foreground", compact ? "text-[9px]" : "text-[10px]")}>
+        {label}
+      </p>
+      <p
+        className={cn(
+          "font-black tabular-nums",
+          compact ? "text-sm text-white" : "text-lg",
+          danger ? "text-rose-400" : "",
+        )}
+      >
+        {value}
+      </p>
     </div>
   );
 }

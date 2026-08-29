@@ -25,9 +25,19 @@ type Mob = {
   damage: number;
   hitCd: number;
   from: string;
+  phase: number;
+  limp: number;
 };
 
 type SpawnJob = { kind: MobKind; from: string };
+
+type FxSpark = {
+  mesh: THREE.Mesh;
+  vx: number;
+  vy: number;
+  vz: number;
+  life: number;
+};
 
 export type ZombieFpsEngine = {
   dispose: () => void;
@@ -45,104 +55,264 @@ export type ZombieFpsEngine = {
   markEnded: (outcome: FpsEndOutcome) => void;
   isEnded: () => boolean;
   getOutcome: () => FpsEndOutcome | null;
+  resize: () => void;
 };
 
 const PLAYER_MAX_HP = 100;
 const MAX_ALIVE = 42;
-const MOVE_SPEED = 7.2;
-const FIRE_COOLDOWN = 0.14;
-const HIT_DAMAGE = 28;
-const ZOMBIE_HP = 40;
-const BOSS_HP = 260;
-const ZOMBIE_SPEED = 2.35;
-const BOSS_SPEED = 1.55;
-const ZOMBIE_DAMAGE = 12;
-const BOSS_DAMAGE = 22;
-const ARENA = 28;
-const WALL = ARENA / 2 - 0.6;
+const MOVE_SPEED = 6.8;
+const FIRE_COOLDOWN = 0.13;
+const HIT_DAMAGE = 30;
+const ZOMBIE_HP = 45;
+const BOSS_HP = 280;
+const ZOMBIE_SPEED = 2.2;
+const BOSS_SPEED = 1.45;
+const ZOMBIE_DAMAGE = 11;
+const BOSS_DAMAGE = 20;
+const ARENA = 32;
+const WALL = ARENA / 2 - 0.75;
 
-function makeZombieMesh(kind: MobKind) {
+function makeNoiseTexture(size = 256, tint: [number, number, number], contrast = 28) {
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  const img = ctx.createImageData(size, size);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (Math.random() * contrast) | 0;
+    img.data[i] = Math.min(255, tint[0] + n);
+    img.data[i + 1] = Math.min(255, tint[1] + n);
+    img.data[i + 2] = Math.min(255, tint[2] + n);
+    img.data[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  // cracks / stains
+  ctx.globalAlpha = 0.18;
+  for (let i = 0; i < 40; i++) {
+    ctx.strokeStyle = i % 2 ? "#000" : "#222";
+    ctx.beginPath();
+    ctx.moveTo(Math.random() * size, Math.random() * size);
+    ctx.lineTo(Math.random() * size, Math.random() * size);
+    ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 8;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeNameTag(name: string, boss: boolean) {
+  const label = (name || "مشاهد").trim().slice(0, 18);
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 140;
+  const ctx = canvas.getContext("2d")!;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // pill background
+  const padX = 28;
+  ctx.font = "bold 54px Segoe UI, Tahoma, Arial";
+  const textW = Math.min(canvas.width - padX * 2, ctx.measureText(label).width);
+  const boxW = textW + padX * 2;
+  const boxH = 78;
+  const boxX = (canvas.width - boxW) / 2;
+  const boxY = 28;
+  const r = 24;
+  ctx.beginPath();
+  ctx.moveTo(boxX + r, boxY);
+  ctx.arcTo(boxX + boxW, boxY, boxX + boxW, boxY + boxH, r);
+  ctx.arcTo(boxX + boxW, boxY + boxH, boxX, boxY + boxH, r);
+  ctx.arcTo(boxX, boxY + boxH, boxX, boxY, r);
+  ctx.arcTo(boxX, boxY, boxX + boxW, boxY, r);
+  ctx.closePath();
+  ctx.fillStyle = boss ? "rgba(88, 28, 135, 0.88)" : "rgba(6, 24, 16, 0.88)";
+  ctx.fill();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = boss ? "rgba(232, 121, 249, 0.95)" : "rgba(52, 211, 153, 0.95)";
+  ctx.stroke();
+
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.direction = "rtl";
+  ctx.fillText(label, canvas.width / 2, boxY + boxH / 2 + 2);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  const mat = new THREE.SpriteMaterial({
+    map: tex,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(boss ? 2.2 : 1.75, boss ? 0.6 : 0.48, 1);
+  sprite.position.y = boss ? 3.05 : 2.25;
+  sprite.name = "nametag";
+  sprite.renderOrder = 10;
+  return sprite;
+}
+
+function makeZombieMesh(kind: MobKind, fromName: string) {
   const g = new THREE.Group();
   const boss = kind === "boss";
-  const bodyMat = new THREE.MeshStandardMaterial({
-    color: boss ? 0x7e22ce : 0x3f7a4a,
-    roughness: 0.75,
-    metalness: 0.05,
-    emissive: boss ? 0x4c1d95 : 0x14532d,
-    emissiveIntensity: boss ? 0.35 : 0.12,
+  const scale = boss ? 1.35 : 1;
+
+  const skin = new THREE.MeshStandardMaterial({
+    color: boss ? 0x6b21a8 : 0x4a6b45,
+    roughness: 0.88,
+    metalness: 0.02,
+    emissive: boss ? 0x3b0764 : 0x1a2e1a,
+    emissiveIntensity: boss ? 0.28 : 0.08,
   });
-  const headMat = new THREE.MeshStandardMaterial({
-    color: boss ? 0xc084fc : 0x86efac,
-    roughness: 0.55,
+  const cloth = new THREE.MeshStandardMaterial({
+    color: boss ? 0x2e1065 : 0x2a3328,
+    roughness: 0.92,
+  });
+  const eyeMat = new THREE.MeshStandardMaterial({
+    color: boss ? 0xff1f4b : 0xc8ff4a,
+    emissive: boss ? 0xff1f4b : 0x84cc16,
+    emissiveIntensity: 1.4,
   });
 
-  const torso = new THREE.Mesh(
-    new THREE.CapsuleGeometry(boss ? 0.55 : 0.35, boss ? 1.1 : 0.75, 6, 10),
-    bodyMat,
-  );
-  torso.position.y = boss ? 1.35 : 1.05;
+  const hips = new THREE.Group();
+  hips.name = "hips";
+  g.add(hips);
+
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.28 * scale, 0.55 * scale, 6, 12), cloth);
+  torso.position.y = 1.15 * scale;
   torso.castShadow = true;
-  g.add(torso);
+  hips.add(torso);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(boss ? 0.42 : 0.28, 12, 12), headMat);
-  head.position.y = boss ? 2.25 : 1.75;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22 * scale, 16, 16), skin);
+  head.position.y = 1.72 * scale;
   head.castShadow = true;
-  g.add(head);
+  hips.add(head);
 
-  const eyeMat = new THREE.MeshBasicMaterial({ color: boss ? 0xff4d6d : 0xfef08a });
-  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(boss ? 0.08 : 0.05, 8, 8), eyeMat);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.18 * scale, 0.08 * scale, 0.12 * scale), skin);
+  jaw.position.set(0, 1.58 * scale, 0.12 * scale);
+  hips.add(jaw);
+
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.045 * scale, 8, 8), eyeMat);
   const eyeR = eyeL.clone();
-  eyeL.position.set(-0.12, boss ? 2.3 : 1.78, boss ? 0.34 : 0.24);
-  eyeR.position.set(0.12, boss ? 2.3 : 1.78, boss ? 0.34 : 0.24);
-  g.add(eyeL, eyeR);
+  eyeL.position.set(-0.08 * scale, 1.76 * scale, 0.18 * scale);
+  eyeR.position.set(0.08 * scale, 1.76 * scale, 0.18 * scale);
+  hips.add(eyeL, eyeR);
+
+  const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.08 * scale, 0.45 * scale, 4, 8), skin);
+  armL.name = "armL";
+  armL.position.set(-0.42 * scale, 1.25 * scale, 0.05 * scale);
+  armL.rotation.z = 0.35;
+  armL.castShadow = true;
+  hips.add(armL);
+
+  const armR = armL.clone();
+  armR.name = "armR";
+  armR.position.x = 0.42 * scale;
+  armR.rotation.z = -0.35;
+  hips.add(armR);
+
+  const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.1 * scale, 0.5 * scale, 4, 8), cloth);
+  legL.name = "legL";
+  legL.position.set(-0.14 * scale, 0.45 * scale, 0);
+  legL.castShadow = true;
+  hips.add(legL);
+
+  const legR = legL.clone();
+  legR.name = "legR";
+  legR.position.x = 0.14 * scale;
+  hips.add(legR);
 
   if (boss) {
-    const crown = new THREE.Mesh(
-      new THREE.ConeGeometry(0.28, 0.45, 5),
+    const horns = new THREE.Mesh(
+      new THREE.ConeGeometry(0.12, 0.35, 6),
       new THREE.MeshStandardMaterial({
         color: 0xfbbf24,
         emissive: 0xb45309,
-        emissiveIntensity: 0.4,
+        emissiveIntensity: 0.55,
+        metalness: 0.4,
+        roughness: 0.35,
       }),
     );
-    crown.position.y = 2.75;
-    g.add(crown);
+    horns.position.set(-0.16 * scale, 2.0 * scale, 0);
+    const horns2 = horns.clone();
+    horns2.position.x = 0.16 * scale;
+    hips.add(horns, horns2);
+
+    const aura = new THREE.PointLight(0xc026ff, 1.2, 6);
+    aura.position.y = 1.4 * scale;
+    g.add(aura);
   }
 
+  g.add(makeNameTag(fromName, boss));
   return g;
 }
 
 function makeWeapon() {
   const weapon = new THREE.Group();
-  const dark = new THREE.MeshStandardMaterial({ color: 0x1f2937, metalness: 0.7, roughness: 0.35 });
+  const metal = new THREE.MeshStandardMaterial({
+    color: 0x111827,
+    metalness: 0.85,
+    roughness: 0.28,
+  });
+  const polymer = new THREE.MeshStandardMaterial({
+    color: 0x1f2937,
+    metalness: 0.25,
+    roughness: 0.55,
+  });
   const accent = new THREE.MeshStandardMaterial({
-    color: 0x5eead4,
-    metalness: 0.4,
-    roughness: 0.3,
-    emissive: 0x115e59,
-    emissiveIntensity: 0.25,
+    color: 0x2dd4bf,
+    metalness: 0.55,
+    roughness: 0.25,
+    emissive: 0x0f766e,
+    emissiveIntensity: 0.35,
   });
 
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.22, 0.85), dark);
-  body.position.set(0.22, -0.18, -0.55);
-  weapon.add(body);
+  const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.18, 0.72), metal);
+  receiver.position.set(0.28, -0.2, -0.62);
+  weapon.add(receiver);
 
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.55, 10), dark);
+  const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.42), polymer);
+  handguard.position.set(0.28, -0.18, -1.05);
+  weapon.add(handguard);
+
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.038, 0.62, 12), metal);
   barrel.rotation.x = Math.PI / 2;
-  barrel.position.set(0.22, -0.12, -1.05);
+  barrel.position.set(0.28, -0.14, -1.42);
   weapon.add(barrel);
 
-  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.18, 0.28), dark);
-  stock.position.set(0.22, -0.22, -0.12);
+  const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.1, 10), metal);
+  muzzle.rotation.x = Math.PI / 2;
+  muzzle.position.set(0.28, -0.14, -1.74);
+  muzzle.name = "muzzle";
+  weapon.add(muzzle);
+
+  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.34), polymer);
+  stock.position.set(0.28, -0.24, -0.18);
   weapon.add(stock);
 
-  const mag = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.22, 0.16), accent);
-  mag.position.set(0.22, -0.34, -0.45);
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.22, 0.14), polymer);
+  grip.position.set(0.28, -0.38, -0.42);
+  grip.rotation.x = 0.35;
+  weapon.add(grip);
+
+  const mag = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.28, 0.14), accent);
+  mag.position.set(0.28, -0.42, -0.58);
   weapon.add(mag);
 
-  const sight = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.08), accent);
-  sight.position.set(0.22, -0.02, -0.7);
-  weapon.add(sight);
+  const optic = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.22), accent);
+  optic.position.set(0.28, -0.06, -0.72);
+  weapon.add(optic);
+
+  const flash = new THREE.Mesh(
+    new THREE.SphereGeometry(0.08, 10, 10),
+    new THREE.MeshBasicMaterial({ color: 0xffe566, transparent: true, opacity: 0 }),
+  );
+  flash.position.set(0.28, -0.14, -1.86);
+  flash.name = "flash";
+  weapon.add(flash);
 
   return weapon;
 }
@@ -155,71 +325,95 @@ export function createZombieFpsEngine(
   } = {},
 ): ZombieFpsEngine {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x050807);
-  scene.fog = new THREE.FogExp2(0x07110c, 0.045);
+  scene.background = new THREE.Color(0x040606);
+  scene.fog = new THREE.FogExp2(0x08110c, 0.038);
 
-  const camera = new THREE.PerspectiveCamera(75, 1, 0.08, 120);
-  camera.position.set(0, 1.65, 0);
+  const camera = new THREE.PerspectiveCamera(78, 1, 0.05, 140);
+  camera.position.set(0, 1.67, 0);
 
   const renderer = new THREE.WebGLRenderer({
     antialias: true,
     powerPreference: "high-performance",
+    alpha: false,
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
   mount.appendChild(renderer.domElement);
-  renderer.domElement.style.width = "100%";
-  renderer.domElement.style.height = "100%";
-  renderer.domElement.style.display = "block";
-  renderer.domElement.style.outline = "none";
+  Object.assign(renderer.domElement.style, {
+    width: "100%",
+    height: "100%",
+    display: "block",
+    outline: "none",
+  });
   renderer.domElement.tabIndex = 0;
 
-  // Lighting
-  scene.add(new THREE.AmbientLight(0x8fd9b8, 0.35));
-  const hemi = new THREE.HemisphereLight(0xb6ffd8, 0x1a0a0a, 0.55);
+  // Lights
+  scene.add(new THREE.AmbientLight(0x6f8f7c, 0.28));
+  const hemi = new THREE.HemisphereLight(0xa7f3d0, 0x1c0a0a, 0.55);
   scene.add(hemi);
-  const key = new THREE.DirectionalLight(0xffffff, 1.05);
-  key.position.set(8, 16, 6);
-  key.castShadow = true;
-  key.shadow.mapSize.set(1024, 1024);
-  key.shadow.camera.near = 1;
-  key.shadow.camera.far = 50;
-  key.shadow.camera.left = -20;
-  key.shadow.camera.right = 20;
-  key.shadow.camera.top = 20;
-  key.shadow.camera.bottom = -20;
-  scene.add(key);
-  const fill = new THREE.PointLight(0x3dff9a, 0.55, 40);
-  fill.position.set(0, 6, 0);
-  scene.add(fill);
-  const redFill = new THREE.PointLight(0xfb7185, 0.25, 30);
-  redFill.position.set(-8, 3, -8);
-  scene.add(redFill);
 
-  // Arena
-  const floorMat = new THREE.MeshStandardMaterial({
-    color: 0x121a16,
-    roughness: 0.95,
-    metalness: 0.05,
-  });
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(ARENA, ARENA, 1, 1), floorMat);
+  const sun = new THREE.DirectionalLight(0xfff1d6, 1.35);
+  sun.position.set(10, 18, 8);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.near = 1;
+  sun.shadow.camera.far = 60;
+  sun.shadow.camera.left = -22;
+  sun.shadow.camera.right = 22;
+  sun.shadow.camera.top = 22;
+  sun.shadow.camera.bottom = -22;
+  sun.shadow.bias = -0.00025;
+  scene.add(sun);
+
+  const neon = new THREE.PointLight(0x34d399, 1.1, 28, 2);
+  neon.position.set(0, 5.5, 0);
+  scene.add(neon);
+  const danger = new THREE.PointLight(0xfb7185, 0.55, 22, 2);
+  danger.position.set(-9, 2.4, -9);
+  scene.add(danger);
+  const danger2 = danger.clone();
+  danger2.position.set(9, 2.4, 9);
+  scene.add(danger2);
+
+  // Arena materials
+  const floorTex = makeNoiseTexture(256, [18, 28, 22], 22);
+  floorTex.repeat.set(10, 10);
+  const wallTex = makeNoiseTexture(256, [14, 20, 18], 30);
+  wallTex.repeat.set(4, 2);
+
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(ARENA, ARENA),
+    new THREE.MeshStandardMaterial({
+      map: floorTex,
+      roughness: 0.92,
+      metalness: 0.04,
+      color: 0xffffff,
+    }),
+  );
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   scene.add(floor);
 
-  const grid = new THREE.GridHelper(ARENA, 28, 0x1f6b4a, 0x123528);
-  grid.position.y = 0.01;
-  scene.add(grid);
+  const ceil = new THREE.Mesh(
+    new THREE.PlaneGeometry(ARENA, ARENA),
+    new THREE.MeshStandardMaterial({ color: 0x0a100e, roughness: 1, metalness: 0 }),
+  );
+  ceil.rotation.x = Math.PI / 2;
+  ceil.position.y = 5.2;
+  scene.add(ceil);
 
   const wallMat = new THREE.MeshStandardMaterial({
-    color: 0x0d1612,
-    roughness: 0.85,
-    metalness: 0.1,
-    emissive: 0x06241a,
-    emissiveIntensity: 0.15,
+    map: wallTex,
+    roughness: 0.9,
+    metalness: 0.08,
+    emissive: 0x062018,
+    emissiveIntensity: 0.12,
   });
-  const wallH = 4.2;
+  const wallH = 5.2;
   const mkWall = (w: number, d: number, x: number, z: number) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, wallH, d), wallMat);
     m.position.set(x, wallH / 2, z);
@@ -227,43 +421,71 @@ export function createZombieFpsEngine(
     m.receiveShadow = true;
     scene.add(m);
   };
-  mkWall(ARENA, 0.7, 0, -ARENA / 2);
-  mkWall(ARENA, 0.7, 0, ARENA / 2);
-  mkWall(0.7, ARENA, -ARENA / 2, 0);
-  mkWall(0.7, ARENA, ARENA / 2, 0);
+  mkWall(ARENA + 1, 0.85, 0, -ARENA / 2);
+  mkWall(ARENA + 1, 0.85, 0, ARENA / 2);
+  mkWall(0.85, ARENA + 1, -ARENA / 2, 0);
+  mkWall(0.85, ARENA + 1, ARENA / 2, 0);
 
-  // Inner cover props
-  for (const [x, z, s] of [
-    [-6, -5, 1.4],
-    [7, 4, 1.8],
-    [-3, 8, 1.2],
-    [5, -7, 1.5],
+  // Cover / debris
+  const crateMat = new THREE.MeshStandardMaterial({
+    color: 0x24352c,
+    roughness: 0.82,
+    metalness: 0.1,
+  });
+  for (const [x, z, s, rot] of [
+    [-7.5, -6, 1.5, 0.2],
+    [8, 5, 1.9, -0.4],
+    [-4, 9, 1.25, 0.7],
+    [6, -8, 1.6, 0.1],
+    [0, -10, 1.1, 0.3],
+    [-10, 2, 1.35, -0.2],
   ] as const) {
-    const crate = new THREE.Mesh(
-      new THREE.BoxGeometry(s, s, s),
-      new THREE.MeshStandardMaterial({ color: 0x24352c, roughness: 0.8 }),
-    );
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), crateMat);
     crate.position.set(x, s / 2, z);
+    crate.rotation.y = rot;
     crate.castShadow = true;
     crate.receiveShadow = true;
     scene.add(crate);
   }
 
-  // Weapon viewmodel
+  // Atmospheric dust
+  const dustGeo = new THREE.BufferGeometry();
+  const dustCount = 180;
+  const dustPos = new Float32Array(dustCount * 3);
+  for (let i = 0; i < dustCount; i++) {
+    dustPos[i * 3] = (Math.random() - 0.5) * ARENA * 0.9;
+    dustPos[i * 3 + 1] = 0.4 + Math.random() * 4.2;
+    dustPos[i * 3 + 2] = (Math.random() - 0.5) * ARENA * 0.9;
+  }
+  dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
+  const dust = new THREE.Points(
+    dustGeo,
+    new THREE.PointsMaterial({
+      color: 0x9ae6b4,
+      size: 0.035,
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: false,
+    }),
+  );
+  scene.add(dust);
+
+  // Weapon
   const weapon = makeWeapon();
   camera.add(weapon);
   scene.add(camera);
-
-  // Crosshair flash / muzzle
-  const muzzleLight = new THREE.PointLight(0xffe08a, 0, 8);
-  muzzleLight.position.set(0.22, -0.1, -1.25);
+  const flashMesh = weapon.getObjectByName("flash") as THREE.Mesh;
+  const muzzleLight = new THREE.PointLight(0xffd27a, 0, 7, 2);
+  muzzleLight.position.set(0.28, -0.14, -1.7);
   camera.add(muzzleLight);
 
   const keys = new Set<string>();
   const mobs: Mob[] = [];
   const queue: SpawnJob[] = [];
+  const sparks: FxSpark[] = [];
   const raycaster = new THREE.Raycaster();
   const clock = new THREE.Clock();
+  const tmpV = new THREE.Vector3();
 
   let yaw = 0;
   let pitch = 0;
@@ -272,6 +494,8 @@ export function createZombieFpsEngine(
   let invuln = 0;
   let recoil = 0;
   let bob = 0;
+  let shake = 0;
+  let damagePulse = 0;
   let kills = 0;
   let spawned = 0;
   let bossesSpawned = 0;
@@ -296,12 +520,32 @@ export function createZombieFpsEngine(
   const ro = new ResizeObserver(resize);
   ro.observe(mount);
 
+  const spawnSpark = (pos: THREE.Vector3, color: number, n = 10) => {
+    for (let i = 0; i < n; i++) {
+      const mesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.03 + Math.random() * 0.04, 6, 6),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 }),
+      );
+      mesh.position.copy(pos);
+      scene.add(mesh);
+      const a = Math.random() * Math.PI * 2;
+      const s = 2 + Math.random() * 4;
+      sparks.push({
+        mesh,
+        vx: Math.cos(a) * s,
+        vy: 1.5 + Math.random() * 3,
+        vz: Math.sin(a) * s,
+        life: 0.25 + Math.random() * 0.35,
+      });
+    }
+  };
+
   const spawnOne = (kind: MobKind, from: string) => {
     const boss = kind === "boss";
     const side = Math.floor(Math.random() * 4);
+    const edge = WALL - 1.4;
     let x = 0;
     let z = 0;
-    const edge = WALL - 1.2;
     if (side === 0) {
       x = (Math.random() * 2 - 1) * edge;
       z = -edge;
@@ -316,7 +560,7 @@ export function createZombieFpsEngine(
       z = (Math.random() * 2 - 1) * edge;
     }
 
-    const root = makeZombieMesh(kind);
+    const root = makeZombieMesh(kind, from);
     root.position.set(x, 0, z);
     scene.add(root);
     mobs.push({
@@ -326,10 +570,12 @@ export function createZombieFpsEngine(
       hp: boss ? BOSS_HP : ZOMBIE_HP,
       maxHp: boss ? BOSS_HP : ZOMBIE_HP,
       speed: boss ? BOSS_SPEED : ZOMBIE_SPEED,
-      radius: boss ? 0.85 : 0.5,
+      radius: boss ? 0.95 : 0.55,
       damage: boss ? BOSS_DAMAGE : ZOMBIE_DAMAGE,
       hitCd: 0,
       from,
+      phase: Math.random() * Math.PI * 2,
+      limp: 0.7 + Math.random() * 0.5,
     });
     spawned += 1;
     if (boss) bossesSpawned += 1;
@@ -337,14 +583,23 @@ export function createZombieFpsEngine(
 
   const enqueue = (kind: MobKind, from: string, count = 1) => {
     if (ended) return;
-    for (let i = 0; i < count; i++) queue.push({ kind, from });
+    for (let i = 0; i < count; i++) {
+      // Spawn immediately when possible so chat feels instant.
+      if (mobs.length < MAX_ALIVE) spawnOne(kind, from);
+      else queue.push({ kind, from });
+    }
   };
 
   const fire = () => {
     if (ended || fireCd > 0) return;
     fireCd = FIRE_COOLDOWN;
     recoil = 1;
-    muzzleLight.intensity = 2.8;
+    shake = Math.max(shake, 0.22);
+    muzzleLight.intensity = 4.5;
+    if (flashMesh.material instanceof THREE.MeshBasicMaterial) {
+      flashMesh.material.opacity = 1;
+      flashMesh.scale.setScalar(1.4 + Math.random());
+    }
 
     raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
     const hits = raycaster.intersectObjects(
@@ -352,21 +607,37 @@ export function createZombieFpsEngine(
       true,
     );
     if (hits.length > 0) {
-      const obj = hits[0]!.object;
-      let root: THREE.Object3D | null = obj;
+      const hit = hits[0]!;
+      let root: THREE.Object3D | null = hit.object;
       while (root && !mobs.some((m) => m.root === root)) root = root.parent;
       const mob = mobs.find((m) => m.root === root);
       if (mob) {
         mob.hp -= HIT_DAMAGE;
-        mob.root.position.y = 0.08;
+        spawnSpark(hit.point, mob.kind === "boss" ? 0xe879f9 : 0x4ade80, 12);
+        mob.root.position.add(
+          tmpV
+            .set(
+              camera.position.x - mob.root.position.x,
+              0,
+              camera.position.z - mob.root.position.z,
+            )
+            .normalize()
+            .multiplyScalar(-0.18),
+        );
         if (mob.hp <= 0) {
           kills += 1;
+          spawnSpark(mob.root.position.clone().setY(1.2), 0xf87171, 18);
           scene.remove(mob.root);
           disposeObject(mob.root);
           const idx = mobs.indexOf(mob);
           if (idx >= 0) mobs.splice(idx, 1);
         }
       }
+    } else {
+      // wall spark fallback ahead
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      spawnSpark(camera.position.clone().add(dir.multiplyScalar(4)), 0xfbbf24, 4);
     }
   };
 
@@ -391,9 +662,9 @@ export function createZombieFpsEngine(
   };
   const onMouseMove = (e: MouseEvent) => {
     if (!pointerLocked || ended) return;
-    yaw -= e.movementX * 0.0022;
-    pitch -= e.movementY * 0.0022;
-    pitch = Math.max(-1.2, Math.min(1.2, pitch));
+    yaw -= e.movementX * 0.00215;
+    pitch -= e.movementY * 0.00215;
+    pitch = Math.max(-1.25, Math.min(1.25, pitch));
   };
   const onLockChange = () => {
     pointerLocked = document.pointerLockElement === renderer.domElement;
@@ -424,22 +695,25 @@ export function createZombieFpsEngine(
       livedSec += dt;
       fireCd = Math.max(0, fireCd - dt);
       invuln = Math.max(0, invuln - dt);
-      recoil = Math.max(0, recoil - dt * 6);
-      muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt * 18);
+      recoil = Math.max(0, recoil - dt * 7);
+      shake = Math.max(0, shake - dt * 3.5);
+      damagePulse = Math.max(0, damagePulse - dt * 1.8);
+      muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt * 22);
+      if (flashMesh.material instanceof THREE.MeshBasicMaterial) {
+        flashMesh.material.opacity = Math.max(0, flashMesh.material.opacity - dt * 10);
+      }
 
       let released = 0;
-      while (queue.length > 0 && mobs.length < MAX_ALIVE && released < 2) {
+      while (queue.length > 0 && mobs.length < MAX_ALIVE && released < 6) {
         const job = queue.shift()!;
         spawnOne(job.kind, job.from);
         released += 1;
       }
 
-      // Look
       camera.rotation.order = "YXZ";
       camera.rotation.y = yaw;
       camera.rotation.x = pitch;
 
-      // Move
       const forward = new THREE.Vector3();
       camera.getWorldDirection(forward);
       forward.y = 0;
@@ -452,31 +726,36 @@ export function createZombieFpsEngine(
       if (keys.has("KeyS") || keys.has("ArrowDown")) wish.sub(forward);
       if (keys.has("KeyD") || keys.has("ArrowRight")) wish.add(right);
       if (keys.has("KeyA") || keys.has("ArrowLeft")) wish.sub(right);
-      if (wish.lengthSq() > 0) {
+      const moving = wish.lengthSq() > 0;
+      if (moving) {
         wish.normalize().multiplyScalar(MOVE_SPEED * dt);
         camera.position.add(wish);
-        bob += dt * 10;
+        bob += dt * 11;
       } else {
-        bob *= 0.9;
+        bob = THREE.MathUtils.lerp(bob, 0, 0.08);
       }
       camera.position.x = THREE.MathUtils.clamp(camera.position.x, -WALL, WALL);
       camera.position.z = THREE.MathUtils.clamp(camera.position.z, -WALL, WALL);
-      camera.position.y = 1.65 + Math.sin(bob) * 0.035;
+      const bobY = moving ? Math.sin(bob) * 0.045 : 0;
+      const bobX = moving ? Math.cos(bob * 0.5) * 0.02 : 0;
+      camera.position.y = 1.67 + bobY;
+      if (shake > 0) {
+        camera.position.x += (Math.random() - 0.5) * shake * 0.08;
+        camera.position.y += (Math.random() - 0.5) * shake * 0.06;
+      }
 
-      // Weapon sway / recoil
       weapon.position.set(
-        0.28 + Math.sin(bob * 0.5) * 0.01,
-        -0.28 + Math.abs(Math.sin(bob)) * 0.02 - recoil * 0.04,
-        -0.45 - recoil * 0.08,
+        0.3 + bobX - recoil * 0.02,
+        -0.3 + Math.abs(Math.sin(bob)) * 0.025 - recoil * 0.055,
+        -0.42 - recoil * 0.1,
       );
-      weapon.rotation.set(recoil * 0.18, 0.08, 0.04);
+      weapon.rotation.set(0.04 + recoil * 0.22, 0.1, 0.035 + bobX * 0.4);
 
       if (shooting && pointerLocked) fire();
 
-      // Mobs chase
       const playerPos = camera.position;
       for (const m of mobs) {
-        m.root.position.y = THREE.MathUtils.lerp(m.root.position.y, 0, 0.2);
+        m.phase += dt * m.limp * 6;
         const to = new THREE.Vector3(
           playerPos.x - m.root.position.x,
           0,
@@ -487,21 +766,34 @@ export function createZombieFpsEngine(
           to.normalize();
           m.root.position.x += to.x * m.speed * dt;
           m.root.position.z += to.z * m.speed * dt;
-          m.root.lookAt(playerPos.x, m.root.position.y + 1.2, playerPos.z);
+          m.root.lookAt(playerPos.x, m.root.position.y + 1.1, playerPos.z);
         }
         m.root.position.x = THREE.MathUtils.clamp(m.root.position.x, -WALL, WALL);
         m.root.position.z = THREE.MathUtils.clamp(m.root.position.z, -WALL, WALL);
-        m.hitCd = Math.max(0, m.hitCd - dt);
+        m.root.position.y = Math.abs(Math.sin(m.phase)) * 0.04;
 
+        const hips = m.root.getObjectByName("hips");
+        const legL = m.root.getObjectByName("legL");
+        const legR = m.root.getObjectByName("legR");
+        const armL = m.root.getObjectByName("armL");
+        const armR = m.root.getObjectByName("armR");
+        if (legL) legL.rotation.x = Math.sin(m.phase) * 0.55;
+        if (legR) legR.rotation.x = Math.sin(m.phase + Math.PI) * 0.55;
+        if (armL) armL.rotation.x = Math.sin(m.phase + Math.PI) * 0.4 - 0.8;
+        if (armR) armR.rotation.x = Math.sin(m.phase) * 0.4 - 0.8;
+        if (hips) hips.rotation.y = Math.sin(m.phase * 0.5) * 0.08;
+
+        m.hitCd = Math.max(0, m.hitCd - dt);
         const flatDist = Math.hypot(
           playerPos.x - m.root.position.x,
           playerPos.z - m.root.position.z,
         );
-        if (flatDist < m.radius + 0.55 && m.hitCd <= 0 && invuln <= 0) {
-          m.hitCd = 0.65;
+        if (flatDist < m.radius + 0.5 && m.hitCd <= 0 && invuln <= 0) {
+          m.hitCd = 0.7;
           hp -= m.damage;
-          invuln = 0.4;
-          recoil = 1;
+          invuln = 0.45;
+          shake = 0.7;
+          damagePulse = 1;
           if (hp <= 0) {
             hp = 0;
             ended = true;
@@ -511,7 +803,30 @@ export function createZombieFpsEngine(
           }
         }
       }
+
+      // sparks update
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const s = sparks[i]!;
+        s.life -= dt;
+        s.vy -= 9 * dt;
+        s.mesh.position.x += s.vx * dt;
+        s.mesh.position.y += s.vy * dt;
+        s.mesh.position.z += s.vz * dt;
+        const mat = s.mesh.material as THREE.MeshBasicMaterial;
+        mat.opacity = Math.max(0, s.life * 2);
+        if (s.life <= 0) {
+          scene.remove(s.mesh);
+          s.mesh.geometry.dispose();
+          mat.dispose();
+          sparks.splice(i, 1);
+        }
+      }
+
+      dust.rotation.y += dt * 0.02;
     }
+
+    // subtle damage vignette via exposure
+    renderer.toneMappingExposure = 1.15 - damagePulse * 0.35;
 
     hudAcc += dt;
     if (hudAcc > 0.1) {
@@ -540,6 +855,13 @@ export function createZombieFpsEngine(
         scene.remove(m.root);
         disposeObject(m.root);
       }
+      for (const s of sparks) {
+        scene.remove(s.mesh);
+        s.mesh.geometry.dispose();
+        (s.mesh.material as THREE.Material).dispose();
+      }
+      floorTex.dispose();
+      wallTex.dispose();
       disposeObject(scene);
       renderer.dispose();
       if (renderer.domElement.parentElement === mount) mount.removeChild(renderer.domElement);
@@ -573,17 +895,24 @@ export function createZombieFpsEngine(
     },
     isEnded: () => ended,
     getOutcome: () => outcome,
+    resize,
   };
 }
 
 function disposeObject(obj: THREE.Object3D) {
   obj.traverse((child) => {
     const mesh = child as THREE.Mesh;
-    if (mesh.isMesh) {
+    if ((mesh as THREE.Mesh).isMesh) {
       mesh.geometry?.dispose();
       const mat = mesh.material;
       if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
       else mat?.dispose();
+    }
+    const sprite = child as THREE.Sprite;
+    if (sprite.isSprite) {
+      const mat = sprite.material;
+      mat.map?.dispose();
+      mat.dispose();
     }
   });
 }

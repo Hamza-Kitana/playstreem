@@ -10,6 +10,7 @@ import {
   MessageSquareQuote,
   PlugZap,
   Puzzle,
+  Skull,
   Sparkles,
   Star,
   Target,
@@ -99,6 +100,12 @@ const SERVICES = [
     desc: "أحاجي تحتاج تفكير — الحل مخفي، وأول مشاهد يصيب في الشات يفوز بالنقطة.",
     to: "/riddle" as const,
   },
+  {
+    icon: Skull,
+    title: "شوتر الزومبي",
+    desc: "ماب شوتر مغلقة — اكتب زومبي ينزل وحش، وهدايا كيك تنزّل وحوش كبار، والستريمر يدافع.",
+    to: "/zombie" as const,
+  },
 ];
 
 const STEPS = [
@@ -125,23 +132,31 @@ function AboutPage() {
             <div className="pointer-events-none absolute -top-24 left-1/2 size-72 -translate-x-1/2 rounded-full bg-primary/15 blur-3xl" />
             <div className="relative grid gap-8 lg:grid-cols-[1.35fr_0.65fr] lg:items-center">
               <div>
-                <p className="font-brand text-sm font-bold tracking-wide text-primary">Al-Daboor · الدبور</p>
+                <p className="font-brand text-sm font-bold tracking-wide text-primary">
+                  Al-Daboor · الدبور
+                </p>
                 <h3 className="mt-3 text-2xl font-extrabold sm:text-3xl">قصة المنصة باختصار</h3>
                 <p className="mt-4 max-w-3xl leading-8 text-muted-foreground">
-                  كثير من البثوث فيها شات مليان طاقة، بس التفاعل ينتهي بسرعة. Al-Daboor جاء عشان يحوّل هالتعليقات إلى جزء من المشهد: ألعاب جاهزة، ردود لحظية، وترتيب يظهر قدام الجميع بدون ما تقطع البث أو تروح لتطبيق ثاني معقّد.
+                  كثير من البثوث فيها شات مليان طاقة، بس التفاعل ينتهي بسرعة. Al-Daboor جاء عشان
+                  يحوّل هالتعليقات إلى جزء من المشهد: ألعاب جاهزة، ردود لحظية، وترتيب يظهر قدام
+                  الجميع بدون ما تقطع البث أو تروح لتطبيق ثاني معقّد.
                 </p>
                 <p className="mt-3 max-w-3xl leading-8 text-muted-foreground">
-                  بنينا التجربة للستريمر العربي: واجهة RTL، أسماء واضحة، وخدمات من الشريط العلوي توصل للربط أو للألعاب أو لصفحات المنصة بسهولة.
+                  بنينا التجربة للستريمر العربي: واجهة RTL، أسماء واضحة، وخدمات من الشريط العلوي
+                  توصل للربط أو للألعاب أو لصفحات المنصة بسهولة.
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
                 {[
-                  { k: "٧", v: "ألعاب جاهزة" },
+                  { k: "٨", v: "ألعاب جاهزة" },
                   { k: "١", v: "حط رابط البث" },
                   { k: "RTL", v: "واجهة عربية" },
                   { k: "Live", v: "شات كيك مباشر" },
                 ].map((stat) => (
-                  <div key={stat.v} className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
+                  <div
+                    key={stat.v}
+                    className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3"
+                  >
                     <p className="font-brand text-2xl font-bold text-primary">{stat.k}</p>
                     <p className="text-sm font-bold text-muted-foreground">{stat.v}</p>
                   </div>
@@ -222,7 +237,9 @@ function AboutPage() {
           <div className="glass neon-ring panel-shine relative w-full overflow-hidden rounded-3xl p-8 text-center sm:p-12">
             <div className="pointer-events-none absolute -top-20 left-1/2 size-64 -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
             <Target className="relative mx-auto size-10 text-primary" />
-            <h3 className="relative mt-4 text-2xl font-extrabold sm:text-3xl">جاهز تجرب Al-Daboor؟</h3>
+            <h3 className="relative mt-4 text-2xl font-extrabold sm:text-3xl">
+              جاهز تجرب Al-Daboor؟
+            </h3>
             <p className="relative mx-auto mt-3 max-w-lg text-muted-foreground">
               اربط قناتك الآن، أو شوف الستريمرز الموثقين، أو راسلنا لو تبي شراكة أو توثيق.
             </p>

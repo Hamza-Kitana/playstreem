@@ -10,6 +10,10 @@ export type ChatMessage = {
   color: string;
   text: string;
   at: number;
+  /** Regular chat vs Kick gift/tip event. */
+  kind?: "chat" | "gift";
+  /** Gifted Kick amount when kind is gift. */
+  giftAmount?: number;
 };
 
 type KickSender = {
@@ -44,6 +48,47 @@ function identityFromSender(sender?: KickSender | null) {
   };
 }
 
+function asNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/** Best-effort Kick gift amount from varied Pusher payload shapes. */
+function extractGiftAmount(payload: Record<string, unknown>): number | null {
+  const direct =
+    asNumber(payload.amount) ??
+    asNumber(payload.kicks) ??
+    asNumber(payload.total) ??
+    asNumber(payload.gift_amount) ??
+    asNumber(payload.quantity);
+  if (direct != null && direct > 0) return Math.round(direct);
+
+  const nested = [payload.gift, payload.data, payload.transaction, payload.tip].filter(
+    (x): x is Record<string, unknown> => !!x && typeof x === "object",
+  );
+  for (const obj of nested) {
+    const n =
+      asNumber(obj.amount) ?? asNumber(obj.kicks) ?? asNumber(obj.total) ?? asNumber(obj.quantity);
+    if (n != null && n > 0) return Math.round(n);
+  }
+  return null;
+}
+
+function eventLooksLikeGift(eventName: string) {
+  const e = eventName.toLowerCase();
+  return (
+    e.includes("gift") ||
+    e.includes("kicksgift") ||
+    e.includes("kicks_gift") ||
+    e.includes("tip") ||
+    e.includes("celebration")
+  );
+}
+
 export type ChatStatus = "idle" | "connecting" | "live" | "error";
 
 const KICK_WS =
@@ -60,13 +105,34 @@ export function useKickChat() {
 
   const seenIds = useRef(new Set<string>());
 
-  const push = useCallback((user: string, userKey: string, text: string, color: string) => {
-    counter += 1;
-    setMessages((prev) => {
-      const next = [...prev, { key: counter, user, userKey, text, color, at: Date.now() }];
-      return next.length > 220 ? next.slice(next.length - 220) : next;
-    });
-  }, []);
+  const push = useCallback(
+    (
+      user: string,
+      userKey: string,
+      text: string,
+      color: string,
+      extra?: { kind?: "chat" | "gift"; giftAmount?: number },
+    ) => {
+      counter += 1;
+      setMessages((prev) => {
+        const next = [
+          ...prev,
+          {
+            key: counter,
+            user,
+            userKey,
+            text,
+            color,
+            at: Date.now(),
+            kind: extra?.kind ?? "chat",
+            giftAmount: extra?.giftAmount,
+          },
+        ];
+        return next.length > 220 ? next.slice(next.length - 220) : next;
+      });
+    },
+    [],
+  );
 
   const disconnectSockets = useCallback(() => {
     wsRef.current?.close();
@@ -91,7 +157,10 @@ export function useKickChat() {
 
       const resolvedSlug =
         slug?.toLowerCase() ||
-        label.replace(/^kick\.com\//i, "").split(/[/?#]/)[0]?.toLowerCase() ||
+        label
+          .replace(/^kick\.com\//i, "")
+          .split(/[/?#]/)[0]
+          ?.toLowerCase() ||
         "";
 
       let ws: WebSocket;
@@ -120,14 +189,23 @@ export function useKickChat() {
       ws.onmessage = (ev) => {
         try {
           const frame = JSON.parse(String(ev.data)) as { event?: string; data?: string };
-          if (!frame.event?.includes("ChatMessage") || !frame.data) return;
-          const payload = JSON.parse(frame.data) as {
+          if (!frame.event || !frame.data) return;
+          const eventName = frame.event;
+          const isChat = eventName.includes("ChatMessage");
+          const isGift = eventLooksLikeGift(eventName);
+          if (!isChat && !isGift) return;
+
+          const payload = JSON.parse(frame.data) as Record<string, unknown> & {
             id?: string | number;
             content?: string;
             sender?: KickSender;
             user?: KickSender;
           };
-          const mid = payload.id != null ? String(payload.id) : "";
+
+          const mid =
+            payload.id != null
+              ? String(payload.id)
+              : `${eventName}:${payload.content ?? ""}:${JSON.stringify(payload.amount ?? payload.kicks ?? "")}`;
           if (mid) {
             if (seenIds.current.has(mid)) return;
             seenIds.current.add(mid);
@@ -136,9 +214,21 @@ export function useKickChat() {
               if (first) seenIds.current.delete(first);
             }
           }
+
+          const ident = identityFromSender(payload.sender ?? payload.user);
+
+          if (isGift) {
+            const amount = extractGiftAmount(payload);
+            if (amount == null || amount <= 0) return;
+            push(ident.user, ident.userKey, `هدية ${amount} كيك`, ident.color, {
+              kind: "gift",
+              giftAmount: amount,
+            });
+            return;
+          }
+
           const text = payload.content?.trim();
           if (!text) return;
-          const ident = identityFromSender(payload.sender ?? payload.user);
           push(ident.user, ident.userKey, text, ident.color);
         } catch {
           /* ignore malformed frames */

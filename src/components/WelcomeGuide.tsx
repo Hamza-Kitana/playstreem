@@ -8,6 +8,7 @@ import {
   MessageSquareQuote,
   Plug,
   Puzzle,
+  Skull,
   Sparkles,
   Star,
 } from "lucide-react";
@@ -36,7 +37,7 @@ const STEPS = [
   {
     icon: Gamepad2,
     title: "ثانياً: اختر اللعبة",
-    body: "من الشريط العلوي افتح «الألعاب» أو من الرئيسية اختار الكرت: أسئلة، كراسي، التصويت، تقييم، الجملة، اعرف العلم، أو الألغاز.",
+    body: "من الشريط العلوي افتح «الألعاب» أو من الرئيسية اختار الكرت: أسئلة، كراسي، التصويت، تقييم، الجملة، اعرف العلم، الألغاز، أو شوتر الزومبي.",
   },
   {
     icon: Brain,
@@ -72,6 +73,11 @@ const STEPS = [
     icon: Puzzle,
     title: "الألغاز",
     body: "تطلع أحجية تحتاج تفكير. الحل مخفي عن الشاشة، والجمهور يخمن في الشات. تقدر تفتح تلميح أو تشوف الحل أنت بس. أول إصابة تفوز.",
+  },
+  {
+    icon: Skull,
+    title: "شوتر الزومبي",
+    body: "ماب مغلقة للستريمر. المشاهد يكتب «زومبي» فينزل زومبي، وكل عدد تعليقات تختاره ينزل وحش كبير. هدايا كيك (٥٠/١٠٠) تنزّل وحوش إضافية. إذا مات الستريمر، يظهر أبطال الشات.",
   },
 ];
 
@@ -132,7 +138,12 @@ export default function WelcomeGuide() {
           </p>
 
           <div className="relative mt-6 flex flex-wrap items-center justify-between gap-2">
-            <Button type="button" variant="ghost" className="text-muted-foreground" onClick={finish}>
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-muted-foreground"
+              onClick={finish}
+            >
               تخطّي
             </Button>
 
@@ -150,7 +161,11 @@ export default function WelcomeGuide() {
                   </Link>
                 </Button>
               ) : (
-                <Button type="button" className="font-extrabold" onClick={() => setStep((s) => s + 1)}>
+                <Button
+                  type="button"
+                  className="font-extrabold"
+                  onClick={() => setStep((s) => s + 1)}
+                >
                   التالي
                 </Button>
               )}

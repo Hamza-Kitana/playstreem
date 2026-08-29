@@ -5,12 +5,13 @@ import {
   Flag,
   MessageSquareQuote,
   Puzzle,
+  Skull,
   Star,
   type LucideIcon,
 } from "lucide-react";
 
 export type GameLink = {
-  to: "/quiz" | "/seat" | "/vote" | "/rate" | "/phrase" | "/flag" | "/riddle";
+  to: "/quiz" | "/seat" | "/vote" | "/rate" | "/phrase" | "/flag" | "/riddle" | "/zombie";
   label: string;
   title: string;
   desc: string;
@@ -82,5 +83,14 @@ export const GAMES: GameLink[] = [
     icon: Puzzle,
     accent: "#fbbf24",
     image: "/games/riddle.png",
+  },
+  {
+    to: "/zombie",
+    label: "زومبي",
+    title: "شوتر الزومبي",
+    desc: "اكتب زومبي — ينزل وحش. الستريمر يطلق النار في ماب مغلقة.",
+    icon: Skull,
+    accent: "#fb7185",
+    image: "/games/zombie.svg",
   },
 ];

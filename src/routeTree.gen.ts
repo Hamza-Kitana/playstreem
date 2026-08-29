@@ -22,6 +22,7 @@ import { Route as RiddleRouteImport } from './routes/riddle'
 import { Route as SeatRouteImport } from './routes/seat'
 import { Route as StreamersRouteImport } from './routes/streamers'
 import { Route as VoteRouteImport } from './routes/vote'
+import { Route as ZombieRouteImport } from './routes/zombie'
 import { Route as QuizOverlayRouteImport } from './routes/quiz.overlay'
 
 const IndexRoute = IndexRouteImport.update({
@@ -89,6 +90,11 @@ const VoteRoute = VoteRouteImport.update({
   path: '/vote',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ZombieRoute = ZombieRouteImport.update({
+  id: '/zombie',
+  path: '/zombie',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const QuizOverlayRoute = QuizOverlayRouteImport.update({
   id: '/overlay',
   path: '/overlay',
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/seat': typeof SeatRoute
   '/streamers': typeof StreamersRoute
   '/vote': typeof VoteRoute
+  '/zombie': typeof ZombieRoute
   '/quiz/overlay': typeof QuizOverlayRoute
 }
 export interface FileRoutesByTo {
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/seat': typeof SeatRoute
   '/streamers': typeof StreamersRoute
   '/vote': typeof VoteRoute
+  '/zombie': typeof ZombieRoute
   '/quiz/overlay': typeof QuizOverlayRoute
 }
 export interface FileRoutesById {
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/seat': typeof SeatRoute
   '/streamers': typeof StreamersRoute
   '/vote': typeof VoteRoute
+  '/zombie': typeof ZombieRoute
   '/quiz/overlay': typeof QuizOverlayRoute
 }
 export interface FileRouteTypes {
@@ -160,6 +169,7 @@ export interface FileRouteTypes {
     | '/seat'
     | '/streamers'
     | '/vote'
+    | '/zombie'
     | '/quiz/overlay'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/seat'
     | '/streamers'
     | '/vote'
+    | '/zombie'
     | '/quiz/overlay'
   id:
     | '__root__'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/seat'
     | '/streamers'
     | '/vote'
+    | '/zombie'
     | '/quiz/overlay'
   fileRoutesById: FileRoutesById
 }
@@ -209,6 +221,7 @@ export interface RootRouteChildren {
   SeatRoute: typeof SeatRoute
   StreamersRoute: typeof StreamersRoute
   VoteRoute: typeof VoteRoute
+  ZombieRoute: typeof ZombieRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -304,6 +317,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VoteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/zombie': {
+      id: '/zombie'
+      path: '/zombie'
+      fullPath: '/zombie'
+      preLoaderRoute: typeof ZombieRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/quiz/overlay': {
       id: '/quiz/overlay'
       path: '/overlay'
@@ -338,6 +358,7 @@ const rootRouteChildren: RootRouteChildren = {
   SeatRoute: SeatRoute,
   StreamersRoute: StreamersRoute,
   VoteRoute: VoteRoute,
+  ZombieRoute: ZombieRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

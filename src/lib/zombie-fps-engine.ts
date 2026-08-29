@@ -175,10 +175,52 @@ const ZOMBIE_DAMAGE = 14;
 const BOSS_DAMAGE = 32;
 const ARENA = 44;
 const WALL = ARENA / 2 - 0.75;
-/** Single zombie gate — far end of the arena opposite the player start. */
-const SPAWN_X = 0;
-const SPAWN_Z = -(WALL - 1.15);
+/** Three zombie gates spread across the far wall. */
+const SPAWN_EDGE = WALL - 1.15;
 const SPAWN_SPREAD = 1.05;
+const SPAWN_GATES = [
+  { x: -13, z: -SPAWN_EDGE },
+  { x: 0, z: -SPAWN_EDGE },
+  { x: 13, z: -SPAWN_EDGE },
+] as const;
+
+type SpawnGateVisual = {
+  group: THREE.Group;
+  portalRing: THREE.Mesh;
+  spawnLight: THREE.PointLight;
+};
+
+function createSpawnGate(x: number, z: number): SpawnGateVisual {
+  const group = new THREE.Group();
+  group.position.set(x, 0, z);
+  const portalRing = new THREE.Mesh(
+    new THREE.RingGeometry(1.35, 2.15, 36),
+    new THREE.MeshBasicMaterial({
+      color: 0x34d399,
+      transparent: true,
+      opacity: 0.6,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    }),
+  );
+  portalRing.rotation.x = -Math.PI / 2;
+  portalRing.position.y = 0.03;
+  const portalBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.55, 1.55, 4.8, 28, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0x22c55e,
+      transparent: true,
+      opacity: 0.14,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    }),
+  );
+  portalBeam.position.y = 2.4;
+  const spawnLight = new THREE.PointLight(0x4ade80, 2.4, 16, 2);
+  spawnLight.position.y = 2.6;
+  group.add(portalRing, portalBeam, spawnLight);
+  return { group, portalRing, spawnLight };
+}
 
 function makeNoiseTexture(size = 256, tint: [number, number, number], contrast = 28) {
   const canvas = document.createElement("canvas");
@@ -782,39 +824,9 @@ export function createZombieFpsEngine(
     scene.add(crate);
   }
 
-  // Single zombie spawn gate (visible portal at the far wall).
-  const spawnGate = new THREE.Group();
-  spawnGate.position.set(SPAWN_X, 0, SPAWN_Z);
-  const portalRing = new THREE.Mesh(
-    new THREE.RingGeometry(1.35, 2.15, 36),
-    new THREE.MeshBasicMaterial({
-      color: 0x34d399,
-      transparent: true,
-      opacity: 0.6,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    }),
-  );
-  portalRing.rotation.x = -Math.PI / 2;
-  portalRing.position.y = 0.03;
-  portalRing.name = "portalRing";
-  spawnGate.add(portalRing);
-  const portalBeam = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.55, 1.55, 4.8, 28, 1, true),
-    new THREE.MeshBasicMaterial({
-      color: 0x22c55e,
-      transparent: true,
-      opacity: 0.14,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    }),
-  );
-  portalBeam.position.y = 2.4;
-  spawnGate.add(portalBeam);
-  const spawnLight = new THREE.PointLight(0x4ade80, 2.4, 16, 2);
-  spawnLight.position.y = 2.6;
-  spawnGate.add(spawnLight);
-  scene.add(spawnGate);
+  // Three zombie spawn gates (visible portals on the far wall).
+  const spawnGates = SPAWN_GATES.map((gate) => createSpawnGate(gate.x, gate.z));
+  for (const gate of spawnGates) scene.add(gate.group);
 
   // Atmospheric dust
   const dustGeo = new THREE.BufferGeometry();
@@ -921,10 +933,11 @@ export function createZombieFpsEngine(
   const spawnOne = (kind: MobKind, from: string) => {
     const boss = kind === "boss";
     const profile = boss ? computeBossProfile(bossEveryThreshold) : null;
+    const gate = SPAWN_GATES[Math.floor(Math.random() * SPAWN_GATES.length)]!;
     const angle = Math.random() * Math.PI * 2;
     const dist = Math.random() * SPAWN_SPREAD;
-    const x = SPAWN_X + Math.cos(angle) * dist;
-    const z = SPAWN_Z + Math.sin(angle) * dist;
+    const x = gate.x + Math.cos(angle) * dist;
+    const z = gate.z + Math.sin(angle) * dist;
 
     const { root, hpFill, hpLabel } = makeZombieMesh(kind, from, profile ?? undefined);
     root.position.set(x, 0, z);
@@ -1437,10 +1450,12 @@ export function createZombieFpsEngine(
       dust.rotation.y += dt * 0.02;
 
       const gatePulse = 0.55 + Math.sin(livedSec * 3.2) * 0.2;
-      spawnLight.intensity = 1.8 + gatePulse * 0.9;
-      const ringMat = portalRing.material as THREE.MeshBasicMaterial;
-      ringMat.opacity = 0.42 + gatePulse * 0.28;
-      portalRing.rotation.z += dt * 0.55;
+      for (const gate of spawnGates) {
+        gate.spawnLight.intensity = 1.8 + gatePulse * 0.9;
+        const ringMat = gate.portalRing.material as THREE.MeshBasicMaterial;
+        ringMat.opacity = 0.42 + gatePulse * 0.28;
+        gate.portalRing.rotation.z += dt * 0.55;
+      }
     }
 
     // Damage/heal feedback via exposure tint.

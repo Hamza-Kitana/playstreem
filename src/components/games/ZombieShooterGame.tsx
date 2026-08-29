@@ -3,7 +3,14 @@ import { Crosshair, Heart, Maximize2, Minimize2, Rocket, Skull, Swords, Trophy, 
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
 import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
-import type { FpsHud, HealInfo, WeaponUnlockInfo, ZombieFpsEngine } from "@/lib/zombie-fps-engine";
+import type {
+  BossSpawnInfo,
+  FpsHud,
+  HealInfo,
+  WeaponUnlockInfo,
+  ZombieFpsEngine,
+} from "@/lib/zombie-fps-engine";
+import { computeBossProfile } from "@/lib/zombie-fps-engine";
 import { Button } from "@/components/ui/button";
 import { GameCard } from "@/components/Reveal";
 import { cn } from "@/lib/utils";
@@ -116,6 +123,9 @@ export default function ZombieShooterGame({
     rifleTier: 0,
     hasRpg: false,
     hasRiflePlus: false,
+    bossThreat: "وحش كبير",
+    bossSegments: 1,
+    bossHpPreview: 1400,
   });
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [healToast, setHealToast] = useState<HealToast | null>(null);
@@ -165,6 +175,15 @@ export default function ZombieShooterGame({
 
   const showWeaponUnlock = (info: WeaponUnlockInfo) => {
     pushFeed(info.message, "weapon");
+  };
+
+  const showBossSpawn = (info: BossSpawnInfo) => {
+    const seg =
+      info.segments > 1 ? ` · ${info.segments} هيلات` : "";
+    pushFeed(
+      `${info.title} نزل! (${info.hp} دم${seg}) — ${info.from}`,
+      "boss",
+    );
   };
 
   const enqueueSpawn = (kind: PendingSpawn["kind"], from: string, count = 1) => {
@@ -243,7 +262,6 @@ export default function ZombieShooterGame({
     if (comments > 0 && comments % bossEveryRef.current === 0) {
       enqueueSpawn("boss", m.user, 1);
       bumpContributor(contributorsRef.current, m, "bosses", 1);
-      pushFeed(`وحش كبير! بعد ${bossEveryRef.current} تعليق زومبي`, "boss");
     }
   });
 
@@ -262,6 +280,8 @@ export default function ZombieShooterGame({
         onDefeat: () => finishGameRef.current("defeated"),
         onHeal: showHealFeedback,
         onWeaponUnlock: showWeaponUnlock,
+        onBossSpawn: showBossSpawn,
+        bossEveryThreshold: bossEvery,
       });
       if (cancelled) {
         engine.dispose();
@@ -347,6 +367,9 @@ export default function ZombieShooterGame({
       rifleTier: 0,
       hasRpg: false,
       hasRiflePlus: false,
+      bossThreat: "وحش كبير",
+      bossSegments: 1,
+      bossHpPreview: 1400,
     });
     playingRef.current = true;
     setPhase("playing");
@@ -374,6 +397,8 @@ export default function ZombieShooterGame({
     const rem = bossEvery - (hud.comments % bossEvery);
     return rem === 0 ? bossEvery : rem;
   }, [bossEvery, hud.comments]);
+
+  const bossPreview = useMemo(() => computeBossProfile(bossEvery), [bossEvery]);
 
   return (
     <GameCard id="zombie" className="space-y-5">
@@ -434,6 +459,38 @@ export default function ZombieShooterGame({
                   </option>
                 ))}
               </select>
+              <div
+                className={cn(
+                  "mt-2 rounded-xl border px-3 py-2.5",
+                  bossPreview.tier >= 3
+                    ? "border-rose-500/40 bg-gradient-to-r from-rose-500/15 to-fuchsia-500/15"
+                    : bossPreview.tier >= 2
+                      ? "border-fuchsia-500/35 bg-fuchsia-500/10"
+                      : bossPreview.tier >= 1
+                        ? "border-amber-500/35 bg-amber-500/10"
+                        : "border-emerald-500/25 bg-emerald-500/10",
+                )}
+              >
+                <p className="text-[10px] text-muted-foreground">قوة الوحش المتوقع</p>
+                <p
+                  className={cn(
+                    "mt-0.5 text-sm font-extrabold",
+                    bossPreview.tier >= 3
+                      ? "text-rose-300"
+                      : bossPreview.tier >= 2
+                        ? "text-fuchsia-300"
+                        : bossPreview.tier >= 1
+                          ? "text-amber-300"
+                          : "text-emerald-300",
+                  )}
+                >
+                  {bossPreview.title}
+                  {bossPreview.segments > 1 ? ` · ${bossPreview.segments} هيلات` : ""}
+                </p>
+                <p className="mt-1 text-[11px] font-bold text-white/80">
+                  {bossPreview.hp} دم · ضرر {bossPreview.damage} · ×{bossPreview.multiplier.toFixed(1)}
+                </p>
+              </div>
             </label>
           </div>
 
@@ -444,7 +501,10 @@ export default function ZombieShooterGame({
             </div>
             <div className="rounded-xl bg-background/50 p-3">
               <p className="text-xs text-muted-foreground">كل {bossEvery} تعليق</p>
-              <p className="mt-1 text-sm font-extrabold">وحش كبير صعب</p>
+              <p className="mt-1 text-sm font-extrabold">{bossPreview.title}</p>
+              <p className="mt-0.5 text-[10px] font-bold text-fuchsia-300">
+                {bossPreview.hp} دم{bossPreview.segments > 1 ? ` · ${bossPreview.segments} هيلات` : ""}
+              </p>
             </div>
             <div className="rounded-xl bg-background/50 p-3">
               <p className="text-xs text-muted-foreground">قتل زومبي</p>
@@ -495,8 +555,11 @@ export default function ZombieShooterGame({
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/60 bg-secondary/30 p-3">
             <span className="text-xs font-bold text-muted-foreground">
-              الوحش القادم بعد <span className="text-fuchsia-300">{nextBossIn}</span> · وحوش:{" "}
-              <span className="text-fuchsia-300">{hud.bosses}</span>
+              الوحش القادم بعد <span className="text-fuchsia-300">{nextBossIn}</span> ·{" "}
+              <span className="text-fuchsia-300">{hud.bossThreat}</span>
+              {hud.bossSegments > 1 ? (
+                <span className="text-rose-300"> · {hud.bossSegments} هيلات</span>
+              ) : null}
               <span className="mr-2 text-[10px] text-muted-foreground">· اختصار: F</span>
             </span>
             <div className="flex flex-wrap gap-2">
@@ -661,7 +724,9 @@ export default function ZombieShooterGame({
             {/* Bottom HP */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-4 pt-14">
               <div className="mx-auto mb-2 max-w-lg text-center text-[11px] font-bold text-emerald-100/80">
-                الوحش القادم بعد {nextBossIn} تعليق · وحوش: {hud.bosses}
+                الوحش القادم بعد {nextBossIn} تعليق · {hud.bossThreat}
+                {hud.bossSegments > 1 ? ` · ${hud.bossSegments} هيلات (${hud.bossHpPreview} دم)` : ""}
+                · وحوش نزلت: {hud.bosses}
               </div>
               <div className="mx-auto h-3 max-w-lg overflow-hidden rounded-full border border-white/10 bg-white/10">
                 <div

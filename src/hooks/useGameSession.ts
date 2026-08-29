@@ -10,6 +10,23 @@ export const DURATION_OPTIONS = [
   { value: 0, label: "بدون حد" },
 ] as const;
 
+/** Zombie FPS — longer rounds up to one hour. */
+export const ZOMBIE_DURATION_OPTIONS = [
+  { value: 180, label: "٣ دقائق" },
+  { value: 300, label: "٥ دقائق" },
+  { value: 600, label: "١٠ دقائق" },
+  { value: 900, label: "١٥ دقيقة" },
+  { value: 1200, label: "٢٠ دقيقة" },
+  { value: 1500, label: "٢٥ دقيقة" },
+  { value: 1800, label: "٣٠ دقيقة" },
+  { value: 2400, label: "٤٠ دقيقة" },
+  { value: 2700, label: "٤٥ دقيقة" },
+  { value: 3000, label: "٥٠ دقيقة" },
+  { value: 3300, label: "٥٥ دقيقة" },
+  { value: 3600, label: "ساعة" },
+  { value: 0, label: "بدون حد" },
+] as const;
+
 function normalizeUser(user: string) {
   return user.trim().toLowerCase();
 }
@@ -91,7 +108,11 @@ export function useGameSession(defaultDuration = 60) {
 }
 
 export function formatClock(totalSec: number) {
-  const m = Math.floor(totalSec / 60);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }

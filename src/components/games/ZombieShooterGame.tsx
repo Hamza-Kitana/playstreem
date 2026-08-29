@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Crosshair, Heart, Maximize2, Minimize2, Rocket, Skull, Swords, Trophy, Zap } from "lucide-react";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
-import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
+import { ZOMBIE_DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
 import type {
   BossSpawnInfo,
@@ -445,7 +445,7 @@ export default function ZombieShooterGame({
                 onChange={(e) => session.setDurationSec(Number(e.target.value))}
                 className="border-input bg-background focus-visible:ring-ring mt-1 h-11 w-full rounded-md border px-3 text-sm font-bold text-foreground outline-none focus-visible:ring-2"
               >
-                {DURATION_OPTIONS.map((o) => (
+                {ZOMBIE_DURATION_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>

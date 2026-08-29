@@ -256,15 +256,35 @@ export default function ZombieShooterGame({
     const el = stageRef.current;
     if (!el) return;
     try {
+      // Pointer lock blocks UI clicks — release it first.
+      if (document.pointerLockElement) {
+        document.exitPointerLock();
+        await new Promise((r) => window.setTimeout(r, 40));
+      }
       if (document.fullscreenElement === el) {
         await document.exitFullscreen();
       } else {
         await el.requestFullscreen();
       }
+      window.setTimeout(() => engineRef.current?.resize(), 80);
     } catch {
       // ignore browser fullscreen denials
     }
   };
+
+  useEffect(() => {
+    if (phase !== "playing") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "KeyF" || e.repeat) return;
+      // Don't steal typing from inputs if any.
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      e.preventDefault();
+      void toggleFullscreen();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [phase]);
 
   const startMatch = () => {
     if (!chatActive) return;
@@ -405,21 +425,31 @@ export default function ZombieShooterGame({
 
       {phase === "playing" ? (
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-muted-foreground">
-            <span>
-              الوحش الكبير القادم بعد <span className="text-fuchsia-300">{nextBossIn}</span> تعليق ·
-              وحوش نزلت: <span className="text-fuchsia-300">{hud.bosses}</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/60 bg-secondary/30 p-3">
+            <span className="text-xs font-bold text-muted-foreground">
+              الوحش القادم بعد <span className="text-fuchsia-300">{nextBossIn}</span> · وحوش:{" "}
+              <span className="text-fuchsia-300">{hud.bosses}</span>
+              <span className="mr-2 text-[10px] text-muted-foreground">· اختصار: F</span>
             </span>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="secondary" size="sm" onClick={toggleFullscreen}>
+              <Button
+                type="button"
+                variant="default"
+                className="h-11 px-4 font-extrabold"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void toggleFullscreen();
+                }}
+              >
                 {isFullscreen ? (
-                  <Minimize2 className="size-3.5" />
+                  <Minimize2 className="size-4" />
                 ) : (
-                  <Maximize2 className="size-3.5" />
+                  <Maximize2 className="size-4" />
                 )}
-                {isFullscreen ? "تصغير" : "ملء الشاشة"}
+                {isFullscreen ? "تصغير الشاشة" : "تكبير ملء الشاشة"}
               </Button>
-              <Button type="button" variant="destructive" size="sm" onClick={stopMatch}>
+              <Button type="button" variant="destructive" className="h-11 px-4" onClick={stopMatch}>
                 إنهاء الجولة
               </Button>
             </div>
@@ -440,9 +470,9 @@ export default function ZombieShooterGame({
               )}
             />
 
-            {/* Top HUD */}
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-wrap items-start justify-between gap-2 bg-gradient-to-b from-black/75 to-transparent p-3 sm:p-4">
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+            {/* Always-clickable top controls (above lock overlay) */}
+            <div className="absolute inset-x-0 top-0 z-50 flex flex-wrap items-start justify-between gap-2 bg-gradient-to-b from-black/80 to-transparent p-3 sm:p-4">
+              <div className="pointer-events-none grid grid-cols-3 gap-2 sm:grid-cols-6">
                 <Stat label="الدم" value={`${hud.hp}%`} danger={hud.hp <= 30} compact />
                 <Stat label="قتلى" value={String(hud.kills)} compact />
                 <Stat label="أحياء" value={String(hud.alive)} compact />
@@ -454,18 +484,21 @@ export default function ZombieShooterGame({
                   compact
                 />
               </div>
-              <div className="pointer-events-auto flex gap-2">
+              <div className="relative z-50 flex gap-2">
                 <Button
                   type="button"
                   size="sm"
-                  variant="secondary"
-                  className="bg-black/55"
-                  onClick={toggleFullscreen}
+                  className="h-10 bg-emerald-500 font-extrabold text-black hover:bg-emerald-400"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    void toggleFullscreen();
+                  }}
                 >
                   {isFullscreen ? (
-                    <Minimize2 className="size-3.5" />
+                    <Minimize2 className="size-4" />
                   ) : (
-                    <Maximize2 className="size-3.5" />
+                    <Maximize2 className="size-4" />
                   )}
                   {isFullscreen ? "تصغير" : "تكبير"}
                 </Button>
@@ -473,8 +506,13 @@ export default function ZombieShooterGame({
                   type="button"
                   size="sm"
                   variant="destructive"
-                  className="bg-rose-600/90"
-                  onClick={stopMatch}
+                  className="h-10 font-extrabold"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (document.pointerLockElement) document.exitPointerLock();
+                    stopMatch();
+                  }}
                 >
                   إنهاء
                 </Button>
@@ -506,14 +544,14 @@ export default function ZombieShooterGame({
             {!hud.locked ? (
               <button
                 type="button"
-                className="absolute inset-0 z-30 grid place-items-center bg-black/60 backdrop-blur-[2px]"
+                className="absolute inset-x-0 bottom-0 top-16 z-30 grid place-items-center bg-black/60 backdrop-blur-[2px]"
                 onClick={() => engineRef.current?.requestPointerLock()}
               >
                 <div className="rounded-2xl border border-emerald-400/40 bg-black/75 px-6 py-5 text-center">
                   <Crosshair className="mx-auto size-8 text-emerald-300" />
                   <p className="mt-3 text-lg font-extrabold text-emerald-100">اضغط للعب</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    يقفل الماوس · WASD · إطلاق يسار · زر تكبير لملء الشاشة
+                    زر التكبير فوق دائمًا شغال · أو اضغط F · ثم اضغط هنا للعب
                   </p>
                 </div>
               </button>

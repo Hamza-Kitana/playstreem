@@ -184,6 +184,71 @@ const SPAWN_GATES = [
   { x: 13, z: -SPAWN_EDGE },
 ] as const;
 
+const PLAYER_RADIUS = 0.45;
+/** Arena crates used for simple blocking collision. */
+const OBSTACLES = [
+  [-10, -8, 1.5],
+  [11, 7, 1.9],
+  [-5.5, 12, 1.25],
+  [8, -11, 1.6],
+  [0, -13.5, 1.1],
+  [-13.5, 3, 1.35],
+] as const;
+
+function wallBound(radius: number) {
+  return WALL - radius;
+}
+
+function clampInsideWalls(x: number, z: number, radius: number) {
+  const bound = wallBound(radius);
+  return {
+    x: THREE.MathUtils.clamp(x, -bound, bound),
+    z: THREE.MathUtils.clamp(z, -bound, bound),
+  };
+}
+
+function resolveObstacles(x: number, z: number, radius: number) {
+  let px = x;
+  let pz = z;
+  for (let pass = 0; pass < 2; pass++) {
+    for (const [ox, oz, size] of OBSTACLES) {
+      const half = size / 2 + radius + 0.05;
+      const dx = px - ox;
+      const dz = pz - oz;
+      if (Math.abs(dx) >= half || Math.abs(dz) >= half) continue;
+      const penX = half - Math.abs(dx);
+      const penZ = half - Math.abs(dz);
+      if (penX < penZ) px += Math.sign(dx || 1) * penX;
+      else pz += Math.sign(dz || 1) * penZ;
+    }
+  }
+  return clampInsideWalls(px, pz, radius);
+}
+
+function applyMobCollision(mob: Mob, x: number, z: number, others: Mob[]) {
+  let px = x;
+  let pz = z;
+  for (const other of others) {
+    if (other.id === mob.id) continue;
+    let dx = px - other.root.position.x;
+    let dz = pz - other.root.position.z;
+    let dist = Math.hypot(dx, dz);
+    const minDist = mob.radius + other.radius + 0.08;
+    if (dist >= minDist) continue;
+    if (dist < 0.001) {
+      dx = Math.random() - 0.5;
+      dz = Math.random() - 0.5;
+      dist = Math.hypot(dx, dz) || 1;
+    }
+    const push = (minDist - dist) / dist;
+    px += dx * push;
+    pz += dz * push;
+  }
+  const resolved = resolveObstacles(px, pz, mob.radius);
+  mob.root.position.x = resolved.x;
+  mob.root.position.z = resolved.z;
+}
+
 type SpawnGateVisual = {
   group: THREE.Group;
   portalRing: THREE.Mesh;
@@ -940,7 +1005,9 @@ export function createZombieFpsEngine(
     const z = gate.z + Math.sin(angle) * dist;
 
     const { root, hpFill, hpLabel } = makeZombieMesh(kind, from, profile ?? undefined);
-    root.position.set(x, 0, z);
+    const mobRadius = boss ? profile!.radius : 0.58;
+    const spawnPos = resolveObstacles(x, z, mobRadius);
+    root.position.set(spawnPos.x, 0, spawnPos.z);
     scene.add(root);
     const maxHp = boss ? profile!.hp : ZOMBIE_HP;
     const segments = boss ? profile!.segments : 1;
@@ -1146,6 +1213,7 @@ export function createZombieFpsEngine(
         .normalize()
         .multiplyScalar(mob.kind === "boss" ? -0.08 : -0.16),
     );
+    applyMobCollision(mob, mob.root.position.x, mob.root.position.z, mobs);
     if (mob.hp <= 0) killMob(mob);
   };
 
@@ -1343,8 +1411,12 @@ export function createZombieFpsEngine(
       } else {
         bob = THREE.MathUtils.lerp(bob, 0, 0.08);
       }
-      camera.position.x = THREE.MathUtils.clamp(camera.position.x, -WALL, WALL);
-      camera.position.z = THREE.MathUtils.clamp(camera.position.z, -WALL, WALL);
+      const playerBound = wallBound(PLAYER_RADIUS);
+      camera.position.x = THREE.MathUtils.clamp(camera.position.x, -playerBound, playerBound);
+      camera.position.z = THREE.MathUtils.clamp(camera.position.z, -playerBound, playerBound);
+      const playerResolved = resolveObstacles(camera.position.x, camera.position.z, PLAYER_RADIUS);
+      camera.position.x = playerResolved.x;
+      camera.position.z = playerResolved.z;
       const bobY = moving ? Math.sin(bob) * 0.045 : 0;
       const bobX = moving ? Math.cos(bob * 0.5) * 0.02 : 0;
       camera.position.y = 1.67 + bobY;
@@ -1373,12 +1445,11 @@ export function createZombieFpsEngine(
         const dist = to.length();
         if (dist > 0.001) {
           to.normalize();
-          m.root.position.x += to.x * m.speed * dt;
-          m.root.position.z += to.z * m.speed * dt;
+          const nx = m.root.position.x + to.x * m.speed * dt;
+          const nz = m.root.position.z + to.z * m.speed * dt;
+          applyMobCollision(m, nx, nz, mobs);
           m.root.lookAt(playerPos.x, m.root.position.y + 1.1, playerPos.z);
         }
-        m.root.position.x = THREE.MathUtils.clamp(m.root.position.x, -WALL, WALL);
-        m.root.position.z = THREE.MathUtils.clamp(m.root.position.z, -WALL, WALL);
         m.root.position.y = Math.abs(Math.sin(m.phase)) * 0.04;
 
         const hips = m.root.getObjectByName("hips");

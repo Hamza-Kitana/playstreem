@@ -169,8 +169,8 @@ const RPG_COOLDOWN = 1.75;
 const ZOMBIE_HP = 170;
 /** Threshold boss — huge sponge, many shots to drop. */
 const BOSS_HP = 1400;
-const ZOMBIE_SPEED = 2.05;
-const BOSS_SPEED = 1.15;
+const ZOMBIE_SPEED = 2.45;
+const BOSS_SPEED = 1.28;
 const ZOMBIE_DAMAGE = 14;
 const BOSS_DAMAGE = 32;
 const ARENA = 44;

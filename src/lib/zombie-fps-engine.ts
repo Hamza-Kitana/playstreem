@@ -18,6 +18,10 @@ export type FpsHud = {
   bossThreat: string;
   bossSegments: number;
   bossHpPreview: number;
+  ammo: number;
+  magSize: number;
+  reloading: boolean;
+  reloadPct: number;
 };
 
 export type WeaponId = "rifle" | "rifle_plus" | "rpg";
@@ -43,6 +47,7 @@ export type BossProfile = {
   multiplier: number;
   segments: number;
   tier: 0 | 1 | 2 | 3;
+  isMega: boolean;
   title: string;
   hp: number;
   damage: number;
@@ -58,30 +63,53 @@ export type BossSpawnInfo = {
   hp: number;
   segments: number;
   multiplier: number;
+  isMega: boolean;
   from: string;
 };
 
 const BOSS_TITLES = ["وحش كبير", "وحش ضخم", "كابوس", "وحش أسطوري"] as const;
+const MEGA_BOSS_TITLE = "وحش المذبحة";
 
-/** Boss power scales with comment threshold — 150 comments = ×3 HP (3 هيلات). */
+/** Boss power scales with comment threshold — 100+ = mega boss, 150 = ×4.8 HP (3 هيلات). */
 export function computeBossProfile(bossEvery: number): BossProfile {
   const threshold = Math.max(5, Math.min(150, bossEvery));
-  const multiplier = threshold > 50 ? 1 + ((threshold - 50) / 100) * 2 : 1;
+
+  if (threshold >= 100) {
+    const t = (threshold - 100) / 50;
+    const multiplier = 3.4 + t * 1.4;
+    return {
+      multiplier,
+      segments: 3,
+      tier: 3,
+      isMega: true,
+      title: MEGA_BOSS_TITLE,
+      hp: Math.round(BOSS_HP * multiplier),
+      damage: Math.round(BOSS_DAMAGE * (1 + (multiplier - 1) * 0.8)),
+      speed: Math.max(0.78, BOSS_SPEED - 0.12),
+      scale: 3.65 + t * 0.55,
+      radius: 2.15 + t * 0.3,
+      auraIntensity: 4.8 + t * 2.5,
+      auraRadius: 24 + t * 10,
+    };
+  }
+
+  const multiplier = threshold > 50 ? 1 + ((threshold - 50) / 50) * 0.95 : 1;
   const tier: 0 | 1 | 2 | 3 =
-    multiplier >= 2.55 ? 3 : multiplier >= 1.7 ? 2 : multiplier > 1.05 ? 1 : 0;
-  const segments = tier === 3 ? 3 : tier === 2 ? 2 : 1;
+    multiplier >= 1.75 ? 2 : multiplier > 1.05 ? 1 : 0;
+  const segments = tier >= 2 ? 2 : 1;
   return {
     multiplier,
     segments,
     tier,
+    isMega: false,
     title: BOSS_TITLES[tier],
     hp: Math.round(BOSS_HP * multiplier),
     damage: Math.round(BOSS_DAMAGE * (1 + (multiplier - 1) * 0.6)),
     speed: Math.max(0.82, BOSS_SPEED - (multiplier - 1) * 0.1),
-    scale: 2.85 + (multiplier - 1) * 0.52,
-    radius: 1.75 + (multiplier - 1) * 0.35,
-    auraIntensity: 2.4 + (multiplier - 1) * 2.2,
-    auraRadius: 12 + (multiplier - 1) * 8,
+    scale: 2.85 + (multiplier - 1) * 0.45,
+    radius: 1.75 + (multiplier - 1) * 0.3,
+    auraIntensity: 2.4 + (multiplier - 1) * 2,
+    auraRadius: 12 + (multiplier - 1) * 6,
   };
 }
 
@@ -151,7 +179,8 @@ export type ZombieFpsEngine = {
 
 const PLAYER_MAX_HP = 100;
 /** Small sustain reward for picking off zombies. */
-const ZOMBIE_KILL_HEAL = 10;
+const ZOMBIE_KILL_HEAL = 4;
+const BOSS_KILL_HEAL = ZOMBIE_KILL_HEAL * 2;
 const MAX_ALIVE = 42;
 const MOVE_SPEED = 6.8;
 /** Base assault rifle. */
@@ -166,6 +195,8 @@ const RPG_DIRECT_DAMAGE = 260;
 const RPG_SPLASH_DAMAGE = 165;
 const RPG_SPLASH_RADIUS = 6.8;
 const RPG_COOLDOWN = 1.75;
+const MAGAZINE_SIZE = 50;
+const RELOAD_TIME = 1.85;
 const ZOMBIE_HP = 170;
 /** Threshold boss — huge sponge, many shots to drop. */
 const BOSS_HP = 1400;
@@ -317,7 +348,7 @@ function makeNoiseTexture(size = 256, tint: [number, number, number], contrast =
   return tex;
 }
 
-function makeNameTag(name: string, boss: boolean) {
+function makeNameTag(name: string, boss: boolean, mega = false) {
   const label = (name || "مشاهد").trim().slice(0, 18);
   const canvas = document.createElement("canvas");
   canvas.width = 512;
@@ -341,10 +372,18 @@ function makeNameTag(name: string, boss: boolean) {
   ctx.arcTo(boxX, boxY + boxH, boxX, boxY, r);
   ctx.arcTo(boxX, boxY, boxX + boxW, boxY, r);
   ctx.closePath();
-  ctx.fillStyle = boss ? "rgba(88, 28, 135, 0.88)" : "rgba(6, 24, 16, 0.88)";
+  ctx.fillStyle = mega
+    ? "rgba(69, 10, 10, 0.94)"
+    : boss
+      ? "rgba(88, 28, 135, 0.88)"
+      : "rgba(6, 24, 16, 0.88)";
   ctx.fill();
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = boss ? "rgba(232, 121, 249, 0.95)" : "rgba(52, 211, 153, 0.95)";
+  ctx.lineWidth = mega ? 5 : 4;
+  ctx.strokeStyle = mega
+    ? "rgba(251, 113, 133, 0.98)"
+    : boss
+      ? "rgba(232, 121, 249, 0.95)"
+      : "rgba(52, 211, 153, 0.95)";
   ctx.stroke();
 
   ctx.fillStyle = "#ffffff";
@@ -363,8 +402,8 @@ function makeNameTag(name: string, boss: boolean) {
     depthWrite: false,
   });
   const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(boss ? 3.4 : 1.75, boss ? 0.92 : 0.48, 1);
-  sprite.position.y = boss ? 6.35 : 2.25;
+  sprite.scale.set(mega ? 4.3 : boss ? 3.4 : 1.75, mega ? 1.18 : boss ? 0.92 : 0.48, 1);
+  sprite.position.y = mega ? 7.45 : boss ? 6.35 : 2.25;
   sprite.name = "nametag";
   sprite.renderOrder = 10;
   return sprite;
@@ -514,22 +553,33 @@ function makeZombieMesh(kind: MobKind, fromName: string, bossProfile?: BossProfi
   const boss = kind === "boss";
   const scale = boss ? (bossProfile?.scale ?? 2.85) : 1.08;
   const tier = bossProfile?.tier ?? 0;
+  const isMega = bossProfile?.isMega ?? false;
 
   const skin = new THREE.MeshStandardMaterial({
-    color: boss ? (tier >= 3 ? 0x4c0519 : tier >= 2 ? 0x581c87 : 0x6b21a8) : 0x4a6b45,
+    color: boss
+      ? isMega
+        ? 0x1a0505
+        : tier >= 3
+          ? 0x4c0519
+          : tier >= 2
+            ? 0x581c87
+            : 0x6b21a8
+      : 0x4a6b45,
     roughness: 0.88,
-    metalness: boss && tier >= 2 ? 0.12 : 0.02,
-    emissive: boss ? (tier >= 3 ? 0x7f1d1d : 0x3b0764) : 0x1a2e1a,
-    emissiveIntensity: boss ? 0.28 + tier * 0.12 : 0.08,
+    metalness: boss && (isMega || tier >= 2) ? 0.22 : 0.02,
+    emissive: boss ? (isMega ? 0x991b1b : tier >= 3 ? 0x7f1d1d : 0x3b0764) : 0x1a2e1a,
+    emissiveIntensity: boss ? (isMega ? 0.55 : 0.28 + tier * 0.12) : 0.08,
   });
   const cloth = new THREE.MeshStandardMaterial({
-    color: boss ? 0x2e1065 : 0x2a3328,
+    color: boss ? (isMega ? 0x0f0a0a : 0x2e1065) : 0x2a3328,
     roughness: 0.92,
+    emissive: isMega ? 0x450a0a : 0x000000,
+    emissiveIntensity: isMega ? 0.25 : 0,
   });
   const eyeMat = new THREE.MeshStandardMaterial({
-    color: boss ? 0xff1f4b : 0xc8ff4a,
-    emissive: boss ? 0xff1f4b : 0x84cc16,
-    emissiveIntensity: 1.4,
+    color: boss ? (isMega ? 0xffea00 : 0xff1f4b) : 0xc8ff4a,
+    emissive: boss ? (isMega ? 0xff6600 : 0xff1f4b) : 0x84cc16,
+    emissiveIntensity: isMega ? 2.2 : 1.4,
   });
 
   const hips = new THREE.Group();
@@ -582,42 +632,87 @@ function makeZombieMesh(kind: MobKind, fromName: string, bossProfile?: BossProfi
 
   if (boss) {
     const hornMat = new THREE.MeshStandardMaterial({
-      color: tier >= 3 ? 0xfca5a5 : 0xfbbf24,
-      emissive: tier >= 3 ? 0xdc2626 : 0xb45309,
-      emissiveIntensity: 0.55 + tier * 0.15,
-      metalness: 0.4,
-      roughness: 0.35,
+      color: isMega ? 0xffedd5 : tier >= 3 ? 0xfca5a5 : 0xfbbf24,
+      emissive: isMega ? 0xea580c : tier >= 3 ? 0xdc2626 : 0xb45309,
+      emissiveIntensity: isMega ? 0.9 : 0.55 + tier * 0.15,
+      metalness: 0.5,
+      roughness: 0.28,
     });
-    const horns = new THREE.Mesh(new THREE.ConeGeometry(0.12 + tier * 0.03, 0.35 + tier * 0.08, 6), hornMat);
+    const horns = new THREE.Mesh(
+      new THREE.ConeGeometry(0.12 + tier * 0.03 + (isMega ? 0.06 : 0), 0.35 + tier * 0.08 + (isMega ? 0.2 : 0), 6),
+      hornMat,
+    );
     horns.position.set(-0.16 * scale, 2.0 * scale, 0);
     const horns2 = horns.clone();
     horns2.position.x = 0.16 * scale;
     hips.add(horns, horns2);
 
-    if (tier >= 2) {
-      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.28, 5), hornMat);
+    if (tier >= 2 || isMega) {
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.08 + (isMega ? 0.04 : 0), 0.28 + (isMega ? 0.15 : 0), 5), hornMat);
       spike.position.set(0, 2.25 * scale, 0);
       hips.add(spike);
     }
 
+    if (isMega) {
+      const armorMat = new THREE.MeshStandardMaterial({
+        color: 0x1c1917,
+        metalness: 0.75,
+        roughness: 0.25,
+        emissive: 0x7f1d1d,
+        emissiveIntensity: 0.45,
+      });
+      const padL = new THREE.Mesh(new THREE.BoxGeometry(0.38 * scale, 0.28 * scale, 0.32 * scale), armorMat);
+      padL.position.set(-0.58 * scale, 1.32 * scale, 0);
+      const padR = padL.clone();
+      padR.position.x = 0.58 * scale;
+      hips.add(padL, padR);
+
+      const crown = new THREE.Mesh(new THREE.TorusGeometry(0.22 * scale, 0.045 * scale, 8, 20), hornMat);
+      crown.position.set(0, 2.18 * scale, 0);
+      crown.rotation.x = Math.PI / 2;
+      hips.add(crown);
+
+      const horn3 = horns.clone();
+      horn3.position.set(-0.3 * scale, 1.92 * scale, 0.1 * scale);
+      horn3.rotation.z = 0.35;
+      const horn4 = horns.clone();
+      horn4.position.set(0.3 * scale, 1.92 * scale, 0.1 * scale);
+      horn4.rotation.z = -0.35;
+      hips.add(horn3, horn4);
+
+      const hellRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.85 * scale, 1.2 * scale, 32),
+        new THREE.MeshBasicMaterial({
+          color: 0xff4500,
+          transparent: true,
+          opacity: 0.4,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        }),
+      );
+      hellRing.rotation.x = -Math.PI / 2;
+      hellRing.position.y = 0.04;
+      g.add(hellRing);
+    }
+
     const aura = new THREE.PointLight(
-      tier >= 3 ? 0xf43f5e : 0xc026ff,
+      isMega ? 0xff4500 : tier >= 3 ? 0xf43f5e : 0xc026ff,
       bossProfile?.auraIntensity ?? 2.4,
       bossProfile?.auraRadius ?? 12,
     );
     aura.position.y = 1.4 * scale;
     g.add(aura);
 
-    if (tier >= 3) {
-      const rage = new THREE.PointLight(0xfb7185, 1.8, 18, 2);
+    if (tier >= 3 || isMega) {
+      const rage = new THREE.PointLight(isMega ? 0xdc2626 : 0xfb7185, isMega ? 3.2 : 1.8, isMega ? 26 : 18, 2);
       rage.position.y = 2.8 * scale;
       g.add(rage);
     }
   }
 
-  const hpBarScale = boss ? 3.2 + tier * 0.35 : 1.6;
+  const hpBarScale = boss ? 3.2 + tier * 0.35 + (isMega ? 0.9 : 0) : 1.6;
   const hp = makeHpBarSprites(boss, hpBarScale);
-  g.add(makeNameTag(fromName, boss));
+  g.add(makeNameTag(fromName, boss, isMega));
   g.add(hp.bg, hp.fill, hp.hpLabel);
   return { root: g, hpFill: hp.fill, hpLabel: hp.hpLabel };
 }
@@ -944,6 +1039,8 @@ export function createZombieFpsEngine(
   let pitch = 0;
   let hp = PLAYER_MAX_HP;
   let fireCd = 0;
+  let ammoInMag = MAGAZINE_SIZE;
+  let reloadTimer = 0;
   let invuln = 0;
   let recoil = 0;
   let bob = 0;
@@ -1033,13 +1130,18 @@ export function createZombieFpsEngine(
     if (boss) {
       bossesSpawned += 1;
       bossSpawnPulse = 1;
-      shake = Math.max(shake, 0.35 + profile!.tier * 0.2);
-      spawnSpark(root.position.clone().setY(2.5 + profile!.tier * 0.4), 0xe879f9, 20 + profile!.tier * 8);
+      shake = Math.max(shake, 0.35 + profile!.tier * 0.2 + (profile!.isMega ? 0.55 : 0));
+      spawnSpark(
+        root.position.clone().setY(2.5 + profile!.tier * 0.4 + (profile!.isMega ? 1.2 : 0)),
+        profile!.isMega ? 0xff4500 : 0xe879f9,
+        20 + profile!.tier * 8 + (profile!.isMega ? 24 : 0),
+      );
       opts.onBossSpawn?.({
         title: profile!.title,
         hp: profile!.hp,
         segments: profile!.segments,
         multiplier: profile!.multiplier,
+        isMega: profile!.isMega,
         from,
       });
     }
@@ -1057,7 +1159,7 @@ export function createZombieFpsEngine(
   const applyKillHeal = (mob: Mob) => {
     const before = hp;
     if (mob.kind === "boss") {
-      hp = PLAYER_MAX_HP;
+      hp = Math.min(PLAYER_MAX_HP, hp + BOSS_KILL_HEAL);
     } else {
       hp = Math.min(PLAYER_MAX_HP, hp + ZOMBIE_KILL_HEAL);
     }
@@ -1235,6 +1337,13 @@ export function createZombieFpsEngine(
     spawnSpark(pos, 0xf97316, 22);
   };
 
+  const usesMagazine = (weapon: WeaponId) => weapon !== "rpg";
+
+  const startReload = () => {
+    if (!usesMagazine(activeWeapon) || reloadTimer > 0) return;
+    reloadTimer = RELOAD_TIME;
+  };
+
   const flashMuzzle = (spec: WeaponSpec) => {
     muzzleLight.color.setHex(spec.flashColor);
     muzzleLight.intensity = activeWeapon === "rpg" ? 8 : 4.5;
@@ -1290,7 +1399,11 @@ export function createZombieFpsEngine(
   };
 
   const fire = () => {
-    if (ended || fireCd > 0) return;
+    if (ended || fireCd > 0 || reloadTimer > 0) return;
+    if (usesMagazine(activeWeapon) && ammoInMag <= 0) {
+      startReload();
+      return;
+    }
     const spec = getWeaponSpec();
     fireCd = spec.cooldown;
     recoil = spec.recoil;
@@ -1298,10 +1411,24 @@ export function createZombieFpsEngine(
     flashMuzzle(spec);
     if (activeWeapon === "rpg") fireRpg();
     else fireRifle(spec);
+    if (usesMagazine(activeWeapon)) {
+      ammoInMag -= 1;
+      if (ammoInMag <= 0) startReload();
+    }
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
     keys.add(e.code);
+    if (
+      e.code === "KeyR" &&
+      pointerLocked &&
+      !ended &&
+      usesMagazine(activeWeapon) &&
+      ammoInMag < MAGAZINE_SIZE &&
+      reloadTimer <= 0
+    ) {
+      startReload();
+    }
     if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
       e.preventDefault();
     }
@@ -1345,6 +1472,7 @@ export function createZombieFpsEngine(
 
   const emitHud = () => {
     const spec = getWeaponSpec();
+    const reloading = reloadTimer > 0;
     opts.onHud?.({
       hp: Math.max(0, Math.round(hp)),
       kills,
@@ -1361,6 +1489,10 @@ export function createZombieFpsEngine(
       bossThreat: bossProfilePreview.title,
       bossSegments: bossProfilePreview.segments,
       bossHpPreview: bossProfilePreview.hp,
+      ammo: usesMagazine(activeWeapon) ? ammoInMag : 1,
+      magSize: usesMagazine(activeWeapon) ? MAGAZINE_SIZE : 1,
+      reloading,
+      reloadPct: reloading ? 1 - reloadTimer / RELOAD_TIME : 1,
     });
   };
 
@@ -1369,6 +1501,10 @@ export function createZombieFpsEngine(
     if (!ended) {
       livedSec += dt;
       fireCd = Math.max(0, fireCd - dt);
+      if (reloadTimer > 0) {
+        reloadTimer = Math.max(0, reloadTimer - dt);
+        if (reloadTimer <= 0) ammoInMag = MAGAZINE_SIZE;
+      }
       invuln = Math.max(0, invuln - dt);
       recoil = Math.max(0, recoil - dt * 7);
       shake = Math.max(0, shake - dt * 3.5);
@@ -1425,12 +1561,17 @@ export function createZombieFpsEngine(
         camera.position.y += (Math.random() - 0.5) * shake * 0.06;
       }
 
+      const reloadT = reloadTimer > 0 ? reloadTimer / RELOAD_TIME : 0;
       activeWeaponGroup.position.set(
         0.3 + bobX - recoil * 0.02,
-        -0.3 + Math.abs(Math.sin(bob)) * 0.025 - recoil * 0.055,
-        -0.42 - recoil * 0.1,
+        -0.3 + Math.abs(Math.sin(bob)) * 0.025 - recoil * 0.055 - reloadT * 0.12,
+        -0.42 - recoil * 0.1 - reloadT * 0.28,
       );
-      activeWeaponGroup.rotation.set(0.04 + recoil * 0.22, 0.1, 0.035 + bobX * 0.4);
+      activeWeaponGroup.rotation.set(
+        0.04 + recoil * 0.22 + reloadT * 0.35,
+        0.1,
+        0.035 + bobX * 0.4,
+      );
 
       if (shooting && pointerLocked) fire();
 
@@ -1594,6 +1735,10 @@ export function createZombieFpsEngine(
       bossThreat: bossProfilePreview.title,
       bossSegments: bossProfilePreview.segments,
       bossHpPreview: bossProfilePreview.hp,
+      ammo: usesMagazine(activeWeapon) ? ammoInMag : 1,
+      magSize: usesMagazine(activeWeapon) ? MAGAZINE_SIZE : 1,
+      reloading: reloadTimer > 0,
+      reloadPct: reloadTimer > 0 ? 1 - reloadTimer / RELOAD_TIME : 1,
     }),
     getStats: () => ({
       kills,

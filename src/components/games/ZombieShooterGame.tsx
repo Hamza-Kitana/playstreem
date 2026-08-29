@@ -126,6 +126,10 @@ export default function ZombieShooterGame({
     bossThreat: "وحش كبير",
     bossSegments: 1,
     bossHpPreview: 1400,
+    ammo: 50,
+    magSize: 50,
+    reloading: false,
+    reloadPct: 1,
   });
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [healToast, setHealToast] = useState<HealToast | null>(null);
@@ -156,15 +160,14 @@ export default function ZombieShooterGame({
   };
 
   const showHealFeedback = (info: HealInfo) => {
-    const text =
-      info.kind === "boss"
-        ? `هيل كامل +${info.amount}`
-        : `+${info.amount} دم`;
+    const text = `+${info.amount} دم`;
     const id = Date.now();
     setHealToast({ id, text, kind: info.kind });
     setHpBarFlash("heal");
     pushFeed(
-      info.kind === "boss" ? `قتلت وحش → هيل كامل (+${info.amount})` : `قتلت زومبي → +${info.amount} دم`,
+      info.kind === "boss"
+        ? `قتلت وحش → +${info.amount} دم (زومبيين)`
+        : `قتلت زومبي → +${info.amount} دم`,
       "heal",
     );
     if (healToastTimer.current) window.clearTimeout(healToastTimer.current);
@@ -178,10 +181,9 @@ export default function ZombieShooterGame({
   };
 
   const showBossSpawn = (info: BossSpawnInfo) => {
-    const seg =
-      info.segments > 1 ? ` · ${info.segments} هيلات` : "";
+    const seg = info.segments > 1 ? ` · ${info.segments} هيلات` : "";
     pushFeed(
-      `${info.title} نزل! (${info.hp} دم${seg}) — ${info.from}`,
+      `${info.isMega ? "تحذير — " : ""}${info.title} نزل! (${info.hp} دم${seg}) — ${info.from}`,
       "boss",
     );
   };
@@ -370,6 +372,10 @@ export default function ZombieShooterGame({
       bossThreat: "وحش كبير",
       bossSegments: 1,
       bossHpPreview: 1400,
+      ammo: 50,
+      magSize: 50,
+      reloading: false,
+      reloadPct: 1,
     });
     playingRef.current = true;
     setPhase("playing");
@@ -462,26 +468,32 @@ export default function ZombieShooterGame({
               <div
                 className={cn(
                   "mt-2 rounded-xl border px-3 py-2.5",
-                  bossPreview.tier >= 3
-                    ? "border-rose-500/40 bg-gradient-to-r from-rose-500/15 to-fuchsia-500/15"
-                    : bossPreview.tier >= 2
-                      ? "border-fuchsia-500/35 bg-fuchsia-500/10"
-                      : bossPreview.tier >= 1
-                        ? "border-amber-500/35 bg-amber-500/10"
-                        : "border-emerald-500/25 bg-emerald-500/10",
+                  bossPreview.isMega
+                    ? "border-orange-500/50 bg-gradient-to-r from-orange-600/20 via-rose-600/15 to-red-900/20"
+                    : bossPreview.tier >= 3
+                      ? "border-rose-500/40 bg-gradient-to-r from-rose-500/15 to-fuchsia-500/15"
+                      : bossPreview.tier >= 2
+                        ? "border-fuchsia-500/35 bg-fuchsia-500/10"
+                        : bossPreview.tier >= 1
+                          ? "border-amber-500/35 bg-amber-500/10"
+                          : "border-emerald-500/25 bg-emerald-500/10",
                 )}
               >
-                <p className="text-[10px] text-muted-foreground">قوة الوحش المتوقع</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {bossPreview.isMega ? "وحش مذبحة — شكل مختلف وقوة جبار" : "قوة الوحش المتوقع"}
+                </p>
                 <p
                   className={cn(
                     "mt-0.5 text-sm font-extrabold",
-                    bossPreview.tier >= 3
-                      ? "text-rose-300"
-                      : bossPreview.tier >= 2
-                        ? "text-fuchsia-300"
-                        : bossPreview.tier >= 1
-                          ? "text-amber-300"
-                          : "text-emerald-300",
+                    bossPreview.isMega
+                      ? "text-orange-300"
+                      : bossPreview.tier >= 3
+                        ? "text-rose-300"
+                        : bossPreview.tier >= 2
+                          ? "text-fuchsia-300"
+                          : bossPreview.tier >= 1
+                            ? "text-amber-300"
+                            : "text-emerald-300",
                   )}
                 >
                   {bossPreview.title}
@@ -508,11 +520,11 @@ export default function ZombieShooterGame({
             </div>
             <div className="rounded-xl bg-background/50 p-3">
               <p className="text-xs text-muted-foreground">قتل زومبي</p>
-              <p className="mt-1 text-sm font-extrabold text-emerald-300">+10 دم</p>
+              <p className="mt-1 text-sm font-extrabold text-emerald-300">+4 دم</p>
             </div>
             <div className="rounded-xl bg-background/50 p-3">
               <p className="text-xs text-muted-foreground">قتل وحش كبير</p>
-              <p className="mt-1 text-sm font-extrabold text-fuchsia-300">هيل كامل + ترقية سلاح</p>
+              <p className="mt-1 text-sm font-extrabold text-fuchsia-300">+8 دم (زومبيين) + ترقية</p>
             </div>
           </div>
 
@@ -702,7 +714,34 @@ export default function ZombieShooterGame({
                   )}
                   {hud.weaponLabel}
                 </p>
-                <p className="mt-1 text-[10px] font-bold text-muted-foreground">سكرول للتبديل</p>
+                {hud.weapon !== "rpg" ? (
+                  <div className="mt-2 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p
+                        className={cn(
+                          "text-xs font-extrabold tabular-nums",
+                          hud.reloading ? "text-amber-300" : "text-white/90",
+                        )}
+                      >
+                        {hud.reloading ? "يلحم..." : `${hud.ammo}/${hud.magSize}`}
+                      </p>
+                      <p className="text-[10px] font-bold text-muted-foreground">R للتحميل</p>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-100",
+                          hud.reloading ? "bg-amber-400" : "bg-emerald-400",
+                        )}
+                        style={{
+                          width: `${hud.reloading ? hud.reloadPct * 100 : (hud.ammo / hud.magSize) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-1 text-[10px] font-bold text-muted-foreground">سكرول للتبديل</p>
+                )}
               </div>
               <div className="flex flex-wrap gap-1.5">
                 <WeaponChip active={hud.weapon === "rifle"} label="بندقية" />
@@ -753,7 +792,7 @@ export default function ZombieShooterGame({
                   <Crosshair className="mx-auto size-8 text-emerald-300" />
                   <p className="mt-3 text-lg font-extrabold text-emerald-100">اضغط للعب</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    سكرول يغيّر السلاح · زر التكبير فوق · أو F · ثم اضغط هنا للعب
+                    سكرول يغيّر السلاح · R للتحميل · زر التكبير فوق · أو F · ثم اضغط هنا للعب
                   </p>
                 </div>
               </button>

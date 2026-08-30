@@ -428,12 +428,13 @@ export default function ZombieShooterGame({
               منظور أول شخص واقعي، سلاح بيدك، تمشي داخل ماب مغلقة، وتصوّب بالماوس. تقدر تكبّر اللعبة
               لملء الشاشة كاملة أثناء البث.
             </p>
-            <div className="mt-4 grid gap-2 text-xs font-bold text-muted-foreground sm:grid-cols-3">
+            <div className="mt-4 grid gap-2 text-xs font-bold text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-xl bg-background/50 px-3 py-2">حركة: WASD</div>
               <div className="rounded-xl bg-background/50 px-3 py-2">
                 نظر: الماوس (Pointer Lock)
               </div>
               <div className="rounded-xl bg-background/50 px-3 py-2">إطلاق: كبسة يسار</div>
+              <div className="rounded-xl bg-background/50 px-3 py-2">زوم: كبسة يمين (بندقية)</div>
             </div>
           </div>
 
@@ -792,7 +793,7 @@ export default function ZombieShooterGame({
                   <Crosshair className="mx-auto size-8 text-emerald-300" />
                   <p className="mt-3 text-lg font-extrabold text-emerald-100">اضغط للعب</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    سكرول يغيّر السلاح · R للتحميل · زر التكبير فوق · أو F · ثم اضغط هنا للعب
+                    سكرول يغيّر السلاح · زوم يمين (بندقية) · R للتحميل · F للتكبير · ثم اضغط هنا للعب
                   </p>
                 </div>
               </button>

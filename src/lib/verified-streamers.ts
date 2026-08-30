@@ -50,4 +50,11 @@ export const VERIFIED_STREAMERS: VerifiedStreamer[] = [
     hue: 172,
     note: "موثّق لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
   },
+  {
+    name: "LTxMax",
+    slug: "ltxmax",
+    tag: "ستريمر موثّق",
+    hue: 156,
+    note: "موثّق لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
+  },
 ];

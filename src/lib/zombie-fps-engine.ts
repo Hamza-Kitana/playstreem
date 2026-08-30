@@ -197,6 +197,9 @@ const RPG_SPLASH_RADIUS = 6.8;
 const RPG_COOLDOWN = 1.75;
 const MAGAZINE_SIZE = 50;
 const RELOAD_TIME = 1.85;
+const BASE_FOV = 78;
+const RIFLE_ADS_FOV = 42;
+const ADS_LERP_SPEED = 9;
 const ZOMBIE_HP = 170;
 /** Threshold boss — huge sponge, many shots to drop. */
 const BOSS_HP = 1400;
@@ -807,24 +810,24 @@ function makeRpgWeapon() {
   });
   const gripMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.7, metalness: 0.2 });
 
-  const launcher = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 1.05), tube);
-  launcher.position.set(0.3, -0.22, -0.95);
+  const launcher = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 1.38), tube);
+  launcher.position.set(0.3, -0.22, -1.08);
   weapon.add(launcher);
 
-  const mouth = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, 0.18, 12), tube);
+  const mouth = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, 0.22, 12), tube);
   mouth.rotation.x = Math.PI / 2;
-  mouth.position.set(0.3, -0.2, -1.52);
+  mouth.position.set(0.3, -0.2, -1.82);
   mouth.name = "muzzle";
   weapon.add(mouth);
 
-  const rocket = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.55, 12), warhead);
+  const rocket = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.72, 12), warhead);
   rocket.rotation.x = Math.PI / 2;
-  rocket.position.set(0.3, -0.2, -1.18);
+  rocket.position.set(0.3, -0.2, -1.32);
   weapon.add(rocket);
 
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.18, 12), warhead);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.22, 12), warhead);
   nose.rotation.x = -Math.PI / 2;
-  nose.position.set(0.3, -0.2, -1.52);
+  nose.position.set(0.3, -0.2, -1.82);
   weapon.add(nose);
 
   const grip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.24, 0.14), gripMat);
@@ -840,7 +843,7 @@ function makeRpgWeapon() {
     new THREE.SphereGeometry(0.16, 10, 10),
     new THREE.MeshBasicMaterial({ color: 0xff7b00, transparent: true, opacity: 0 }),
   );
-  flash.position.set(0.3, -0.2, -1.62);
+  flash.position.set(0.3, -0.2, -1.95);
   flash.name = "flash";
   weapon.add(flash);
 
@@ -864,7 +867,7 @@ export function createZombieFpsEngine(
   scene.background = new THREE.Color(0x040606);
   scene.fog = new THREE.FogExp2(0x08110c, 0.03);
 
-  const camera = new THREE.PerspectiveCamera(78, 1, 0.05, 140);
+  const camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.05, 140);
   camera.position.set(0, 1.67, 0);
 
   const renderer = new THREE.WebGLRenderer({
@@ -1059,6 +1062,8 @@ export function createZombieFpsEngine(
   let hudAcc = 0;
   let pointerLocked = false;
   let shooting = false;
+  let adsActive = false;
+  let adsBlend = 0;
   let raf = 0;
 
   const resize = () => {
@@ -1238,6 +1243,7 @@ export function createZombieFpsEngine(
   const setActiveWeapon = (id: WeaponId) => {
     if (!ownedWeapons().includes(id)) return;
     activeWeapon = id;
+    if (!usesMagazine(id)) adsActive = false;
     bindActiveWeaponVisuals();
     emitHud();
   };
@@ -1435,6 +1441,11 @@ export function createZombieFpsEngine(
   };
   const onKeyUp = (e: KeyboardEvent) => keys.delete(e.code);
   const onMouseDown = (e: MouseEvent) => {
+    if (e.button === 2) {
+      if (pointerLocked && !ended && usesMagazine(activeWeapon)) adsActive = true;
+      e.preventDefault();
+      return;
+    }
     if (e.button !== 0) return;
     shooting = true;
     if (!pointerLocked) {
@@ -1444,12 +1455,14 @@ export function createZombieFpsEngine(
     fire();
   };
   const onMouseUp = (e: MouseEvent) => {
+    if (e.button === 2) adsActive = false;
     if (e.button === 0) shooting = false;
   };
   const onMouseMove = (e: MouseEvent) => {
     if (!pointerLocked || ended) return;
-    yaw -= e.movementX * 0.00215;
-    pitch -= e.movementY * 0.00215;
+    const lookSens = 0.00215 - adsBlend * 0.00055;
+    yaw -= e.movementX * lookSens;
+    pitch -= e.movementY * lookSens;
     pitch = Math.max(-1.25, Math.min(1.25, pitch));
   };
   const onLockChange = () => {
@@ -1462,9 +1475,12 @@ export function createZombieFpsEngine(
     cycleWeapon(e.deltaY > 0 ? 1 : -1);
   };
 
+  const onContextMenu = (e: MouseEvent) => e.preventDefault();
+
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   renderer.domElement.addEventListener("mousedown", onMouseDown);
+  renderer.domElement.addEventListener("contextmenu", onContextMenu);
   renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
   window.addEventListener("mouseup", onMouseUp);
   window.addEventListener("mousemove", onMouseMove);
@@ -1523,6 +1539,12 @@ export function createZombieFpsEngine(
         released += 1;
       }
 
+      const adsTarget =
+        adsActive && pointerLocked && !ended && usesMagazine(activeWeapon) ? 1 : 0;
+      adsBlend = THREE.MathUtils.lerp(adsBlend, adsTarget, Math.min(1, dt * ADS_LERP_SPEED));
+      camera.fov = THREE.MathUtils.lerp(BASE_FOV, RIFLE_ADS_FOV, adsBlend);
+      camera.updateProjectionMatrix();
+
       camera.rotation.order = "YXZ";
       camera.rotation.y = yaw;
       camera.rotation.x = pitch;
@@ -1562,13 +1584,14 @@ export function createZombieFpsEngine(
       }
 
       const reloadT = reloadTimer > 0 ? reloadTimer / RELOAD_TIME : 0;
+      const adsT = usesMagazine(activeWeapon) ? adsBlend : 0;
       activeWeaponGroup.position.set(
-        0.3 + bobX - recoil * 0.02,
-        -0.3 + Math.abs(Math.sin(bob)) * 0.025 - recoil * 0.055 - reloadT * 0.12,
-        -0.42 - recoil * 0.1 - reloadT * 0.28,
+        0.3 + bobX - recoil * 0.02 - adsT * 0.06,
+        -0.3 + Math.abs(Math.sin(bob)) * 0.025 - recoil * 0.055 - reloadT * 0.12 + adsT * 0.04,
+        -0.42 - recoil * 0.1 - reloadT * 0.28 + adsT * 0.18,
       );
       activeWeaponGroup.rotation.set(
-        0.04 + recoil * 0.22 + reloadT * 0.35,
+        0.04 + recoil * 0.22 + reloadT * 0.35 - adsT * 0.03,
         0.1,
         0.035 + bobX * 0.4,
       );
@@ -1693,6 +1716,7 @@ export function createZombieFpsEngine(
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       renderer.domElement.removeEventListener("mousedown", onMouseDown);
+      renderer.domElement.removeEventListener("contextmenu", onContextMenu);
       renderer.domElement.removeEventListener("wheel", onWheel);
       window.removeEventListener("mouseup", onMouseUp);
       window.removeEventListener("mousemove", onMouseMove);

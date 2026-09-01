@@ -356,15 +356,31 @@ const PLAYER_RADIUS = 0.45;
 const PLAYER_EYE_HEIGHT = 1.67;
 const JUMP_VELOCITY = 6.2;
 const GRAVITY = 18;
-/** Climbable hills — smooth dome height sampled for player + mobs. */
+/** Single central mountain — climbable dome height for player + mobs. */
 type HillDef = { x: number; z: number; radius: number; height: number };
-const HILLS: HillDef[] = [
-  { x: -20, z: 14, radius: 10, height: 4.8 },
-  { x: 18, z: -12, radius: 12, height: 6.2 },
-  { x: -10, z: -22, radius: 8.5, height: 3.8 },
-  { x: 24, z: 20, radius: 11, height: 5.2 },
-  { x: 2, z: 10, radius: 13, height: 4.2 },
-  { x: -24, z: -8, radius: 9, height: 3.5 },
+const MOUNTAIN: HillDef = { x: 0, z: 5, radius: 15, height: 10.5 };
+const HILLS: HillDef[] = [MOUNTAIN];
+
+/** Ground rocks — x, z, radius (collision + mesh). */
+const GROUND_ROCKS: readonly [number, number, number][] = [
+  [-26, -22, 0.95],
+  [-18, -24, 0.7],
+  [24, -20, 1.05],
+  [28, -8, 0.75],
+  [-28, 6, 0.85],
+  [-22, 18, 0.65],
+  [20, 22, 0.9],
+  [26, 14, 0.55],
+  [-12, -26, 0.8],
+  [14, -26, 0.7],
+  [-30, -6, 0.6],
+  [30, 4, 0.85],
+  [-8, 24, 0.75],
+  [10, 26, 0.6],
+  [-24, -10, 0.5],
+  [22, -4, 0.65],
+  [-16, 8, 0.55],
+  [18, 10, 0.7],
 ];
 
 function terrainHeight(x: number, z: number) {
@@ -418,6 +434,16 @@ function resolveObstacles(x: number, z: number, radius: number) {
       const penZ = half - Math.abs(dz);
       if (penX < penZ) px += Math.sign(dx || 1) * penX;
       else pz += Math.sign(dz || 1) * penZ;
+    }
+    for (const [rx, rz, rs] of GROUND_ROCKS) {
+      const dx = px - rx;
+      const dz = pz - rz;
+      const dist = Math.hypot(dx, dz);
+      const minDist = rs + radius + 0.1;
+      if (dist >= minDist || dist < 0.001) continue;
+      const push = minDist / dist;
+      px = rx + dx * push;
+      pz = rz + dz * push;
     }
   }
   return clampInsideWalls(px, pz, radius);
@@ -548,26 +574,21 @@ function createSkyDome() {
   return dome;
 }
 
-function scatterArenaRocks(scene: THREE.Scene) {
-  const rockMat = new THREE.MeshStandardMaterial({ color: 0x5a5348, roughness: 0.96, metalness: 0.02 });
-  const positions: [number, number, number][] = [
-    [-24, 8, 0.7],
-    [20, -16, 0.55],
-    [-8, -24, 0.9],
-    [28, 14, 0.65],
-    [-18, 22, 0.5],
-    [12, 24, 0.8],
-    [-30, -12, 0.6],
-    [6, 6, 0.45],
-  ];
-  for (const [x, z, s] of positions) {
+function scatterArenaRocks(scene: THREE.Scene, colliders: THREE.Object3D[]) {
+  const rockMat = new THREE.MeshStandardMaterial({
+    color: 0x5a5348,
+    roughness: 0.96,
+    metalness: 0.02,
+  });
+  for (const [x, z, s] of GROUND_ROCKS) {
     const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), rockMat);
     const gy = terrainHeight(x, z);
-    rock.position.set(x, gy + s * 0.35, z);
+    rock.position.set(x, gy + s * 0.38, z);
     rock.rotation.set(Math.random() * 0.5, Math.random() * Math.PI, Math.random() * 0.4);
     rock.castShadow = true;
     rock.receiveShadow = true;
     scene.add(rock);
+    colliders.push(rock);
   }
 }
 
@@ -1371,8 +1392,8 @@ export function createZombieFpsEngine(
   scene.add(dirtPatch);
 
   const hillMat = new THREE.MeshStandardMaterial({
-    color: 0x4a6b42,
-    roughness: 0.9,
+    color: 0x3f5c38,
+    roughness: 0.92,
     metalness: 0.02,
   });
   const hillRockMat = new THREE.MeshStandardMaterial({
@@ -1380,20 +1401,30 @@ export function createZombieFpsEngine(
     roughness: 0.96,
     metalness: 0,
   });
-  const hillDomeGeo = new THREE.SphereGeometry(1, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
-  for (const h of HILLS) {
-    const dome = new THREE.Mesh(hillDomeGeo, hillMat);
-    dome.scale.set(h.radius, h.height, h.radius);
-    dome.position.set(h.x, 0, h.z);
-    dome.castShadow = true;
-    dome.receiveShadow = true;
-    scene.add(dome);
-    const cap = new THREE.Mesh(hillDomeGeo, hillRockMat);
-    cap.scale.set(h.radius * 0.34, h.height * 0.22, h.radius * 0.34);
-    cap.position.set(h.x, h.height * 0.8, h.z);
-    cap.castShadow = true;
-    scene.add(cap);
-  }
+  const hillDomeGeo = new THREE.SphereGeometry(1, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+  const solidColliderRoots: THREE.Object3D[] = [];
+
+  const mountainGroup = new THREE.Group();
+  const mountainBody = new THREE.Mesh(hillDomeGeo, hillMat);
+  mountainBody.scale.set(MOUNTAIN.radius, MOUNTAIN.height, MOUNTAIN.radius);
+  mountainBody.position.set(MOUNTAIN.x, 0, MOUNTAIN.z);
+  mountainBody.castShadow = true;
+  mountainBody.receiveShadow = true;
+  mountainGroup.add(mountainBody);
+  const mountainCap = new THREE.Mesh(hillDomeGeo, hillRockMat);
+  mountainCap.scale.set(MOUNTAIN.radius * 0.42, MOUNTAIN.height * 0.28, MOUNTAIN.radius * 0.42);
+  mountainCap.position.set(MOUNTAIN.x, MOUNTAIN.height * 0.82, MOUNTAIN.z);
+  mountainCap.castShadow = true;
+  mountainGroup.add(mountainCap);
+  const mountainRidge = new THREE.Mesh(
+    new THREE.ConeGeometry(MOUNTAIN.radius * 0.22, MOUNTAIN.height * 0.35, 5),
+    hillRockMat,
+  );
+  mountainRidge.position.set(MOUNTAIN.x, MOUNTAIN.height * 0.95, MOUNTAIN.z);
+  mountainRidge.castShadow = true;
+  mountainGroup.add(mountainRidge);
+  scene.add(mountainGroup);
+  solidColliderRoots.push(mountainBody, mountainCap, mountainRidge);
 
   const backdropMat = new THREE.MeshStandardMaterial({ color: 0x5a6678, roughness: 1, metalness: 0 });
   for (const [bx, bz, br, bh] of [
@@ -1408,7 +1439,7 @@ export function createZombieFpsEngine(
     peak.castShadow = true;
     scene.add(peak);
   }
-  scatterArenaRocks(scene);
+  scatterArenaRocks(scene, solidColliderRoots);
 
   const wallMat = new THREE.MeshStandardMaterial({
     map: wallTex,
@@ -1421,7 +1452,10 @@ export function createZombieFpsEngine(
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, wallH, d), wallMat);
     m.position.set(x, wallH / 2, z);
     m.receiveShadow = true;
+    m.castShadow = true;
     scene.add(m);
+    solidColliderRoots.push(m);
+    return m;
   };
   mkWall(ARENA + 1, 0.85, 0, -ARENA / 2);
   mkWall(ARENA + 1, 0.85, 0, ARENA / 2);
@@ -1448,7 +1482,9 @@ export function createZombieFpsEngine(
     crate.position.set(x, ground + s / 2, z);
     crate.rotation.y = rot;
     crate.receiveShadow = true;
+    crate.castShadow = true;
     scene.add(crate);
+    solidColliderRoots.push(crate);
   }
 
   // Three zombie spawn gates (visible portals on the far wall).
@@ -1546,6 +1582,7 @@ export function createZombieFpsEngine(
   let hudAcc = 0;
   let pointerLocked = false;
   let shooting = false;
+  let aiming = false;
   let adsBlend = 0;
   let verticalVel = 0;
   let playerAltitude = 0;
@@ -1836,7 +1873,7 @@ export function createZombieFpsEngine(
   const setActiveWeapon = (id: WeaponId) => {
     if (!ownedWeapons().includes(id)) return;
     activeWeapon = id;
-    if (!usesMagazine(id)) keys.delete("KeyK");
+    if (!usesMagazine(id)) aiming = false;
     bindActiveWeaponVisuals();
     emitHud();
   };
@@ -1983,13 +2020,18 @@ export function createZombieFpsEngine(
     smokePuffs.push({ mesh, life: 0.48, maxLife: 0.48 });
   };
 
-  const fireRifle = (spec: WeaponSpec) => {
+  const castCombatRay = () => {
     raycaster.setFromCamera(aimCenter, camera);
-    const hits = raycaster.intersectObjects(mobRoots, true);
+    return raycaster.intersectObjects([...solidColliderRoots, ...mobRoots], true);
+  };
+
+  const fireRifle = (spec: WeaponSpec) => {
+    const hits = castCombatRay();
     if (hits.length > 0) {
       const hit = hits[0]!;
       const mob = findMobFromHit(hit.object);
       if (mob) damageMob(mob, spec.damage, hit.point);
+      else spawnSpark(hit.point, 0xc8bfb0, 4);
     } else {
       camera.getWorldDirection(aimDir);
       tmpV2.copy(camera.position).add(aimDir.multiplyScalar(4));
@@ -1998,10 +2040,9 @@ export function createZombieFpsEngine(
   };
 
   const fireRpg = () => {
-    raycaster.setFromCamera(aimCenter, camera);
     camera.getWorldDirection(aimDir);
     let impact = tmpV2.copy(camera.position).add(aimDir.multiplyScalar(24));
-    const hits = raycaster.intersectObjects(mobRoots, true);
+    const hits = castCombatRay();
     if (hits.length > 0) {
       impact = hits[0]!.point;
     } else if (raycaster.ray.intersectPlane(groundPlane, tmpV3)) {
@@ -2067,6 +2108,7 @@ export function createZombieFpsEngine(
   const onMouseDown = (e: MouseEvent) => {
     if (e.button === 2) {
       e.preventDefault();
+      if (pointerLocked && !ended && usesMagazine(activeWeapon)) aiming = true;
       return;
     }
     if (e.button !== 0) return;
@@ -2079,6 +2121,7 @@ export function createZombieFpsEngine(
   };
   const onMouseUp = (e: MouseEvent) => {
     if (e.button === 0) shooting = false;
+    if (e.button === 2) aiming = false;
   };
   const onMouseMove = (e: MouseEvent) => {
     if (!pointerLocked || ended) return;
@@ -2091,6 +2134,7 @@ export function createZombieFpsEngine(
   };
   const onLockChange = () => {
     pointerLocked = document.pointerLockElement === renderer.domElement;
+    if (!pointerLocked) aiming = false;
   };
 
   const onWheel = (e: WheelEvent) => {
@@ -2166,7 +2210,7 @@ export function createZombieFpsEngine(
       }
 
       const adsTarget =
-        keys.has("KeyK") && pointerLocked && !ended && usesMagazine(activeWeapon) ? 1 : 0;
+        aiming && pointerLocked && !ended && usesMagazine(activeWeapon) ? 1 : 0;
       adsBlend = THREE.MathUtils.lerp(adsBlend, adsTarget, Math.min(1, dt * ADS_LERP_SPEED));
       camera.fov = THREE.MathUtils.lerp(BASE_FOV, RIFLE_ADS_FOV, adsBlend);
       camera.updateProjectionMatrix();

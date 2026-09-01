@@ -456,7 +456,7 @@ export default function ZombieShooterGame({
   useEffect(() => {
     if (phase !== "playing") return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== "KeyF" || e.repeat) return;
+      if (e.code !== "KeyK" || e.repeat) return;
       // Don't steal typing from inputs if any.
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
@@ -561,14 +561,15 @@ export default function ZombieShooterGame({
               منظور أول شخص واقعي، سلاح بيدك، تمشي داخل ماب مفتوحة فيها جبال، وتصوّب بالماوس. تقدر
               تكبّر اللعبة لملء الشاشة كاملة أثناء البث.
             </p>
-            <div className="mt-4 grid gap-2 text-xs font-bold text-muted-foreground sm:grid-cols-2 lg:grid-cols-5">
+            <div className="mt-4 grid gap-2 text-xs font-bold text-muted-foreground sm:grid-cols-2 lg:grid-cols-6">
               <div className="rounded-xl bg-background/50 px-3 py-2">حركة: WASD</div>
               <div className="rounded-xl bg-background/50 px-3 py-2">قفز: Space</div>
               <div className="rounded-xl bg-background/50 px-3 py-2">
                 نظر: الماوس (Pointer Lock)
               </div>
               <div className="rounded-xl bg-background/50 px-3 py-2">إطلاق: كبسة يسار</div>
-              <div className="rounded-xl bg-background/50 px-3 py-2">زوم: حرف K (بندقية)</div>
+              <div className="rounded-xl bg-background/50 px-3 py-2">زوم: كليك يمين (بندقية)</div>
+              <div className="rounded-xl bg-background/50 px-3 py-2">تكبير شاشة: K</div>
             </div>
           </div>
 
@@ -733,7 +734,7 @@ export default function ZombieShooterGame({
               {hud.bossSegments > 1 ? (
                 <span className="text-rose-300"> · {hud.bossSegments} هيلات</span>
               ) : null}
-              <span className="mr-2 text-[10px] text-muted-foreground">· اختصار: F</span>
+              <span className="mr-2 text-[10px] text-muted-foreground">· اختصار: K</span>
             </span>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -1009,7 +1010,7 @@ export default function ZombieShooterGame({
                   <Crosshair className="mx-auto size-8 text-emerald-300" />
                   <p className="mt-3 text-lg font-extrabold text-emerald-100">اضغط للعب</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    سكرول يغيّر السلاح · K للزوم · Space للقفز · R للتحميل · F للتكبير · ثم اضغط هنا للعب
+                    سكرول يغيّر السلاح · كليك يمين للزوم · Space للقفز · R للتحميل · K للتكبير · ثم اضغط هنا للعب
                   </p>
                 </div>
               </button>

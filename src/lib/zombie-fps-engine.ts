@@ -343,24 +343,22 @@ const ZOMBIE_DAMAGE = 14;
 const BOSS_DAMAGE = 32;
 const ARENA = 70;
 const WALL = ARENA / 2 - 0.75;
-/** Three zombie gates spread across the far wall. */
+/** Four zombie gates — one per arena side. Bosses spawn at center. */
 const SPAWN_EDGE = WALL - 1.15;
 const SPAWN_SPREAD = 1.2;
-const SPAWN_GATES = [
-  { x: -20, z: -SPAWN_EDGE },
+const ZOMBIE_SPAWN_GATES = [
   { x: 0, z: -SPAWN_EDGE },
-  { x: 20, z: -SPAWN_EDGE },
+  { x: 0, z: SPAWN_EDGE },
+  { x: -SPAWN_EDGE, z: 0 },
+  { x: SPAWN_EDGE, z: 0 },
 ] as const;
+const BOSS_SPAWN = { x: 0, z: 0 };
+const BOSS_SPAWN_SPREAD = 2.2;
 
 const PLAYER_RADIUS = 0.45;
 const PLAYER_EYE_HEIGHT = 1.67;
 const JUMP_VELOCITY = 6.2;
 const GRAVITY = 18;
-/** Single central mountain — climbable dome height for player + mobs. */
-type HillDef = { x: number; z: number; radius: number; height: number };
-const MOUNTAIN: HillDef = { x: 0, z: 5, radius: 15, height: 10.5 };
-const HILLS: HillDef[] = [MOUNTAIN];
-
 /** Ground rocks — x, z, radius (collision + mesh). */
 const GROUND_ROCKS: readonly [number, number, number][] = [
   [-26, -22, 0.95],
@@ -383,19 +381,8 @@ const GROUND_ROCKS: readonly [number, number, number][] = [
   [18, 10, 0.7],
 ];
 
-function terrainHeight(x: number, z: number) {
-  let h = 0;
-  for (const hill of HILLS) {
-    const dx = x - hill.x;
-    const dz = z - hill.z;
-    const distSq = dx * dx + dz * dz;
-    const rSq = hill.radius * hill.radius;
-    if (distSq < rSq) {
-      const t = 1 - distSq / rSq;
-      h = Math.max(h, hill.height * t * t);
-    }
-  }
-  return h;
+function terrainHeight(_x: number, _z: number) {
+  return 0;
 }
 
 /** Arena crates used for simple blocking collision. */
@@ -479,16 +466,17 @@ type SpawnGateVisual = {
   spawnLight: THREE.PointLight;
 };
 
-function createSpawnGate(x: number, z: number): SpawnGateVisual {
+function createSpawnGate(x: number, z: number, variant: "zombie" | "boss" = "zombie"): SpawnGateVisual {
   const group = new THREE.Group();
   const ground = terrainHeight(x, z);
   group.position.set(x, ground, z);
+  const isBoss = variant === "boss";
   const portalRing = new THREE.Mesh(
-    new THREE.RingGeometry(1.35, 2.15, 36),
+    new THREE.RingGeometry(isBoss ? 2.4 : 1.35, isBoss ? 3.5 : 2.15, 36),
     new THREE.MeshBasicMaterial({
-      color: 0x34d399,
+      color: isBoss ? 0xe879f9 : 0x34d399,
       transparent: true,
-      opacity: 0.6,
+      opacity: isBoss ? 0.72 : 0.6,
       side: THREE.DoubleSide,
       depthWrite: false,
     }),
@@ -496,18 +484,18 @@ function createSpawnGate(x: number, z: number): SpawnGateVisual {
   portalRing.rotation.x = -Math.PI / 2;
   portalRing.position.y = 0.03;
   const portalBeam = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.55, 1.55, 4.8, 28, 1, true),
+    new THREE.CylinderGeometry(isBoss ? 2.8 : 1.55, isBoss ? 2.8 : 1.55, isBoss ? 6.2 : 4.8, 28, 1, true),
     new THREE.MeshBasicMaterial({
-      color: 0x22c55e,
+      color: isBoss ? 0xc026d3 : 0x22c55e,
       transparent: true,
-      opacity: 0.14,
+      opacity: isBoss ? 0.22 : 0.14,
       side: THREE.DoubleSide,
       depthWrite: false,
     }),
   );
-  portalBeam.position.y = 2.4;
-  const spawnLight = new THREE.PointLight(0x4ade80, 2.4, 16, 2);
-  spawnLight.position.y = 2.6;
+  portalBeam.position.y = isBoss ? 3.1 : 2.4;
+  const spawnLight = new THREE.PointLight(isBoss ? 0xf0abfc : 0x4ade80, isBoss ? 3.2 : 2.4, isBoss ? 22 : 16, 2);
+  spawnLight.position.y = isBoss ? 3.4 : 2.6;
   group.add(portalRing, portalBeam, spawnLight);
   return { group, portalRing, spawnLight };
 }
@@ -1394,40 +1382,7 @@ export function createZombieFpsEngine(
   dirtPatch.receiveShadow = true;
   scene.add(dirtPatch);
 
-  const hillMat = new THREE.MeshStandardMaterial({
-    color: 0x3f5c38,
-    roughness: 0.92,
-    metalness: 0.02,
-  });
-  const hillRockMat = new THREE.MeshStandardMaterial({
-    color: 0x6b5a48,
-    roughness: 0.96,
-    metalness: 0,
-  });
-  const hillDomeGeo = new THREE.SphereGeometry(1, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
   const solidColliderRoots: THREE.Object3D[] = [];
-
-  const mountainGroup = new THREE.Group();
-  const mountainBody = new THREE.Mesh(hillDomeGeo, hillMat);
-  mountainBody.scale.set(MOUNTAIN.radius, MOUNTAIN.height, MOUNTAIN.radius);
-  mountainBody.position.set(MOUNTAIN.x, 0, MOUNTAIN.z);
-  mountainBody.castShadow = true;
-  mountainBody.receiveShadow = true;
-  mountainGroup.add(mountainBody);
-  const mountainCap = new THREE.Mesh(hillDomeGeo, hillRockMat);
-  mountainCap.scale.set(MOUNTAIN.radius * 0.42, MOUNTAIN.height * 0.28, MOUNTAIN.radius * 0.42);
-  mountainCap.position.set(MOUNTAIN.x, MOUNTAIN.height * 0.82, MOUNTAIN.z);
-  mountainCap.castShadow = true;
-  mountainGroup.add(mountainCap);
-  const mountainRidge = new THREE.Mesh(
-    new THREE.ConeGeometry(MOUNTAIN.radius * 0.22, MOUNTAIN.height * 0.35, 5),
-    hillRockMat,
-  );
-  mountainRidge.position.set(MOUNTAIN.x, MOUNTAIN.height * 0.95, MOUNTAIN.z);
-  mountainRidge.castShadow = true;
-  mountainGroup.add(mountainRidge);
-  scene.add(mountainGroup);
-  solidColliderRoots.push(mountainBody, mountainCap, mountainRidge);
 
   const backdropMat = new THREE.MeshStandardMaterial({ color: 0x5a6678, roughness: 1, metalness: 0 });
   for (const [bx, bz, br, bh] of [
@@ -1490,9 +1445,12 @@ export function createZombieFpsEngine(
     solidColliderRoots.push(crate);
   }
 
-  // Three zombie spawn gates (visible portals on the far wall).
-  const spawnGates = SPAWN_GATES.map((gate) => createSpawnGate(gate.x, gate.z));
+  // Four zombie gates (one per side) + central boss portal.
+  const spawnGates = ZOMBIE_SPAWN_GATES.map((gate) => createSpawnGate(gate.x, gate.z, "zombie"));
+  const bossSpawnGate = createSpawnGate(BOSS_SPAWN.x, BOSS_SPAWN.z, "boss");
   for (const gate of spawnGates) scene.add(gate.group);
+  scene.add(bossSpawnGate.group);
+  const allSpawnGates = [...spawnGates, bossSpawnGate];
 
   // Atmospheric dust
   const dustGeo = new THREE.BufferGeometry();
@@ -1688,11 +1646,20 @@ export function createZombieFpsEngine(
       : boss
         ? computeBossProfile(bossEveryThreshold)
         : null;
-    const gate = SPAWN_GATES[Math.floor(Math.random() * SPAWN_GATES.length)]!;
-    const angle = Math.random() * Math.PI * 2;
-    const dist = Math.random() * SPAWN_SPREAD;
-    const x = gate.x + Math.cos(angle) * dist;
-    const z = gate.z + Math.sin(angle) * dist;
+    let x: number;
+    let z: number;
+    if (boss) {
+      const bossAngle = Math.random() * Math.PI * 2;
+      const bossDist = Math.random() * BOSS_SPAWN_SPREAD;
+      x = BOSS_SPAWN.x + Math.cos(bossAngle) * bossDist;
+      z = BOSS_SPAWN.z + Math.sin(bossAngle) * bossDist;
+    } else {
+      const gate = ZOMBIE_SPAWN_GATES[Math.floor(Math.random() * ZOMBIE_SPAWN_GATES.length)]!;
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * SPAWN_SPREAD;
+      x = gate.x + Math.cos(angle) * dist;
+      z = gate.z + Math.sin(angle) * dist;
+    }
 
     const { root, hpFill, hpLabel, anim } = makeZombieMesh(kind, from, profile ?? undefined);
     const mobRadius = boss ? profile!.radius : 0.58;
@@ -2554,7 +2521,7 @@ export function createZombieFpsEngine(
       }
 
       const gatePulse = 0.55 + Math.sin(livedSec * 3.2) * 0.2;
-      for (const gate of spawnGates) {
+      for (const gate of allSpawnGates) {
         gate.spawnLight.intensity = 1.8 + gatePulse * 0.9;
         const ringMat = gate.portalRing.material as THREE.MeshBasicMaterial;
         ringMat.opacity = 0.42 + gatePulse * 0.28;

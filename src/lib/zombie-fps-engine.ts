@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-export type MobKind = "zombie" | "boss";
+export type MobKind = "zombie" | "boss" | "titan";
 
 export type FpsHud = {
   hp: number;
@@ -22,6 +22,8 @@ export type FpsHud = {
   magSize: number;
   reloading: boolean;
   reloadPct: number;
+  /** 0–1 screen damage flash intensity. */
+  hurtFlash: number;
 };
 
 export type WeaponId = "rifle" | "rifle_plus" | "rpg";
@@ -48,6 +50,7 @@ export type BossProfile = {
   segments: number;
   tier: 0 | 1 | 2 | 3;
   isMega: boolean;
+  isTitan: boolean;
   title: string;
   hp: number;
   damage: number;
@@ -64,11 +67,37 @@ export type BossSpawnInfo = {
   segments: number;
   multiplier: number;
   isMega: boolean;
+  isTitan: boolean;
   from: string;
 };
 
+export type ZombieScaling = {
+  hpMult: number;
+  speedMult: number;
+  damageMult: number;
+  label: string;
+};
+
+export const TITAN_COMMENT_INTERVAL = 50;
+
 const BOSS_TITLES = ["وحش كبير", "وحش ضخم", "كابوس", "وحش أسطوري"] as const;
 const MEGA_BOSS_TITLE = "وحش المذبحة";
+const TITAN_BOSS_TITLE = "وحش الذيل الأسطوري";
+
+/** Shorter rounds and higher boss thresholds make regular zombies tougher. */
+export function computeZombieScaling(roundDurationSec: number, bossEvery: number): ZombieScaling {
+  const duration = roundDurationSec > 0 ? roundDurationSec : 3600;
+  const durationFactor = Math.max(0.8, Math.min(2.75, Math.sqrt(1800 / duration)));
+  const threshold = Math.max(5, Math.min(150, bossEvery));
+  const bossFactor = 1 + ((threshold - 5) / 145) * 1.15;
+  const combined = durationFactor * bossFactor;
+  return {
+    hpMult: combined,
+    speedMult: 1 + (combined - 1) * 0.38,
+    damageMult: 1 + (combined - 1) * 0.55,
+    label: `×${combined.toFixed(2)}`,
+  };
+}
 
 /** Boss power scales with comment threshold — 100+ = mega boss, 150 = ×4.8 HP (3 هيلات). */
 export function computeBossProfile(bossEvery: number): BossProfile {
@@ -82,6 +111,7 @@ export function computeBossProfile(bossEvery: number): BossProfile {
       segments: 3,
       tier: 3,
       isMega: true,
+      isTitan: false,
       title: MEGA_BOSS_TITLE,
       hp: Math.round(BOSS_HP * multiplier),
       damage: Math.round(BOSS_DAMAGE * (1 + (multiplier - 1) * 0.8)),
@@ -102,6 +132,7 @@ export function computeBossProfile(bossEvery: number): BossProfile {
     segments,
     tier,
     isMega: false,
+    isTitan: false,
     title: BOSS_TITLES[tier],
     hp: Math.round(BOSS_HP * multiplier),
     damage: Math.round(BOSS_DAMAGE * (1 + (multiplier - 1) * 0.6)),
@@ -110,6 +141,28 @@ export function computeBossProfile(bossEvery: number): BossProfile {
     radius: 1.75 + (multiplier - 1) * 0.3,
     auraIntensity: 2.4 + (multiplier - 1) * 2,
     auraRadius: 12 + (multiplier - 1) * 6,
+  };
+}
+
+/** Exceptional titan — always every 50 zombie comments. Tail smash + self-heal. */
+export function computeTitanProfile(bossEvery: number): BossProfile {
+  const threshold = Math.max(5, Math.min(150, bossEvery));
+  const t = (threshold - 5) / 145;
+  const multiplier = 4.4 + t * 2.1;
+  return {
+    multiplier,
+    segments: 3,
+    tier: 3,
+    isMega: false,
+    isTitan: true,
+    title: TITAN_BOSS_TITLE,
+    hp: Math.round(BOSS_HP * multiplier * 1.4),
+    damage: Math.round(PLAYER_MAX_HP * 0.58),
+    speed: 0.92,
+    scale: 4.95,
+    radius: 2.75,
+    auraIntensity: 6.2,
+    auraRadius: 30,
   };
 }
 
@@ -129,6 +182,18 @@ type Mob = {
   hpFill: THREE.Sprite;
   hpLabel: THREE.Sprite;
   bossSegments: number;
+  isTitan: boolean;
+  lastDamagedAt: number;
+  tailCd: number;
+  tailWindup: number;
+  hpPaintRatio: number;
+  hpPaintAcc: number;
+  animHips: THREE.Object3D;
+  animLegL: THREE.Object3D;
+  animLegR: THREE.Object3D;
+  animArmL: THREE.Object3D;
+  animArmR: THREE.Object3D;
+  animTail?: THREE.Object3D;
 };
 
 type SpawnJob = { kind: MobKind; from: string };
@@ -146,6 +211,72 @@ type FxExplosion = {
   life: number;
   maxLife: number;
 };
+
+type SmokePuff = {
+  mesh: THREE.Mesh;
+  life: number;
+  maxLife: number;
+};
+
+type DyingMob = {
+  root: THREE.Group;
+  life: number;
+  maxLife: number;
+};
+
+type HealOrbFx = {
+  sprite: THREE.Sprite;
+  amount: number;
+  kind: MobKind;
+  speed: number;
+  trailTimer: number;
+  bob: number;
+};
+
+function healOrbColors(kind: MobKind) {
+  if (kind === "titan") return { core: "#67e8f9", ring: "#22d3ee", text: "#ecfeff" };
+  if (kind === "boss") return { core: "#f0abfc", ring: "#e879f9", text: "#fdf4ff" };
+  return { core: "#86efac", ring: "#4ade80", text: "#ecfdf5" };
+}
+
+function makeHealOrbTexture(amount: number, kind: MobKind) {
+  const { core, ring, text } = healOrbColors(kind);
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d")!;
+  ctx.clearRect(0, 0, 128, 128);
+  const glow = ctx.createRadialGradient(64, 64, 6, 64, 64, 58);
+  glow.addColorStop(0, `${core}ee`);
+  glow.addColorStop(0.45, `${ring}88`);
+  glow.addColorStop(1, "transparent");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(64, 64, 56, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = ring;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(64, 64, 34, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.font = "bold 40px Segoe UI, Tahoma, Arial";
+  ctx.fillStyle = text;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "rgba(0,0,0,0.65)";
+  ctx.shadowBlur = 8;
+  ctx.fillText(`+${amount}`, 64, 68);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function disposeHealOrb(orb: HealOrbFx, scene: THREE.Scene) {
+  scene.remove(orb.sprite);
+  const mat = orb.sprite.material as THREE.SpriteMaterial;
+  mat.map?.dispose();
+  mat.dispose();
+}
 
 type WeaponSpec = {
   id: WeaponId;
@@ -181,7 +312,10 @@ const PLAYER_MAX_HP = 100;
 /** Small sustain reward for picking off zombies. */
 const ZOMBIE_KILL_HEAL = 4;
 const BOSS_KILL_HEAL = ZOMBIE_KILL_HEAL * 2;
-const MAX_ALIVE = 42;
+const MAX_ALIVE = 30;
+const HUD_EMIT_INTERVAL = 0.22;
+const MAX_SPAWN_PER_FRAME = 3;
+const SPARK_POOL_CAP = 48;
 const MOVE_SPEED = 6.8;
 /** Base assault rifle. */
 const RIFLE_DAMAGE = 22;
@@ -207,26 +341,56 @@ const ZOMBIE_SPEED = 2.45;
 const BOSS_SPEED = 1.28;
 const ZOMBIE_DAMAGE = 14;
 const BOSS_DAMAGE = 32;
-const ARENA = 44;
+const ARENA = 70;
 const WALL = ARENA / 2 - 0.75;
 /** Three zombie gates spread across the far wall. */
 const SPAWN_EDGE = WALL - 1.15;
-const SPAWN_SPREAD = 1.05;
+const SPAWN_SPREAD = 1.2;
 const SPAWN_GATES = [
-  { x: -13, z: -SPAWN_EDGE },
+  { x: -20, z: -SPAWN_EDGE },
   { x: 0, z: -SPAWN_EDGE },
-  { x: 13, z: -SPAWN_EDGE },
+  { x: 20, z: -SPAWN_EDGE },
 ] as const;
 
 const PLAYER_RADIUS = 0.45;
+const PLAYER_EYE_HEIGHT = 1.67;
+const JUMP_VELOCITY = 6.2;
+const GRAVITY = 18;
+/** Climbable hills — smooth dome height sampled for player + mobs. */
+type HillDef = { x: number; z: number; radius: number; height: number };
+const HILLS: HillDef[] = [
+  { x: -20, z: 14, radius: 10, height: 4.8 },
+  { x: 18, z: -12, radius: 12, height: 6.2 },
+  { x: -10, z: -22, radius: 8.5, height: 3.8 },
+  { x: 24, z: 20, radius: 11, height: 5.2 },
+  { x: 2, z: 10, radius: 13, height: 4.2 },
+  { x: -24, z: -8, radius: 9, height: 3.5 },
+];
+
+function terrainHeight(x: number, z: number) {
+  let h = 0;
+  for (const hill of HILLS) {
+    const dx = x - hill.x;
+    const dz = z - hill.z;
+    const distSq = dx * dx + dz * dz;
+    const rSq = hill.radius * hill.radius;
+    if (distSq < rSq) {
+      const t = 1 - distSq / rSq;
+      h = Math.max(h, hill.height * t * t);
+    }
+  }
+  return h;
+}
+
 /** Arena crates used for simple blocking collision. */
 const OBSTACLES = [
-  [-10, -8, 1.5],
-  [11, 7, 1.9],
-  [-5.5, 12, 1.25],
-  [8, -11, 1.6],
-  [0, -13.5, 1.1],
-  [-13.5, 3, 1.35],
+  [-16, -12, 1.5],
+  [18, 11, 1.9],
+  [-9, 18, 1.25],
+  [12, -17, 1.6],
+  [0, -20, 1.1],
+  [-22, 5, 1.35],
+  [20, 2, 1.4],
 ] as const;
 
 function wallBound(radius: number) {
@@ -291,7 +455,8 @@ type SpawnGateVisual = {
 
 function createSpawnGate(x: number, z: number): SpawnGateVisual {
   const group = new THREE.Group();
-  group.position.set(x, 0, z);
+  const ground = terrainHeight(x, z);
+  group.position.set(x, ground, z);
   const portalRing = new THREE.Mesh(
     new THREE.RingGeometry(1.35, 2.15, 36),
     new THREE.MeshBasicMaterial({
@@ -351,7 +516,62 @@ function makeNoiseTexture(size = 256, tint: [number, number, number], contrast =
   return tex;
 }
 
-function makeNameTag(name: string, boss: boolean, mega = false) {
+function createSkyDome() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 512;
+  const ctx = canvas.getContext("2d")!;
+  const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  sky.addColorStop(0, "#1a4f7a");
+  sky.addColorStop(0.38, "#5ba3d9");
+  sky.addColorStop(0.72, "#9fd4f7");
+  sky.addColorStop(1, "#d4e8c8");
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const sun = ctx.createRadialGradient(760, 110, 8, 760, 110, 140);
+  sun.addColorStop(0, "rgba(255,248,220,0.95)");
+  sun.addColorStop(0.35, "rgba(255,220,140,0.35)");
+  sun.addColorStop(1, "transparent");
+  ctx.fillStyle = sun;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const haze = ctx.createLinearGradient(0, canvas.height * 0.55, 0, canvas.height);
+  haze.addColorStop(0, "transparent");
+  haze.addColorStop(1, "rgba(200,220,180,0.55)");
+  ctx.fillStyle = haze;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(130, 36, 20),
+    new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false }),
+  );
+  return dome;
+}
+
+function scatterArenaRocks(scene: THREE.Scene) {
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x5a5348, roughness: 0.96, metalness: 0.02 });
+  const positions: [number, number, number][] = [
+    [-24, 8, 0.7],
+    [20, -16, 0.55],
+    [-8, -24, 0.9],
+    [28, 14, 0.65],
+    [-18, 22, 0.5],
+    [12, 24, 0.8],
+    [-30, -12, 0.6],
+    [6, 6, 0.45],
+  ];
+  for (const [x, z, s] of positions) {
+    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), rockMat);
+    const gy = terrainHeight(x, z);
+    rock.position.set(x, gy + s * 0.35, z);
+    rock.rotation.set(Math.random() * 0.5, Math.random() * Math.PI, Math.random() * 0.4);
+    rock.castShadow = true;
+    rock.receiveShadow = true;
+    scene.add(rock);
+  }
+}
+
+function makeNameTag(name: string, boss: boolean, mega = false, titan = false) {
   const label = (name || "مشاهد").trim().slice(0, 18);
   const canvas = document.createElement("canvas");
   canvas.width = 512;
@@ -375,18 +595,22 @@ function makeNameTag(name: string, boss: boolean, mega = false) {
   ctx.arcTo(boxX, boxY + boxH, boxX, boxY, r);
   ctx.arcTo(boxX, boxY, boxX + boxW, boxY, r);
   ctx.closePath();
-  ctx.fillStyle = mega
-    ? "rgba(69, 10, 10, 0.94)"
-    : boss
-      ? "rgba(88, 28, 135, 0.88)"
-      : "rgba(6, 24, 16, 0.88)";
+  ctx.fillStyle = titan
+    ? "rgba(8, 47, 73, 0.96)"
+    : mega
+      ? "rgba(69, 10, 10, 0.94)"
+      : boss
+        ? "rgba(88, 28, 135, 0.88)"
+        : "rgba(6, 24, 16, 0.88)";
   ctx.fill();
-  ctx.lineWidth = mega ? 5 : 4;
-  ctx.strokeStyle = mega
-    ? "rgba(251, 113, 133, 0.98)"
-    : boss
-      ? "rgba(232, 121, 249, 0.95)"
-      : "rgba(52, 211, 153, 0.95)";
+  ctx.lineWidth = titan ? 5 : mega ? 5 : 4;
+  ctx.strokeStyle = titan
+    ? "rgba(34, 211, 238, 0.98)"
+    : mega
+      ? "rgba(251, 113, 133, 0.98)"
+      : boss
+        ? "rgba(232, 121, 249, 0.95)"
+        : "rgba(52, 211, 153, 0.95)";
   ctx.stroke();
 
   ctx.fillStyle = "#ffffff";
@@ -485,6 +709,7 @@ function paintHpBar(
   maxHp: number,
   boss: boolean,
   segments = 1,
+  isTitan = false,
 ) {
   const ratio = Math.max(0, Math.min(1, hp / maxHp));
   const fillCanvas = (fill.material as THREE.SpriteMaterial).map!.image as HTMLCanvasElement;
@@ -494,7 +719,11 @@ function paintHpBar(
   const w = Math.max(4, Math.floor(232 * ratio));
   const grad = ctx.createLinearGradient(12, 0, 12 + w, 0);
   if (boss) {
-    if (segments >= 3) {
+    if (isTitan) {
+      grad.addColorStop(0, "#67e8f9");
+      grad.addColorStop(0.45, "#22d3ee");
+      grad.addColorStop(1, ratio < 0.35 ? "#0891b2" : "#0e7490");
+    } else if (segments >= 3) {
       grad.addColorStop(0, "#fda4af");
       grad.addColorStop(0.5, "#e879f9");
       grad.addColorStop(1, ratio < 0.35 ? "#ef4444" : "#7c3aed");
@@ -553,67 +782,78 @@ function paintHpBar(
 
 function makeZombieMesh(kind: MobKind, fromName: string, bossProfile?: BossProfile) {
   const g = new THREE.Group();
-  const boss = kind === "boss";
+  const isTitan = kind === "titan" || (bossProfile?.isTitan ?? false);
+  const boss = kind === "boss" || isTitan;
   const scale = boss ? (bossProfile?.scale ?? 2.85) : 1.08;
   const tier = bossProfile?.tier ?? 0;
   const isMega = bossProfile?.isMega ?? false;
 
   const skin = new THREE.MeshStandardMaterial({
     color: boss
-      ? isMega
-        ? 0x1a0505
-        : tier >= 3
-          ? 0x4c0519
-          : tier >= 2
-            ? 0x581c87
-            : 0x6b21a8
+      ? isTitan
+        ? 0x083344
+        : isMega
+          ? 0x1a0505
+          : tier >= 3
+            ? 0x4c0519
+            : tier >= 2
+              ? 0x581c87
+              : 0x6b21a8
       : 0x4a6b45,
     roughness: 0.88,
-    metalness: boss && (isMega || tier >= 2) ? 0.22 : 0.02,
-    emissive: boss ? (isMega ? 0x991b1b : tier >= 3 ? 0x7f1d1d : 0x3b0764) : 0x1a2e1a,
-    emissiveIntensity: boss ? (isMega ? 0.55 : 0.28 + tier * 0.12) : 0.08,
+    metalness: boss && (isTitan || isMega || tier >= 2) ? 0.28 : 0.02,
+    emissive: boss
+      ? isTitan
+        ? 0x0e7490
+        : isMega
+          ? 0x991b1b
+          : tier >= 3
+            ? 0x7f1d1d
+            : 0x3b0764
+      : 0x1a2e1a,
+    emissiveIntensity: boss ? (isTitan ? 0.65 : isMega ? 0.55 : 0.28 + tier * 0.12) : 0.08,
   });
   const cloth = new THREE.MeshStandardMaterial({
-    color: boss ? (isMega ? 0x0f0a0a : 0x2e1065) : 0x2a3328,
+    color: boss ? (isTitan ? 0x042f2e : isMega ? 0x0f0a0a : 0x2e1065) : 0x2a3328,
     roughness: 0.92,
-    emissive: isMega ? 0x450a0a : 0x000000,
-    emissiveIntensity: isMega ? 0.25 : 0,
+    emissive: isTitan ? 0x155e75 : isMega ? 0x450a0a : 0x000000,
+    emissiveIntensity: isTitan ? 0.35 : isMega ? 0.25 : 0,
   });
   const eyeMat = new THREE.MeshStandardMaterial({
-    color: boss ? (isMega ? 0xffea00 : 0xff1f4b) : 0xc8ff4a,
-    emissive: boss ? (isMega ? 0xff6600 : 0xff1f4b) : 0x84cc16,
-    emissiveIntensity: isMega ? 2.2 : 1.4,
+    color: boss ? (isTitan ? 0xfef08a : isMega ? 0xffea00 : 0xff1f4b) : 0xc8ff4a,
+    emissive: boss ? (isTitan ? 0xfacc15 : isMega ? 0xff6600 : 0xff1f4b) : 0x84cc16,
+    emissiveIntensity: isTitan ? 2.4 : isMega ? 2.2 : 1.4,
   });
 
   const hips = new THREE.Group();
   hips.name = "hips";
   g.add(hips);
 
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.28 * scale, 0.55 * scale, 6, 12), cloth);
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.28 * scale, 0.55 * scale, 4, 8), cloth);
   torso.position.y = 1.15 * scale;
-  torso.castShadow = true;
+  torso.castShadow = boss;
   hips.add(torso);
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22 * scale, 16, 16), skin);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22 * scale, 10, 10), skin);
   head.position.y = 1.72 * scale;
-  head.castShadow = true;
+  head.castShadow = boss;
   hips.add(head);
 
   const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.18 * scale, 0.08 * scale, 0.12 * scale), skin);
   jaw.position.set(0, 1.58 * scale, 0.12 * scale);
   hips.add(jaw);
 
-  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.045 * scale, 8, 8), eyeMat);
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.045 * scale, 6, 6), eyeMat);
   const eyeR = eyeL.clone();
   eyeL.position.set(-0.08 * scale, 1.76 * scale, 0.18 * scale);
   eyeR.position.set(0.08 * scale, 1.76 * scale, 0.18 * scale);
   hips.add(eyeL, eyeR);
 
-  const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.08 * scale, 0.45 * scale, 4, 8), skin);
+  const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.08 * scale, 0.45 * scale, 3, 6), skin);
   armL.name = "armL";
   armL.position.set(-0.42 * scale, 1.25 * scale, 0.05 * scale);
   armL.rotation.z = 0.35;
-  armL.castShadow = true;
+  armL.castShadow = false;
   hips.add(armL);
 
   const armR = armL.clone();
@@ -622,10 +862,10 @@ function makeZombieMesh(kind: MobKind, fromName: string, bossProfile?: BossProfi
   armR.rotation.z = -0.35;
   hips.add(armR);
 
-  const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.1 * scale, 0.5 * scale, 4, 8), cloth);
+  const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.1 * scale, 0.5 * scale, 3, 6), cloth);
   legL.name = "legL";
   legL.position.set(-0.14 * scale, 0.45 * scale, 0);
-  legL.castShadow = true;
+  legL.castShadow = false;
   hips.add(legL);
 
   const legR = legL.clone();
@@ -698,96 +938,243 @@ function makeZombieMesh(kind: MobKind, fromName: string, bossProfile?: BossProfi
       g.add(hellRing);
     }
 
+    if (isTitan) {
+      const tailMat = new THREE.MeshStandardMaterial({
+        color: 0x0e7490,
+        emissive: 0x06b6d4,
+        emissiveIntensity: 0.75,
+        metalness: 0.45,
+        roughness: 0.3,
+      });
+      const tail = new THREE.Group();
+      tail.name = "tail";
+      for (let i = 0; i < 6; i++) {
+        const seg = new THREE.Mesh(
+          new THREE.SphereGeometry(0.22 * scale * (1 - i * 0.07), 10, 10),
+          tailMat,
+        );
+        seg.position.set(0, 0.85 * scale, 0.45 * scale + i * 0.38 * scale);
+        tail.add(seg);
+      }
+      const tailSpike = new THREE.Mesh(new THREE.ConeGeometry(0.2 * scale, 0.65 * scale, 10), tailMat);
+      tailSpike.rotation.x = Math.PI / 2;
+      tailSpike.position.set(0, 0.75 * scale, 2.35 * scale);
+      tail.add(tailSpike);
+      hips.add(tail);
+
+      const plateMat = new THREE.MeshStandardMaterial({
+        color: 0x164e63,
+        metalness: 0.8,
+        roughness: 0.22,
+        emissive: 0x22d3ee,
+        emissiveIntensity: 0.4,
+      });
+      const chest = new THREE.Mesh(new THREE.BoxGeometry(0.72 * scale, 0.55 * scale, 0.42 * scale), plateMat);
+      chest.position.set(0, 1.2 * scale, 0.05 * scale);
+      hips.add(chest);
+
+      const titanRing = new THREE.Mesh(
+        new THREE.RingGeometry(1.05 * scale, 1.45 * scale, 36),
+        new THREE.MeshBasicMaterial({
+          color: 0x22d3ee,
+          transparent: true,
+          opacity: 0.45,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        }),
+      );
+      titanRing.rotation.x = -Math.PI / 2;
+      titanRing.position.y = 0.05;
+      g.add(titanRing);
+    }
+
     const aura = new THREE.PointLight(
-      isMega ? 0xff4500 : tier >= 3 ? 0xf43f5e : 0xc026ff,
+      isTitan ? 0x22d3ee : isMega ? 0xff4500 : tier >= 3 ? 0xf43f5e : 0xc026ff,
       bossProfile?.auraIntensity ?? 2.4,
       bossProfile?.auraRadius ?? 12,
     );
     aura.position.y = 1.4 * scale;
     g.add(aura);
 
-    if (tier >= 3 || isMega) {
-      const rage = new THREE.PointLight(isMega ? 0xdc2626 : 0xfb7185, isMega ? 3.2 : 1.8, isMega ? 26 : 18, 2);
+    if (tier >= 3 || isMega || isTitan) {
+      const rage = new THREE.PointLight(
+        isTitan ? 0x06b6d4 : isMega ? 0xdc2626 : 0xfb7185,
+        isTitan ? 3.8 : isMega ? 3.2 : 1.8,
+        isTitan ? 30 : isMega ? 26 : 18,
+        2,
+      );
       rage.position.y = 2.8 * scale;
       g.add(rage);
     }
   }
 
-  const hpBarScale = boss ? 3.2 + tier * 0.35 + (isMega ? 0.9 : 0) : 1.6;
+  const hpBarScale = boss ? 3.2 + tier * 0.35 + (isMega ? 0.9 : 0) + (isTitan ? 1.1 : 0) : 1.6;
   const hp = makeHpBarSprites(boss, hpBarScale);
-  g.add(makeNameTag(fromName, boss, isMega));
+  g.add(makeNameTag(fromName, boss, isMega, isTitan));
   g.add(hp.bg, hp.fill, hp.hpLabel);
-  return { root: g, hpFill: hp.fill, hpLabel: hp.hpLabel };
+
+  let animTail: THREE.Object3D | undefined;
+  if (isTitan) {
+    animTail = hips.getObjectByName("tail") ?? undefined;
+  }
+
+  return {
+    root: g,
+    hpFill: hp.fill,
+    hpLabel: hp.hpLabel,
+    anim: { hips, legL, legR, armL, armR, tail: animTail },
+  };
+}
+
+function addWeaponPart(
+  weapon: THREE.Group,
+  geo: THREE.BufferGeometry,
+  mat: THREE.Material,
+  x: number,
+  y: number,
+  z: number,
+  rx = 0,
+  ry = 0,
+  rz = 0,
+  name?: string,
+) {
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, z);
+  mesh.rotation.set(rx, ry, rz);
+  if (name) mesh.name = name;
+  weapon.add(mesh);
+  return mesh;
 }
 
 function makeRifleWeapon(tier = 0) {
   const weapon = new THREE.Group();
-  const metal = new THREE.MeshStandardMaterial({
-    color: tier > 0 ? 0x1f2937 : 0x111827,
-    metalness: 0.85,
-    roughness: 0.28,
+  const ox = 0.28;
+
+  const steel = new THREE.MeshStandardMaterial({ color: 0x2c3136, metalness: 0.9, roughness: 0.36 });
+  const steelDark = new THREE.MeshStandardMaterial({ color: 0x181b1e, metalness: 0.88, roughness: 0.4 });
+  const steelWorn = new THREE.MeshStandardMaterial({ color: 0x3a3f44, metalness: 0.82, roughness: 0.48 });
+  const polymer = new THREE.MeshStandardMaterial({ color: 0x3a3630, metalness: 0.12, roughness: 0.72 });
+  const rubber = new THREE.MeshStandardMaterial({ color: 0x141414, metalness: 0.05, roughness: 0.86 });
+  const magMat = new THREE.MeshStandardMaterial({
+    color: tier > 1 ? 0x5a4c38 : 0x454038,
+    metalness: 0.42,
+    roughness: 0.52,
   });
-  const polymer = new THREE.MeshStandardMaterial({
-    color: 0x1f2937,
-    metalness: 0.25,
-    roughness: 0.55,
+  const lensMat = new THREE.MeshStandardMaterial({
+    color: 0x1a3048,
+    metalness: 0.95,
+    roughness: 0.08,
+    transparent: true,
+    opacity: 0.88,
   });
-  const accentColors = [0x2dd4bf, 0xfbbf24, 0xf472b6, 0xa78bfa] as const;
   const accent = new THREE.MeshStandardMaterial({
-    color: accentColors[tier] ?? accentColors[0],
+    color: [0x7a6a52, 0x9a8458, 0x8a7860, 0xa89068][tier] ?? 0x7a6a52,
     metalness: 0.55,
-    roughness: 0.25,
-    emissive: tier > 0 ? 0x7c2d12 : 0x0f766e,
-    emissiveIntensity: tier > 0 ? 0.55 : 0.35,
+    roughness: 0.38,
   });
 
-  const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.18, 0.72), metal);
-  receiver.position.set(0.28, -0.2, -0.62);
-  weapon.add(receiver);
+  const part = (
+    geo: THREE.BufferGeometry,
+    mat: THREE.Material,
+    x: number,
+    y: number,
+    z: number,
+    rx = 0,
+    ry = 0,
+    rz = 0,
+    name?: string,
+  ) => addWeaponPart(weapon, geo, mat, ox + x, y, z, rx, ry, rz, name);
 
-  const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.42), polymer);
-  handguard.position.set(0.28, -0.18, -1.05);
-  weapon.add(handguard);
+  // Lower / upper receiver block
+  part(new THREE.BoxGeometry(0.1, 0.095, 0.36), steel, 0, -0.21, -0.46);
+  part(new THREE.BoxGeometry(0.095, 0.085, 0.4), steelDark, 0, -0.155, -0.54);
+  part(new THREE.BoxGeometry(0.018, 0.038, 0.09), steelWorn, 0.052, -0.165, -0.5);
 
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.038, 0.62 + tier * 0.04, 12), metal);
-  barrel.rotation.x = Math.PI / 2;
-  barrel.position.set(0.28, -0.14, -1.42);
-  weapon.add(barrel);
+  // Barrel + gas system
+  const barrelLen = 0.48 + tier * 0.035;
+  part(new THREE.CylinderGeometry(0.016, 0.02, barrelLen, 12), steel, 0, -0.138, -0.98, Math.PI / 2);
+  part(new THREE.BoxGeometry(0.038, 0.032, 0.048), steelDark, 0, -0.138, -0.86);
+  part(new THREE.CylinderGeometry(0.011, 0.011, 0.14, 8), steelWorn, 0, -0.155, -0.86, Math.PI / 2);
 
-  const muzzle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.1, 10), metal);
-  muzzle.rotation.x = Math.PI / 2;
-  muzzle.position.set(0.28, -0.14, -1.74 - tier * 0.03);
-  muzzle.name = "muzzle";
-  weapon.add(muzzle);
+  // Handguard (rifle-length rail)
+  part(new THREE.BoxGeometry(0.09, 0.08, 0.34), polymer, 0, -0.162, -0.9);
+  part(new THREE.BoxGeometry(0.055, 0.014, 0.33), steelWorn, 0, -0.118, -0.9);
+  part(new THREE.BoxGeometry(0.055, 0.014, 0.33), steelWorn, 0, -0.205, -0.9);
+  for (let i = 0; i < 5; i++) {
+    part(new THREE.BoxGeometry(0.076, 0.01, 0.028), steelDark, 0, -0.162, -0.76 - i * 0.065);
+  }
 
-  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.34), polymer);
-  stock.position.set(0.28, -0.24, -0.18);
-  weapon.add(stock);
+  // Muzzle brake
+  const muzzleZ = -1.22 - tier * 0.03;
+  part(new THREE.CylinderGeometry(0.026, 0.03, 0.09, 12), steelDark, 0, -0.138, muzzleZ, Math.PI / 2, 0, 0, "muzzle");
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + 0.4;
+    part(
+      new THREE.BoxGeometry(0.012, 0.032, 0.018),
+      steel,
+      Math.cos(a) * 0.028,
+      -0.138 + Math.sin(a) * 0.028,
+      muzzleZ - 0.02,
+      0,
+      0,
+      a,
+    );
+  }
 
-  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.22, 0.14), polymer);
-  grip.position.set(0.28, -0.38, -0.42);
-  grip.rotation.x = 0.35;
+  // Stock assembly
+  part(new THREE.CylinderGeometry(0.026, 0.026, 0.18, 10), steel, 0, -0.175, -0.1, Math.PI / 2);
+  part(new THREE.BoxGeometry(0.075, 0.1, 0.26), polymer, 0, -0.195, 0.1);
+  part(new THREE.BoxGeometry(0.082, 0.11, 0.018), rubber, 0, -0.195, 0.23);
+  part(new THREE.BoxGeometry(0.04, 0.05, 0.08), accent, 0, -0.17, 0.04);
+
+  // Pistol grip + trigger guard
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.19, 0.105), rubber);
+  grip.position.set(ox, -0.355, -0.36);
+  grip.rotation.set(0.4, 0, -0.06);
   weapon.add(grip);
+  part(new THREE.BoxGeometry(0.028, 0.055, 0.018), steelDark, 0, -0.285, -0.42);
+  part(new THREE.TorusGeometry(0.034, 0.007, 6, 14, Math.PI), steelDark, 0, -0.275, -0.44, 0, Math.PI / 2);
 
-  const mag = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.28, 0.14), accent);
-  mag.position.set(0.28, -0.42, -0.58);
+  // Curved magazine
+  const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.21, 0.115), magMat);
+  mag.position.set(ox + 0.008, -0.395, -0.5);
+  mag.rotation.set(0.2, 0, 0.02);
   weapon.add(mag);
+  part(new THREE.BoxGeometry(0.068, 0.018, 0.1), steelWorn, 0.008, -0.5, -0.46);
+  part(new THREE.BoxGeometry(0.064, 0.012, 0.095), accent, 0.008, -0.31, -0.54);
 
-  const optic = new THREE.Mesh(new THREE.BoxGeometry(0.06 + tier * 0.01, 0.08, 0.22 + tier * 0.04), accent);
-  optic.position.set(0.28, -0.06, -0.72);
-  weapon.add(optic);
+  // Iron sights
+  part(new THREE.BoxGeometry(0.006, 0.038, 0.006), steel, 0, -0.102, -1.14);
+  part(new THREE.BoxGeometry(0.042, 0.022, 0.012), steelDark, 0, -0.118, -0.36);
+  part(new THREE.BoxGeometry(0.018, 0.008, 0.012), steel, 0, -0.112, -0.36);
 
   if (tier > 0) {
-    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.03, 0.5), accent);
-    rail.position.set(0.28, -0.1, -0.95);
-    weapon.add(rail);
+    part(new THREE.BoxGeometry(0.052, 0.05, 0.12 + tier * 0.015), rubber, 0, -0.078, -0.66);
+    part(new THREE.CylinderGeometry(0.02, 0.02, 0.006, 12), lensMat, 0, -0.078, -0.6, Math.PI / 2);
+    part(new THREE.BoxGeometry(0.038, 0.016, 0.05), steel, 0, -0.102, -0.66);
+    part(new THREE.BoxGeometry(0.008, 0.028, 0.008), steelWorn, 0.028, -0.078, -0.66);
+  }
+  if (tier >= 2) {
+    part(new THREE.CylinderGeometry(0.013, 0.013, 0.055, 8), polymer, 0.048, -0.158, -0.82, 0, 0, Math.PI / 2);
+    part(
+      new THREE.SphereGeometry(0.008, 8, 8),
+      new THREE.MeshStandardMaterial({ color: 0x661111, emissive: 0x440000, emissiveIntensity: 0.25 }),
+      0.078,
+      -0.158,
+      -0.82,
+    );
+  }
+  if (tier >= 3) {
+    part(new THREE.CylinderGeometry(0.034, 0.038, 0.16, 14), steelWorn, 0, -0.138, muzzleZ - 0.1, Math.PI / 2);
+    part(new THREE.BoxGeometry(0.058, 0.042, 0.14), rubber, 0, -0.075, -0.7);
+    part(new THREE.CylinderGeometry(0.022, 0.022, 0.005, 12), lensMat, 0, -0.075, -0.64, Math.PI / 2);
   }
 
   const flash = new THREE.Mesh(
-    new THREE.SphereGeometry(0.08 + tier * 0.02, 10, 10),
-    new THREE.MeshBasicMaterial({ color: tier > 0 ? 0xffc857 : 0xffe566, transparent: true, opacity: 0 }),
+    new THREE.SphereGeometry(0.07 + tier * 0.012, 10, 10),
+    new THREE.MeshBasicMaterial({ color: 0xffd080, transparent: true, opacity: 0 }),
   );
-  flash.position.set(0.28, -0.14, -1.86 - tier * 0.03);
+  flash.position.set(ox, -0.138, muzzleZ - 0.05);
   flash.name = "flash";
   weapon.add(flash);
 
@@ -796,54 +1183,71 @@ function makeRifleWeapon(tier = 0) {
 
 function makeRpgWeapon() {
   const weapon = new THREE.Group();
-  const tube = new THREE.MeshStandardMaterial({
-    color: 0x334155,
-    metalness: 0.7,
-    roughness: 0.35,
-  });
-  const warhead = new THREE.MeshStandardMaterial({
-    color: 0x166534,
-    metalness: 0.45,
-    roughness: 0.4,
-    emissive: 0x14532d,
-    emissiveIntensity: 0.35,
-  });
-  const gripMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.7, metalness: 0.2 });
+  const ox = 0.3;
 
-  const launcher = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 1.38), tube);
-  launcher.position.set(0.3, -0.22, -1.08);
-  weapon.add(launcher);
+  const tubeSteel = new THREE.MeshStandardMaterial({ color: 0x4a5248, metalness: 0.78, roughness: 0.44 });
+  const tubeDark = new THREE.MeshStandardMaterial({ color: 0x2f3530, metalness: 0.82, roughness: 0.4 });
+  const warheadOlive = new THREE.MeshStandardMaterial({ color: 0x4d5c3a, metalness: 0.35, roughness: 0.58 });
+  const warheadNose = new THREE.MeshStandardMaterial({ color: 0x6b7a52, metalness: 0.42, roughness: 0.5 });
+  const wood = new THREE.MeshStandardMaterial({ color: 0x5c4632, metalness: 0.08, roughness: 0.82 });
+  const rubber = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.05, roughness: 0.88 });
+  const bandMat = new THREE.MeshStandardMaterial({ color: 0x8a7a50, metalness: 0.65, roughness: 0.45 });
 
-  const mouth = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, 0.22, 12), tube);
-  mouth.rotation.x = Math.PI / 2;
-  mouth.position.set(0.3, -0.2, -1.82);
-  mouth.name = "muzzle";
-  weapon.add(mouth);
+  const part = (
+    geo: THREE.BufferGeometry,
+    mat: THREE.Material,
+    x: number,
+    y: number,
+    z: number,
+    rx = 0,
+    ry = 0,
+    rz = 0,
+    name?: string,
+  ) => addWeaponPart(weapon, geo, mat, ox + x, y, z, rx, ry, rz, name);
 
-  const rocket = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.72, 12), warhead);
-  rocket.rotation.x = Math.PI / 2;
-  rocket.position.set(0.3, -0.2, -1.32);
-  weapon.add(rocket);
+  // Main launch tube (RPG-7 style)
+  part(new THREE.CylinderGeometry(0.09, 0.095, 1.05, 16), tubeSteel, 0, -0.2, -0.95, Math.PI / 2);
+  part(new THREE.CylinderGeometry(0.105, 0.09, 0.22, 16), tubeDark, 0, -0.2, -0.28, Math.PI / 2);
+  part(new THREE.CylinderGeometry(0.115, 0.1, 0.18, 16), tubeDark, 0, -0.2, -0.12, Math.PI / 2);
 
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.22, 12), warhead);
-  nose.rotation.x = -Math.PI / 2;
-  nose.position.set(0.3, -0.2, -1.82);
-  weapon.add(nose);
+  // Heat / reinforcement bands
+  for (const z of [-0.55, -0.78, -1.02]) {
+    part(new THREE.TorusGeometry(0.092, 0.008, 8, 20), bandMat, 0, -0.2, z, Math.PI / 2);
+  }
 
-  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.24, 0.14), gripMat);
-  grip.position.set(0.3, -0.42, -0.55);
-  grip.rotation.x = 0.3;
+  // Warhead assembly
+  part(new THREE.CylinderGeometry(0.07, 0.078, 0.58, 14), warheadOlive, 0, -0.198, -1.42, Math.PI / 2);
+  part(new THREE.ConeGeometry(0.078, 0.2, 14), warheadNose, 0, -0.198, -1.78, -Math.PI / 2);
+  part(new THREE.CylinderGeometry(0.05, 0.07, 0.12, 12), tubeDark, 0, -0.198, -1.22, Math.PI / 2);
+  part(new THREE.BoxGeometry(0.016, 0.08, 0.04), warheadOlive, 0, -0.155, -1.5);
+
+  const muzzleZ = -1.88;
+  part(new THREE.CylinderGeometry(0.08, 0.085, 0.08, 14), tubeDark, 0, -0.198, muzzleZ, Math.PI / 2, 0, 0, "muzzle");
+
+  // Pistol grip + forward support
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.2, 0.11), rubber);
+  grip.position.set(ox, -0.41, -0.48);
+  grip.rotation.set(0.35, 0, 0);
   weapon.add(grip);
+  const foreGrip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.14, 0.09), wood);
+  foreGrip.position.set(ox, -0.32, -0.92);
+  foreGrip.rotation.set(0.55, 0, 0);
+  weapon.add(foreGrip);
 
-  const sight = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, 0.12), warhead);
-  sight.position.set(0.3, -0.04, -0.82);
-  weapon.add(sight);
+  // Shoulder rest
+  part(new THREE.BoxGeometry(0.12, 0.08, 0.14), wood, 0, -0.24, 0.02);
+  part(new THREE.BoxGeometry(0.13, 0.09, 0.02), rubber, 0, -0.24, 0.09);
+
+  // Leaf sight + optic rail stub
+  part(new THREE.BoxGeometry(0.008, 0.055, 0.04), tubeDark, 0, -0.1, -0.72);
+  part(new THREE.BoxGeometry(0.035, 0.006, 0.08), tubeDark, 0, -0.125, -0.72);
+  part(new THREE.BoxGeometry(0.006, 0.028, 0.006), bandMat, 0, -0.1, -1.05);
 
   const flash = new THREE.Mesh(
-    new THREE.SphereGeometry(0.16, 10, 10),
-    new THREE.MeshBasicMaterial({ color: 0xff7b00, transparent: true, opacity: 0 }),
+    new THREE.SphereGeometry(0.14, 10, 10),
+    new THREE.MeshBasicMaterial({ color: 0xff6a00, transparent: true, opacity: 0 }),
   );
-  flash.position.set(0.3, -0.2, -1.95);
+  flash.position.set(ox, -0.198, muzzleZ - 0.04);
   flash.name = "flash";
   weapon.add(flash);
 
@@ -859,27 +1263,30 @@ export function createZombieFpsEngine(
     onWeaponUnlock?: (info: WeaponUnlockInfo) => void;
     onBossSpawn?: (info: BossSpawnInfo) => void;
     bossEveryThreshold?: number;
+    roundDurationSec?: number;
   } = {},
 ): ZombieFpsEngine {
   const bossEveryThreshold = Math.max(5, Math.min(150, opts.bossEveryThreshold ?? 20));
+  const roundDurationSec = Math.max(0, opts.roundDurationSec ?? 180);
+  const zombieScaling = computeZombieScaling(roundDurationSec, bossEveryThreshold);
   const bossProfilePreview = computeBossProfile(bossEveryThreshold);
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x040606);
-  scene.fog = new THREE.FogExp2(0x08110c, 0.03);
+  scene.add(createSkyDome());
+  scene.fog = new THREE.Fog(0xb8d9ef, 38, 118);
 
-  const camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.05, 140);
-  camera.position.set(0, 1.67, 0);
+  const camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.05, 200);
+  camera.position.set(0, PLAYER_EYE_HEIGHT, 0);
 
   const renderer = new THREE.WebGLRenderer({
-    antialias: true,
+    antialias: false,
     powerPreference: "high-performance",
     alpha: false,
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.15;
+  renderer.toneMappingExposure = 1.18;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   mount.appendChild(renderer.domElement);
   Object.assign(renderer.domElement.style, {
@@ -890,73 +1297,129 @@ export function createZombieFpsEngine(
   });
   renderer.domElement.tabIndex = 0;
 
-  // Lights
-  scene.add(new THREE.AmbientLight(0x6f8f7c, 0.28));
-  const hemi = new THREE.HemisphereLight(0xa7f3d0, 0x1c0a0a, 0.55);
+  // Lights — outdoor day
+  scene.add(new THREE.AmbientLight(0xb8c8d8, 0.38));
+  const hemi = new THREE.HemisphereLight(0x9fd4ff, 0x3d5c32, 0.62);
   scene.add(hemi);
 
-  const sun = new THREE.DirectionalLight(0xfff1d6, 1.35);
-  sun.position.set(10, 18, 8);
+  const sun = new THREE.DirectionalLight(0xffe8c0, 1.85);
+  sun.position.set(42, 52, -28);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(1024, 1024);
   sun.shadow.camera.near = 1;
-  sun.shadow.camera.far = 60;
-  sun.shadow.camera.left = -28;
-  sun.shadow.camera.right = 28;
-  sun.shadow.camera.top = 28;
-  sun.shadow.camera.bottom = -28;
+  sun.shadow.camera.far = 110;
+  sun.shadow.camera.left = -48;
+  sun.shadow.camera.right = 48;
+  sun.shadow.camera.top = 48;
+  sun.shadow.camera.bottom = -48;
   sun.shadow.bias = -0.00025;
   scene.add(sun);
+  sun.target.position.set(0, 0, 0);
+  scene.add(sun.target);
 
-  const neon = new THREE.PointLight(0x34d399, 1.1, 34, 2);
-  neon.position.set(0, 5.5, 0);
-  scene.add(neon);
-  const danger = new THREE.PointLight(0xfb7185, 0.55, 28, 2);
-  danger.position.set(-12, 2.4, -12);
-  scene.add(danger);
-  const danger2 = danger.clone();
-  danger2.position.set(12, 2.4, 12);
-  scene.add(danger2);
+  const sunGlow = new THREE.Mesh(
+    new THREE.SphereGeometry(4.8, 20, 20),
+    new THREE.MeshBasicMaterial({ color: 0xfff3c4, transparent: true, opacity: 0.82 }),
+  );
+  sunGlow.position.copy(sun.position);
+  scene.add(sunGlow);
+  const sunCore = new THREE.Mesh(
+    new THREE.SphereGeometry(2.6, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0xffeb99 }),
+  );
+  sunCore.position.copy(sun.position);
+  scene.add(sunCore);
+
+  sunCore.position.copy(sun.position);
+  scene.add(sunCore);
 
   // Arena materials
-  const floorTex = makeNoiseTexture(256, [18, 28, 22], 22);
-  floorTex.repeat.set(14, 14);
-  const wallTex = makeNoiseTexture(256, [14, 20, 18], 30);
-  wallTex.repeat.set(4, 2);
+  const floorTex = makeNoiseTexture(512, [32, 52, 26], 18);
+  floorTex.repeat.set(22, 22);
+  const dirtTex = makeNoiseTexture(256, [48, 40, 28], 24);
+  dirtTex.repeat.set(14, 14);
+  const wallTex = makeNoiseTexture(256, [38, 36, 34], 22);
+  wallTex.repeat.set(5, 2);
 
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(ARENA, ARENA),
     new THREE.MeshStandardMaterial({
       map: floorTex,
-      roughness: 0.92,
-      metalness: 0.04,
-      color: 0xffffff,
+      roughness: 0.96,
+      metalness: 0.01,
+      color: 0xc8e0b8,
     }),
   );
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   scene.add(floor);
 
-  const ceil = new THREE.Mesh(
-    new THREE.PlaneGeometry(ARENA, ARENA),
-    new THREE.MeshStandardMaterial({ color: 0x0a100e, roughness: 1, metalness: 0 }),
+  const dirtPatch = new THREE.Mesh(
+    new THREE.PlaneGeometry(ARENA * 0.92, ARENA * 0.92),
+    new THREE.MeshStandardMaterial({
+      map: dirtTex,
+      transparent: true,
+      opacity: 0.35,
+      roughness: 1,
+      metalness: 0,
+      depthWrite: false,
+    }),
   );
-  ceil.rotation.x = Math.PI / 2;
-  ceil.position.y = 5.2;
-  scene.add(ceil);
+  dirtPatch.rotation.x = -Math.PI / 2;
+  dirtPatch.position.y = 0.02;
+  dirtPatch.receiveShadow = true;
+  scene.add(dirtPatch);
+
+  const hillMat = new THREE.MeshStandardMaterial({
+    color: 0x4a6b42,
+    roughness: 0.9,
+    metalness: 0.02,
+  });
+  const hillRockMat = new THREE.MeshStandardMaterial({
+    color: 0x6b5a48,
+    roughness: 0.96,
+    metalness: 0,
+  });
+  const hillDomeGeo = new THREE.SphereGeometry(1, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+  for (const h of HILLS) {
+    const dome = new THREE.Mesh(hillDomeGeo, hillMat);
+    dome.scale.set(h.radius, h.height, h.radius);
+    dome.position.set(h.x, 0, h.z);
+    dome.castShadow = true;
+    dome.receiveShadow = true;
+    scene.add(dome);
+    const cap = new THREE.Mesh(hillDomeGeo, hillRockMat);
+    cap.scale.set(h.radius * 0.34, h.height * 0.22, h.radius * 0.34);
+    cap.position.set(h.x, h.height * 0.8, h.z);
+    cap.castShadow = true;
+    scene.add(cap);
+  }
+
+  const backdropMat = new THREE.MeshStandardMaterial({ color: 0x5a6678, roughness: 1, metalness: 0 });
+  for (const [bx, bz, br, bh] of [
+    [-48, 4, 9, 16],
+    [48, 12, 11, 18],
+    [6, -50, 13, 20],
+    [18, 50, 10, 14],
+    [-30, -46, 8, 12],
+  ] as const) {
+    const peak = new THREE.Mesh(new THREE.ConeGeometry(br, bh, 6), backdropMat);
+    peak.position.set(bx, bh / 2 - 1.2, bz);
+    peak.castShadow = true;
+    scene.add(peak);
+  }
+  scatterArenaRocks(scene);
 
   const wallMat = new THREE.MeshStandardMaterial({
     map: wallTex,
-    roughness: 0.9,
-    metalness: 0.08,
-    emissive: 0x062018,
-    emissiveIntensity: 0.12,
+    roughness: 0.94,
+    metalness: 0.04,
+    color: 0x8a8478,
   });
-  const wallH = 5.2;
+  const wallH = 4.8;
   const mkWall = (w: number, d: number, x: number, z: number) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, wallH, d), wallMat);
     m.position.set(x, wallH / 2, z);
-    m.castShadow = true;
     m.receiveShadow = true;
     scene.add(m);
   };
@@ -972,17 +1435,18 @@ export function createZombieFpsEngine(
     metalness: 0.1,
   });
   for (const [x, z, s, rot] of [
-    [-10, -8, 1.5, 0.2],
-    [11, 7, 1.9, -0.4],
-    [-5.5, 12, 1.25, 0.7],
-    [8, -11, 1.6, 0.1],
-    [0, -13.5, 1.1, 0.3],
-    [-13.5, 3, 1.35, -0.2],
+    [-16, -12, 1.5, 0.2],
+    [18, 11, 1.9, -0.4],
+    [-9, 18, 1.25, 0.7],
+    [12, -17, 1.6, 0.1],
+    [0, -20, 1.1, 0.3],
+    [-22, 5, 1.35, -0.2],
+    [20, 2, 1.4, 0.5],
   ] as const) {
     const crate = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), crateMat);
-    crate.position.set(x, s / 2, z);
+    const ground = terrainHeight(x, z);
+    crate.position.set(x, ground + s / 2, z);
     crate.rotation.y = rot;
-    crate.castShadow = true;
     crate.receiveShadow = true;
     scene.add(crate);
   }
@@ -993,7 +1457,7 @@ export function createZombieFpsEngine(
 
   // Atmospheric dust
   const dustGeo = new THREE.BufferGeometry();
-  const dustCount = 180;
+  const dustCount = 70;
   const dustPos = new Float32Array(dustCount * 3);
   for (let i = 0; i < dustCount; i++) {
     dustPos[i * 3] = (Math.random() - 0.5) * ARENA * 0.9;
@@ -1004,10 +1468,10 @@ export function createZombieFpsEngine(
   const dust = new THREE.Points(
     dustGeo,
     new THREE.PointsMaterial({
-      color: 0x9ae6b4,
-      size: 0.035,
+      color: 0xc4b89a,
+      size: 0.028,
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.22,
       depthWrite: false,
     }),
   );
@@ -1033,10 +1497,29 @@ export function createZombieFpsEngine(
   const mobs: Mob[] = [];
   const queue: SpawnJob[] = [];
   const sparks: FxSpark[] = [];
+  const sparkPool: THREE.Mesh[] = [];
+  const sparkGeo = new THREE.SphereGeometry(0.035, 5, 5);
+  const explosionGeo = new THREE.SphereGeometry(0.35, 12, 12);
+  const mobRoots: THREE.Object3D[] = [];
+  const mobByRoot = new Map<THREE.Object3D, Mob>();
   const explosions: FxExplosion[] = [];
+  const smokePuffs: SmokePuff[] = [];
+  const dyingMobs: DyingMob[] = [];
+  const smokeGeo = new THREE.SphereGeometry(0.14, 6, 6);
+  const healOrbs: HealOrbFx[] = [];
+  const healTarget = new THREE.Vector3();
   const raycaster = new THREE.Raycaster();
   const clock = new THREE.Clock();
   const tmpV = new THREE.Vector3();
+  const tmpV2 = new THREE.Vector3();
+  const tmpV3 = new THREE.Vector3();
+  const moveForward = new THREE.Vector3();
+  const moveRight = new THREE.Vector3();
+  const moveWish = new THREE.Vector3();
+  const mobToPlayer = new THREE.Vector3();
+  const aimDir = new THREE.Vector3();
+  const aimCenter = new THREE.Vector2(0, 0);
+  const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
   let yaw = 0;
   let pitch = 0;
@@ -1049,6 +1532,7 @@ export function createZombieFpsEngine(
   let bob = 0;
   let shake = 0;
   let damagePulse = 0;
+  let hurtFlash = 0;
   let healPulse = 0;
   let bossSpawnPulse = 0;
   let kills = 0;
@@ -1062,8 +1546,13 @@ export function createZombieFpsEngine(
   let hudAcc = 0;
   let pointerLocked = false;
   let shooting = false;
-  let adsActive = false;
   let adsBlend = 0;
+  let verticalVel = 0;
+  let playerAltitude = 0;
+  let jumpQueued = false;
+  let weaponSwayX = 0;
+  let weaponSwayY = 0;
+  let footDustCd = 0;
   let raf = 0;
 
   const resize = () => {
@@ -1078,11 +1567,19 @@ export function createZombieFpsEngine(
   ro.observe(mount);
 
   const spawnSpark = (pos: THREE.Vector3, color: number, n = 10) => {
-    for (let i = 0; i < n; i++) {
-      const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.03 + Math.random() * 0.04, 6, 6),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 }),
-      );
+    const count = Math.min(n, 14);
+    for (let i = 0; i < count; i++) {
+      let mesh = sparkPool.pop();
+      if (!mesh) {
+        mesh = new THREE.Mesh(
+          sparkGeo,
+          new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 }),
+        );
+      } else {
+        const mat = mesh.material as THREE.MeshBasicMaterial;
+        mat.color.setHex(color);
+        mat.opacity = 1;
+      }
       mesh.position.copy(pos);
       scene.add(mesh);
       const a = Math.random() * Math.PI * 2;
@@ -1097,32 +1594,80 @@ export function createZombieFpsEngine(
     }
   };
 
+  const releaseSpark = (mesh: THREE.Mesh) => {
+    scene.remove(mesh);
+    if (sparkPool.length < SPARK_POOL_CAP) sparkPool.push(mesh);
+    else (mesh.material as THREE.Material).dispose();
+  };
+
+  const registerMob = (mob: Mob) => {
+    mobRoots.push(mob.root);
+    mobByRoot.set(mob.root, mob);
+  };
+
+  const unregisterMob = (mob: Mob) => {
+    const idx = mobRoots.indexOf(mob.root);
+    if (idx >= 0) mobRoots.splice(idx, 1);
+    mobByRoot.delete(mob.root);
+  };
+
+  const updateMobHpBar = (mob: Mob, force = false) => {
+    const ratio = Math.max(0, Math.min(1, mob.hp / mob.maxHp));
+    if (!force && Math.abs(mob.hpPaintRatio - ratio) < 0.025) return;
+    mob.hpPaintRatio = ratio;
+    paintHpBar(
+      mob.hpFill,
+      mob.hpLabel,
+      mob.hp,
+      mob.maxHp,
+      mob.kind === "boss" || mob.isTitan,
+      mob.bossSegments,
+      mob.isTitan,
+    );
+  };
+
+  const findMobFromHit = (obj: THREE.Object3D | null) => {
+    let node: THREE.Object3D | null = obj;
+    while (node) {
+      const mob = mobByRoot.get(node);
+      if (mob) return mob;
+      node = node.parent;
+    }
+    return null;
+  };
+
   const spawnOne = (kind: MobKind, from: string) => {
-    const boss = kind === "boss";
-    const profile = boss ? computeBossProfile(bossEveryThreshold) : null;
+    const isTitan = kind === "titan";
+    const boss = kind === "boss" || isTitan;
+    const profile = isTitan
+      ? computeTitanProfile(bossEveryThreshold)
+      : boss
+        ? computeBossProfile(bossEveryThreshold)
+        : null;
     const gate = SPAWN_GATES[Math.floor(Math.random() * SPAWN_GATES.length)]!;
     const angle = Math.random() * Math.PI * 2;
     const dist = Math.random() * SPAWN_SPREAD;
     const x = gate.x + Math.cos(angle) * dist;
     const z = gate.z + Math.sin(angle) * dist;
 
-    const { root, hpFill, hpLabel } = makeZombieMesh(kind, from, profile ?? undefined);
+    const { root, hpFill, hpLabel, anim } = makeZombieMesh(kind, from, profile ?? undefined);
     const mobRadius = boss ? profile!.radius : 0.58;
     const spawnPos = resolveObstacles(x, z, mobRadius);
-    root.position.set(spawnPos.x, 0, spawnPos.z);
+    const spawnGround = terrainHeight(spawnPos.x, spawnPos.z);
+    root.position.set(spawnPos.x, spawnGround, spawnPos.z);
     scene.add(root);
-    const maxHp = boss ? profile!.hp : ZOMBIE_HP;
+    const maxHp = boss ? profile!.hp : Math.round(ZOMBIE_HP * zombieScaling.hpMult);
     const segments = boss ? profile!.segments : 1;
-    paintHpBar(hpFill, hpLabel, maxHp, maxHp, boss, segments);
-    mobs.push({
+    paintHpBar(hpFill, hpLabel, maxHp, maxHp, boss, segments, isTitan);
+    const mob: Mob = {
       id: nextId++,
       kind,
       root,
       hp: maxHp,
       maxHp,
-      speed: boss ? profile!.speed : ZOMBIE_SPEED,
+      speed: boss ? profile!.speed : ZOMBIE_SPEED * zombieScaling.speedMult,
       radius: boss ? profile!.radius : 0.58,
-      damage: boss ? profile!.damage : ZOMBIE_DAMAGE,
+      damage: boss ? profile!.damage : Math.round(ZOMBIE_DAMAGE * zombieScaling.damageMult),
       hitCd: 0,
       from,
       phase: Math.random() * Math.PI * 2,
@@ -1130,16 +1675,35 @@ export function createZombieFpsEngine(
       hpFill,
       hpLabel,
       bossSegments: segments,
-    });
+      isTitan,
+      lastDamagedAt: livedSec,
+      tailCd: 1.2,
+      tailWindup: 0,
+      hpPaintRatio: 1,
+      hpPaintAcc: 0,
+      animHips: anim.hips,
+      animLegL: anim.legL,
+      animLegR: anim.legR,
+      animArmL: anim.armL,
+      animArmR: anim.armR,
+      animTail: anim.tail,
+    };
+    mobs.push(mob);
+    registerMob(mob);
     spawned += 1;
     if (boss) {
       bossesSpawned += 1;
       bossSpawnPulse = 1;
-      shake = Math.max(shake, 0.35 + profile!.tier * 0.2 + (profile!.isMega ? 0.55 : 0));
+      shake = Math.max(
+        shake,
+        0.35 + profile!.tier * 0.2 + (profile!.isMega ? 0.55 : 0) + (isTitan ? 0.75 : 0),
+      );
       spawnSpark(
-        root.position.clone().setY(2.5 + profile!.tier * 0.4 + (profile!.isMega ? 1.2 : 0)),
-        profile!.isMega ? 0xff4500 : 0xe879f9,
-        20 + profile!.tier * 8 + (profile!.isMega ? 24 : 0),
+        root.position.clone().setY(
+          2.5 + profile!.tier * 0.4 + (profile!.isMega ? 1.2 : 0) + (isTitan ? 1.5 : 0),
+        ),
+        isTitan ? 0x22d3ee : profile!.isMega ? 0xff4500 : 0xe879f9,
+        12 + profile!.tier * 4 + (profile!.isMega ? 10 : 0) + (isTitan ? 14 : 0),
       );
       opts.onBossSpawn?.({
         title: profile!.title,
@@ -1147,6 +1711,7 @@ export function createZombieFpsEngine(
         segments: profile!.segments,
         multiplier: profile!.multiplier,
         isMega: profile!.isMega,
+        isTitan,
         from,
       });
     }
@@ -1161,25 +1726,53 @@ export function createZombieFpsEngine(
     }
   };
 
-  const applyKillHeal = (mob: Mob) => {
-    const before = hp;
-    if (mob.kind === "boss") {
-      hp = Math.min(PLAYER_MAX_HP, hp + BOSS_KILL_HEAL);
-    } else {
-      hp = Math.min(PLAYER_MAX_HP, hp + ZOMBIE_KILL_HEAL);
-    }
-    const amount = Math.round(hp - before);
-    if (amount <= 0) return;
-
-    healPulse = 1;
+  const scheduleKillHeal = (mob: Mob) => {
+    const amount = mob.kind === "boss" || mob.isTitan ? BOSS_KILL_HEAL : ZOMBIE_KILL_HEAL;
+    const room = PLAYER_MAX_HP - hp;
+    if (room <= 0) return;
+    const actual = Math.min(amount, room);
+    const boss = mob.kind === "boss" || mob.isTitan;
+    const tex = makeHealOrbTexture(actual, mob.kind);
+    const sprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: tex,
+        transparent: true,
+        depthWrite: false,
+        depthTest: false,
+      }),
+    );
+    const lift = mob.isTitan ? 2.6 : mob.kind === "boss" ? 2.1 : 1.35;
+    sprite.position.set(mob.root.position.x, mob.root.position.y + lift, mob.root.position.z);
+    sprite.scale.set(boss ? 1.15 : 0.82, boss ? 1.15 : 0.82, 1);
+    sprite.renderOrder = 20;
+    scene.add(sprite);
+    healOrbs.push({
+      sprite,
+      amount: actual,
+      kind: mob.kind,
+      speed: boss ? 10.5 : 12,
+      trailTimer: 0,
+      bob: Math.random() * Math.PI * 2,
+    });
     spawnSpark(
-      camera.position.clone().setY(1.35),
-      mob.kind === "boss" ? 0xa7f3d0 : 0x4ade80,
-      mob.kind === "boss" ? 26 : 14,
+      tmpV2.set(mob.root.position.x, mob.root.position.y + lift * 0.6, mob.root.position.z),
+      mob.isTitan ? 0x67e8f9 : mob.kind === "boss" ? 0xf0abfc : 0x86efac,
+      boss ? 10 : 6,
+    );
+  };
+
+  const absorbHealOrb = (orb: HealOrbFx) => {
+    hp = Math.min(PLAYER_MAX_HP, hp + orb.amount);
+    healPulse = 1;
+    healTarget.set(camera.position.x, camera.position.y + 0.25, camera.position.z);
+    spawnSpark(
+      healTarget,
+      orb.kind === "titan" ? 0x67e8f9 : orb.kind === "boss" ? 0xf0abfc : 0x4ade80,
+      orb.kind === "titan" ? 14 : orb.kind === "boss" ? 12 : 8,
     );
     opts.onHeal?.({
-      kind: mob.kind,
-      amount,
+      kind: orb.kind,
+      amount: orb.amount,
       hp: Math.round(hp),
       maxHp: PLAYER_MAX_HP,
     });
@@ -1243,7 +1836,7 @@ export function createZombieFpsEngine(
   const setActiveWeapon = (id: WeaponId) => {
     if (!ownedWeapons().includes(id)) return;
     activeWeapon = id;
-    if (!usesMagazine(id)) adsActive = false;
+    if (!usesMagazine(id)) keys.delete("KeyK");
     bindActiveWeaponVisuals();
     emitHud();
   };
@@ -1292,24 +1885,38 @@ export function createZombieFpsEngine(
 
   const killMob = (mob: Mob) => {
     kills += 1;
+    const deathY = mob.isTitan ? 2.8 : mob.kind === "boss" ? 2.1 : 1.0;
     spawnSpark(
-      mob.root.position.clone().setY(mob.kind === "boss" ? 2.4 : 1.2),
-      0xf87171,
-      mob.kind === "boss" ? 28 : 18,
+      tmpV2.set(mob.root.position.x, deathY, mob.root.position.z),
+      mob.isTitan ? 0x0e7490 : 0x8b2020,
+      mob.isTitan ? 12 : mob.kind === "boss" ? 9 : 7,
     );
-    if (mob.kind === "boss") upgradeWeaponsFromBoss();
-    applyKillHeal(mob);
-    scene.remove(mob.root);
-    disposeObject(mob.root);
+    spawnSpark(
+      tmpV2.set(mob.root.position.x, 0.35, mob.root.position.z),
+      mob.isTitan ? 0x164e63 : 0x4a1515,
+      5,
+    );
+    if (mob.kind === "boss" || mob.isTitan) upgradeWeaponsFromBoss();
+    scheduleKillHeal(mob);
+    mob.hpFill.visible = false;
+    mob.hpLabel.visible = false;
+    unregisterMob(mob);
     const idx = mobs.indexOf(mob);
     if (idx >= 0) mobs.splice(idx, 1);
+    dyingMobs.push({ root: mob.root, life: 0.65, maxLife: 0.65 });
   };
 
   const damageMob = (mob: Mob, amount: number, hitPoint?: THREE.Vector3) => {
     mob.hp -= amount;
-    paintHpBar(mob.hpFill, mob.hpLabel, mob.hp, mob.maxHp, mob.kind === "boss", mob.bossSegments);
+    if (mob.isTitan) mob.lastDamagedAt = livedSec;
+    updateMobHpBar(mob);
     if (hitPoint) {
-      spawnSpark(hitPoint, mob.kind === "boss" ? 0xe879f9 : 0x4ade80, activeWeapon === "rpg" ? 18 : 12);
+      spawnSpark(
+        hitPoint,
+        mob.isTitan ? 0x22d3ee : mob.kind === "boss" ? 0x7f1d4a : 0x8b1a1a,
+        activeWeapon === "rpg" ? 10 : 5,
+      );
+      spawnSpark(hitPoint, 0x3d1212, 3);
     }
     mob.root.position.add(
       tmpV
@@ -1327,7 +1934,7 @@ export function createZombieFpsEngine(
 
   const spawnExplosion = (pos: THREE.Vector3) => {
     const mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.35, 20, 20),
+      explosionGeo,
       new THREE.MeshBasicMaterial({
         color: 0xff6b00,
         transparent: true,
@@ -1339,8 +1946,8 @@ export function createZombieFpsEngine(
     mesh.position.y = Math.max(0.5, pos.y);
     scene.add(mesh);
     explosions.push({ mesh, life: 0.55, maxLife: 0.55 });
-    spawnSpark(pos, 0xffedd5, 32);
-    spawnSpark(pos, 0xf97316, 22);
+    spawnSpark(pos, 0xffedd5, 16);
+    spawnSpark(pos, 0xf97316, 10);
   };
 
   const usesMagazine = (weapon: WeaponId) => weapon !== "rpg";
@@ -1359,40 +1966,46 @@ export function createZombieFpsEngine(
     }
   };
 
-  const fireRifle = (spec: WeaponSpec) => {
-    raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-    const hits = raycaster.intersectObjects(
-      mobs.map((m) => m.root),
-      true,
+  const spawnMuzzleSmoke = () => {
+    const mesh = new THREE.Mesh(
+      smokeGeo,
+      new THREE.MeshBasicMaterial({
+        color: 0xb8b8b8,
+        transparent: true,
+        opacity: 0.38,
+        depthWrite: false,
+      }),
     );
+    tmpV2.set(0.28, -0.14, -1.7);
+    activeWeaponGroup.localToWorld(mesh.position.copy(tmpV2));
+    mesh.scale.setScalar(activeWeapon === "rpg" ? 1.6 : 0.9 + Math.random() * 0.3);
+    scene.add(mesh);
+    smokePuffs.push({ mesh, life: 0.48, maxLife: 0.48 });
+  };
+
+  const fireRifle = (spec: WeaponSpec) => {
+    raycaster.setFromCamera(aimCenter, camera);
+    const hits = raycaster.intersectObjects(mobRoots, true);
     if (hits.length > 0) {
       const hit = hits[0]!;
-      let root: THREE.Object3D | null = hit.object;
-      while (root && !mobs.some((m) => m.root === root)) root = root.parent;
-      const mob = mobs.find((m) => m.root === root);
+      const mob = findMobFromHit(hit.object);
       if (mob) damageMob(mob, spec.damage, hit.point);
     } else {
-      const dir = new THREE.Vector3();
-      camera.getWorldDirection(dir);
-      spawnSpark(camera.position.clone().add(dir.multiplyScalar(4)), 0xfbbf24, 4);
+      camera.getWorldDirection(aimDir);
+      tmpV2.copy(camera.position).add(aimDir.multiplyScalar(4));
+      spawnSpark(tmpV2, 0xfbbf24, 3);
     }
   };
 
   const fireRpg = () => {
-    raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-    const dir = new THREE.Vector3();
-    camera.getWorldDirection(dir);
-    let impact = camera.position.clone().add(dir.clone().multiplyScalar(24));
-    const hits = raycaster.intersectObjects(
-      mobs.map((m) => m.root),
-      true,
-    );
+    raycaster.setFromCamera(aimCenter, camera);
+    camera.getWorldDirection(aimDir);
+    let impact = tmpV2.copy(camera.position).add(aimDir.multiplyScalar(24));
+    const hits = raycaster.intersectObjects(mobRoots, true);
     if (hits.length > 0) {
-      impact = hits[0]!.point.clone();
-    } else {
-      const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-      const hitPoint = new THREE.Vector3();
-      if (raycaster.ray.intersectPlane(ground, hitPoint)) impact = hitPoint;
+      impact = hits[0]!.point;
+    } else if (raycaster.ray.intersectPlane(groundPlane, tmpV3)) {
+      impact = tmpV3;
     }
     spawnExplosion(impact);
     for (const mob of [...mobs]) {
@@ -1415,6 +2028,7 @@ export function createZombieFpsEngine(
     recoil = spec.recoil;
     shake = Math.max(shake, spec.shake);
     flashMuzzle(spec);
+    spawnMuzzleSmoke();
     if (activeWeapon === "rpg") fireRpg();
     else fireRifle(spec);
     if (usesMagazine(activeWeapon)) {
@@ -1435,6 +2049,16 @@ export function createZombieFpsEngine(
     ) {
       startReload();
     }
+    if (
+      e.code === "Space" &&
+      !e.repeat &&
+      pointerLocked &&
+      !ended &&
+      playerAltitude <= 0.06 &&
+      verticalVel <= 0
+    ) {
+      jumpQueued = true;
+    }
     if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
       e.preventDefault();
     }
@@ -1442,7 +2066,6 @@ export function createZombieFpsEngine(
   const onKeyUp = (e: KeyboardEvent) => keys.delete(e.code);
   const onMouseDown = (e: MouseEvent) => {
     if (e.button === 2) {
-      if (pointerLocked && !ended && usesMagazine(activeWeapon)) adsActive = true;
       e.preventDefault();
       return;
     }
@@ -1455,7 +2078,6 @@ export function createZombieFpsEngine(
     fire();
   };
   const onMouseUp = (e: MouseEvent) => {
-    if (e.button === 2) adsActive = false;
     if (e.button === 0) shooting = false;
   };
   const onMouseMove = (e: MouseEvent) => {
@@ -1464,6 +2086,8 @@ export function createZombieFpsEngine(
     yaw -= e.movementX * lookSens;
     pitch -= e.movementY * lookSens;
     pitch = Math.max(-1.25, Math.min(1.25, pitch));
+    weaponSwayX = THREE.MathUtils.clamp(weaponSwayX - e.movementX * 0.00032, -0.05, 0.05);
+    weaponSwayY = THREE.MathUtils.clamp(weaponSwayY - e.movementY * 0.00032, -0.04, 0.04);
   };
   const onLockChange = () => {
     pointerLocked = document.pointerLockElement === renderer.domElement;
@@ -1509,6 +2133,7 @@ export function createZombieFpsEngine(
       magSize: usesMagazine(activeWeapon) ? MAGAZINE_SIZE : 1,
       reloading,
       reloadPct: reloading ? 1 - reloadTimer / RELOAD_TIME : 1,
+      hurtFlash,
     });
   };
 
@@ -1525,6 +2150,7 @@ export function createZombieFpsEngine(
       recoil = Math.max(0, recoil - dt * 7);
       shake = Math.max(0, shake - dt * 3.5);
       damagePulse = Math.max(0, damagePulse - dt * 1.8);
+      hurtFlash = Math.max(0, hurtFlash - dt * 2.6);
       healPulse = Math.max(0, healPulse - dt * 2.4);
       bossSpawnPulse = Math.max(0, bossSpawnPulse - dt * 1.6);
       muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt * 22);
@@ -1533,14 +2159,14 @@ export function createZombieFpsEngine(
       }
 
       let released = 0;
-      while (queue.length > 0 && mobs.length < MAX_ALIVE && released < 6) {
+      while (queue.length > 0 && mobs.length < MAX_ALIVE && released < MAX_SPAWN_PER_FRAME) {
         const job = queue.shift()!;
         spawnOne(job.kind, job.from);
         released += 1;
       }
 
       const adsTarget =
-        adsActive && pointerLocked && !ended && usesMagazine(activeWeapon) ? 1 : 0;
+        keys.has("KeyK") && pointerLocked && !ended && usesMagazine(activeWeapon) ? 1 : 0;
       adsBlend = THREE.MathUtils.lerp(adsBlend, adsTarget, Math.min(1, dt * ADS_LERP_SPEED));
       camera.fov = THREE.MathUtils.lerp(BASE_FOV, RIFLE_ADS_FOV, adsBlend);
       camera.updateProjectionMatrix();
@@ -1549,14 +2175,12 @@ export function createZombieFpsEngine(
       camera.rotation.y = yaw;
       camera.rotation.x = pitch;
 
-      const forward = new THREE.Vector3();
+      const forward = moveForward;
       camera.getWorldDirection(forward);
       forward.y = 0;
       forward.normalize();
-      const right = new THREE.Vector3()
-        .crossVectors(forward, new THREE.Vector3(0, 1, 0))
-        .normalize();
-      const wish = new THREE.Vector3();
+      const right = moveRight.crossVectors(forward, tmpV.set(0, 1, 0)).normalize();
+      const wish = moveWish.set(0, 0, 0);
       if (keys.has("KeyW") || keys.has("ArrowUp")) wish.add(forward);
       if (keys.has("KeyS") || keys.has("ArrowDown")) wish.sub(forward);
       if (keys.has("KeyD") || keys.has("ArrowRight")) wish.add(right);
@@ -1575,9 +2199,49 @@ export function createZombieFpsEngine(
       const playerResolved = resolveObstacles(camera.position.x, camera.position.z, PLAYER_RADIUS);
       camera.position.x = playerResolved.x;
       camera.position.z = playerResolved.z;
-      const bobY = moving ? Math.sin(bob) * 0.045 : 0;
-      const bobX = moving ? Math.cos(bob * 0.5) * 0.02 : 0;
-      camera.position.y = 1.67 + bobY;
+
+      const groundH = terrainHeight(camera.position.x, camera.position.z);
+      const prevAltitude = playerAltitude;
+      if (jumpQueued && playerAltitude <= 0.06 && verticalVel <= 0) {
+        verticalVel = JUMP_VELOCITY;
+        jumpQueued = false;
+      } else {
+        jumpQueued = false;
+      }
+      verticalVel -= GRAVITY * dt;
+      playerAltitude += verticalVel * dt;
+      if (playerAltitude < 0) {
+        if (prevAltitude > 0.12 && verticalVel < -2.2) {
+          shake = Math.max(shake, 0.28);
+          spawnSpark(
+            tmpV2.set(camera.position.x, groundH + 0.05, camera.position.z),
+            0x9ca88f,
+            4,
+          );
+        }
+        playerAltitude = 0;
+        verticalVel = 0;
+      }
+
+      if (moving && playerAltitude <= 0.06) {
+        footDustCd -= dt;
+        if (footDustCd <= 0) {
+          footDustCd = 0.18;
+          spawnSpark(
+            tmpV2.set(
+              camera.position.x - forward.x * 0.35,
+              groundH + 0.04,
+              camera.position.z - forward.z * 0.35,
+            ),
+            0x9ca88f,
+            2,
+          );
+        }
+      }
+
+      const bobY = moving && playerAltitude <= 0.06 ? Math.sin(bob) * 0.045 : 0;
+      const bobX = moving && playerAltitude <= 0.06 ? Math.cos(bob * 0.5) * 0.02 : 0;
+      camera.position.y = groundH + PLAYER_EYE_HEIGHT + playerAltitude + bobY;
       if (shake > 0) {
         camera.position.x += (Math.random() - 0.5) * shake * 0.08;
         camera.position.y += (Math.random() - 0.5) * shake * 0.06;
@@ -1585,15 +2249,17 @@ export function createZombieFpsEngine(
 
       const reloadT = reloadTimer > 0 ? reloadTimer / RELOAD_TIME : 0;
       const adsT = usesMagazine(activeWeapon) ? adsBlend : 0;
+      weaponSwayX *= 0.88;
+      weaponSwayY *= 0.88;
       activeWeaponGroup.position.set(
-        0.3 + bobX - recoil * 0.02 - adsT * 0.06,
-        -0.3 + Math.abs(Math.sin(bob)) * 0.025 - recoil * 0.055 - reloadT * 0.12 + adsT * 0.04,
+        0.3 + bobX - recoil * 0.02 - adsT * 0.06 + weaponSwayX * 0.4,
+        -0.3 + Math.abs(Math.sin(bob)) * 0.025 - recoil * 0.055 - reloadT * 0.12 + adsT * 0.04 + weaponSwayY * 0.25,
         -0.42 - recoil * 0.1 - reloadT * 0.28 + adsT * 0.18,
       );
       activeWeaponGroup.rotation.set(
-        0.04 + recoil * 0.22 + reloadT * 0.35 - adsT * 0.03,
-        0.1,
-        0.035 + bobX * 0.4,
+        0.04 + recoil * 0.22 + reloadT * 0.35 - adsT * 0.03 + weaponSwayY,
+        0.1 + weaponSwayX * 0.55,
+        0.035 + bobX * 0.4 + weaponSwayX,
       );
 
       if (shooting && pointerLocked) fire();
@@ -1601,43 +2267,89 @@ export function createZombieFpsEngine(
       const playerPos = camera.position;
       for (const m of mobs) {
         m.phase += dt * m.limp * 6;
-        const to = new THREE.Vector3(
-          playerPos.x - m.root.position.x,
-          0,
-          playerPos.z - m.root.position.z,
-        );
-        const dist = to.length();
+        mobToPlayer.set(playerPos.x - m.root.position.x, 0, playerPos.z - m.root.position.z);
+        const dist = mobToPlayer.length();
         if (dist > 0.001) {
-          to.normalize();
-          const nx = m.root.position.x + to.x * m.speed * dt;
-          const nz = m.root.position.z + to.z * m.speed * dt;
+          mobToPlayer.multiplyScalar(1 / dist);
+          const nx = m.root.position.x + mobToPlayer.x * m.speed * dt;
+          const nz = m.root.position.z + mobToPlayer.z * m.speed * dt;
           applyMobCollision(m, nx, nz, mobs);
           m.root.lookAt(playerPos.x, m.root.position.y + 1.1, playerPos.z);
         }
-        m.root.position.y = Math.abs(Math.sin(m.phase)) * 0.04;
+        m.root.position.y =
+          terrainHeight(m.root.position.x, m.root.position.z) + Math.abs(Math.sin(m.phase)) * 0.04;
 
-        const hips = m.root.getObjectByName("hips");
-        const legL = m.root.getObjectByName("legL");
-        const legR = m.root.getObjectByName("legR");
-        const armL = m.root.getObjectByName("armL");
-        const armR = m.root.getObjectByName("armR");
-        if (legL) legL.rotation.x = Math.sin(m.phase) * 0.55;
-        if (legR) legR.rotation.x = Math.sin(m.phase + Math.PI) * 0.55;
-        if (armL) armL.rotation.x = Math.sin(m.phase + Math.PI) * 0.4 - 0.8;
-        if (armR) armR.rotation.x = Math.sin(m.phase) * 0.4 - 0.8;
-        if (hips) hips.rotation.y = Math.sin(m.phase * 0.5) * 0.08;
+        m.animLegL.rotation.x = Math.sin(m.phase) * 0.55;
+        m.animLegR.rotation.x = Math.sin(m.phase + Math.PI) * 0.55;
+        m.animArmL.rotation.x = Math.sin(m.phase + Math.PI) * 0.4 - 0.8;
+        m.animArmR.rotation.x = Math.sin(m.phase) * 0.4 - 0.8;
+        m.animHips.rotation.y = Math.sin(m.phase * 0.5) * 0.08;
 
         m.hitCd = Math.max(0, m.hitCd - dt);
         const flatDist = Math.hypot(
           playerPos.x - m.root.position.x,
           playerPos.z - m.root.position.z,
         );
+
+        if (m.isTitan) {
+          m.tailCd = Math.max(0, m.tailCd - dt);
+          const sinceHit = livedSec - m.lastDamagedAt;
+          if (sinceHit > 2.4 && m.hp < m.maxHp) {
+            const heal = m.maxHp * 0.022 * dt;
+            m.hp = Math.min(m.maxHp, m.hp + heal);
+            m.hpPaintAcc += dt;
+            if (m.hpPaintAcc >= 0.2) {
+              m.hpPaintAcc = 0;
+              updateMobHpBar(m);
+            }
+          }
+
+          const tail = m.animTail;
+          if (flatDist < 10.5 && flatDist > 2.4 && m.tailCd <= 0 && invuln <= 0) {
+            m.tailWindup += dt;
+            if (tail) tail.rotation.y = -Math.sin(m.tailWindup * 11) * 1.4;
+            if (m.tailWindup >= 0.95) {
+              m.tailCd = 2.7;
+              m.tailWindup = 0;
+              if (flatDist < 9.5) {
+                m.hitCd = 0.85;
+                hp -= m.damage;
+                invuln = 0.75;
+                shake = 1.4;
+                damagePulse = 1;
+                hurtFlash = 1;
+                spawnSpark(
+                  tmpV2.set(m.root.position.x, 1.8, m.root.position.z).add(
+                    tmpV3
+                      .set(playerPos.x - m.root.position.x, 0, playerPos.z - m.root.position.z)
+                      .normalize()
+                      .multiplyScalar(1.4),
+                  ),
+                  0x22d3ee,
+                  14,
+                );
+                if (hp <= 0) {
+                  hp = 0;
+                  ended = true;
+                  outcome = "defeated";
+                  if (document.pointerLockElement) document.exitPointerLock();
+                  opts.onDefeat?.();
+                }
+              }
+            }
+          } else if (m.tailWindup > 0) {
+            m.tailWindup = Math.max(0, m.tailWindup - dt * 2.5);
+            if (tail) tail.rotation.y = THREE.MathUtils.lerp(tail.rotation.y, 0, dt * 6);
+          }
+        }
+
         if (flatDist < m.radius + 0.5 && m.hitCd <= 0 && invuln <= 0) {
           m.hitCd = 0.7;
-          hp -= m.damage;
+          hp -= m.isTitan ? Math.round(m.damage * 0.16) : m.damage;
           invuln = 0.45;
           shake = 0.7;
           damagePulse = 1;
+          hurtFlash = Math.max(hurtFlash, 0.85);
           if (hp <= 0) {
             hp = 0;
             ended = true;
@@ -1659,9 +2371,7 @@ export function createZombieFpsEngine(
         const mat = s.mesh.material as THREE.MeshBasicMaterial;
         mat.opacity = Math.max(0, s.life * 2);
         if (s.life <= 0) {
-          scene.remove(s.mesh);
-          s.mesh.geometry.dispose();
-          mat.dispose();
+          releaseSpark(s.mesh);
           sparks.splice(i, 1);
         }
       }
@@ -1676,13 +2386,67 @@ export function createZombieFpsEngine(
         mat.opacity = Math.max(0, 0.85 * (1 - t));
         if (ex.life <= 0) {
           scene.remove(ex.mesh);
-          ex.mesh.geometry.dispose();
           mat.dispose();
           explosions.splice(i, 1);
         }
       }
 
+      for (let i = smokePuffs.length - 1; i >= 0; i--) {
+        const puff = smokePuffs[i]!;
+        puff.life -= dt;
+        puff.mesh.position.y += dt * 0.9;
+        puff.mesh.scale.multiplyScalar(1 + dt * 1.1);
+        const mat = puff.mesh.material as THREE.MeshBasicMaterial;
+        mat.opacity = Math.max(0, (puff.life / puff.maxLife) * 0.38);
+        if (puff.life <= 0) {
+          scene.remove(puff.mesh);
+          mat.dispose();
+          smokePuffs.splice(i, 1);
+        }
+      }
+
+      for (let i = dyingMobs.length - 1; i >= 0; i--) {
+        const dead = dyingMobs[i]!;
+        dead.life -= dt;
+        dead.root.rotation.x += dt * 4.2;
+        dead.root.position.y -= dt * 0.85;
+        if (dead.life <= 0) {
+          scene.remove(dead.root);
+          disposeObject(dead.root);
+          dyingMobs.splice(i, 1);
+        }
+      }
+
       dust.rotation.y += dt * 0.02;
+
+      for (let i = healOrbs.length - 1; i >= 0; i--) {
+        const orb = healOrbs[i]!;
+        healTarget.set(camera.position.x, camera.position.y + 0.35, camera.position.z);
+        const dist = orb.sprite.position.distanceTo(healTarget);
+        orb.bob += dt * 7;
+        orb.sprite.position.y += Math.sin(orb.bob) * dt * 0.45;
+        if (dist < 0.65) {
+          absorbHealOrb(orb);
+          disposeHealOrb(orb, scene);
+          healOrbs.splice(i, 1);
+          continue;
+        }
+        tmpV2.copy(healTarget).sub(orb.sprite.position);
+        const step = Math.min(dist, orb.speed * dt);
+        orb.sprite.position.add(tmpV2.normalize().multiplyScalar(step));
+        orb.trailTimer += dt;
+        if (orb.trailTimer >= 0.07) {
+          orb.trailTimer = 0;
+          spawnSpark(
+            orb.sprite.position,
+            orb.kind === "titan" ? 0x67e8f9 : orb.kind === "boss" ? 0xe879f9 : 0x4ade80,
+            2,
+          );
+        }
+        const pulse = 1 + Math.sin(orb.bob * 1.6) * 0.06;
+        const base = orb.kind === "boss" || orb.kind === "titan" ? 1.15 : 0.82;
+        orb.sprite.scale.set(base * pulse, base * pulse, 1);
+      }
 
       const gatePulse = 0.55 + Math.sin(livedSec * 3.2) * 0.2;
       for (const gate of spawnGates) {
@@ -1695,10 +2459,10 @@ export function createZombieFpsEngine(
 
     // Damage/heal feedback via exposure tint.
     renderer.toneMappingExposure =
-      1.15 - damagePulse * 0.35 + healPulse * 0.28 - bossSpawnPulse * 0.22;
+      1.18 - damagePulse * 0.35 + healPulse * 0.28 - bossSpawnPulse * 0.22;
 
     hudAcc += dt;
-    if (hudAcc > 0.1) {
+    if (hudAcc > HUD_EMIT_INTERVAL) {
       hudAcc = 0;
       emitHud();
     }
@@ -1726,17 +2490,26 @@ export function createZombieFpsEngine(
         scene.remove(m.root);
         disposeObject(m.root);
       }
-      for (const s of sparks) {
-        scene.remove(s.mesh);
-        s.mesh.geometry.dispose();
-        (s.mesh.material as THREE.Material).dispose();
-      }
+      for (const s of sparks) releaseSpark(s.mesh);
       for (const ex of explosions) {
         scene.remove(ex.mesh);
-        ex.mesh.geometry.dispose();
         (ex.mesh.material as THREE.Material).dispose();
       }
+      for (const orb of healOrbs) disposeHealOrb(orb, scene);
+      healOrbs.length = 0;
+      for (const dead of dyingMobs) {
+        scene.remove(dead.root);
+        disposeObject(dead.root);
+      }
+      for (const puff of smokePuffs) {
+        scene.remove(puff.mesh);
+        (puff.mesh.material as THREE.Material).dispose();
+      }
+      sparkGeo.dispose();
+      smokeGeo.dispose();
+      explosionGeo.dispose();
       floorTex.dispose();
+      dirtTex.dispose();
       wallTex.dispose();
       disposeObject(scene);
       renderer.dispose();
@@ -1763,6 +2536,7 @@ export function createZombieFpsEngine(
       magSize: usesMagazine(activeWeapon) ? MAGAZINE_SIZE : 1,
       reloading: reloadTimer > 0,
       reloadPct: reloadTimer > 0 ? 1 - reloadTimer / RELOAD_TIME : 1,
+      hurtFlash,
     }),
     getStats: () => ({
       kills,

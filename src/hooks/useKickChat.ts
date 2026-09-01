@@ -20,6 +20,7 @@ type KickSender = {
   id?: number | string;
   username?: string;
   slug?: string;
+  username_color?: string;
   identity?: { color?: string };
 };
 
@@ -44,7 +45,7 @@ function identityFromSender(sender?: KickSender | null) {
   return {
     user,
     userKey,
-    color: sender?.identity?.color ?? "#8ef0c0",
+    color: sender?.identity?.color ?? sender?.username_color ?? "#8ef0c0",
   };
 }
 
@@ -57,9 +58,15 @@ function asNumber(value: unknown): number | null {
   return null;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
 /** Best-effort Kick gift amount from varied Pusher payload shapes. */
 function extractGiftAmount(payload: Record<string, unknown>): number | null {
+  const gift = asRecord(payload.gift);
   const direct =
+    asNumber(gift?.amount) ??
     asNumber(payload.amount) ??
     asNumber(payload.kicks) ??
     asNumber(payload.total) ??
@@ -67,12 +74,17 @@ function extractGiftAmount(payload: Record<string, unknown>): number | null {
     asNumber(payload.quantity);
   if (direct != null && direct > 0) return Math.round(direct);
 
-  const nested = [payload.gift, payload.data, payload.transaction, payload.tip].filter(
+  const nested = [payload.data, payload.transaction, payload.tip].filter(
     (x): x is Record<string, unknown> => !!x && typeof x === "object",
   );
   for (const obj of nested) {
+    const nestedGift = asRecord(obj.gift);
     const n =
-      asNumber(obj.amount) ?? asNumber(obj.kicks) ?? asNumber(obj.total) ?? asNumber(obj.quantity);
+      asNumber(nestedGift?.amount) ??
+      asNumber(obj.amount) ??
+      asNumber(obj.kicks) ??
+      asNumber(obj.total) ??
+      asNumber(obj.quantity);
     if (n != null && n > 0) return Math.round(n);
   }
   return null;
@@ -81,12 +93,37 @@ function extractGiftAmount(payload: Record<string, unknown>): number | null {
 function eventLooksLikeGift(eventName: string) {
   const e = eventName.toLowerCase();
   return (
+    e === "kicksgifted" ||
+    e.includes("kicksgifted") ||
+    e.includes("kicks.gifted") ||
     e.includes("gift") ||
     e.includes("kicksgift") ||
     e.includes("kicks_gift") ||
     e.includes("tip") ||
     e.includes("celebration")
   );
+}
+
+function giftMessageId(eventName: string, payload: Record<string, unknown>, amount: number) {
+  const tx = payload.gift_transaction_id ?? asRecord(payload.gift)?.gift_transaction_id;
+  if (tx != null && String(tx).trim() !== "") return `gift:${tx}`;
+  if (payload.id != null) return `gift:${payload.id}`;
+  const sender = asRecord(payload.sender) ?? asRecord(payload.user);
+  const senderId = sender?.id ?? sender?.username ?? "";
+  return `gift:${eventName}:${senderId}:${amount}:${Date.now()}`;
+}
+
+function kickSubscribeChannels(chatroomId: number, channelId?: number) {
+  const channels = new Set<string>([
+    `chatrooms.${chatroomId}.v2`,
+    `chatrooms.${chatroomId}`,
+    `chatroom_${chatroomId}`,
+  ]);
+  if (channelId != null) {
+    channels.add(`channel.${channelId}`);
+    channels.add(`channel_${channelId}`);
+  }
+  return Array.from(channels);
 }
 
 export type ChatStatus = "idle" | "connecting" | "live" | "error";
@@ -148,7 +185,7 @@ export function useKickChat() {
   }, [disconnectSockets]);
 
   const connect = useCallback(
-    (chatroomId: number, label: string, slug?: string) => {
+    (chatroomId: number, label: string, slug?: string, channelId?: number) => {
       disconnectSockets();
       seenIds.current.clear();
       setError(null);
@@ -174,14 +211,16 @@ export function useKickChat() {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        ws.send(
-          JSON.stringify({
-            event: "pusher:subscribe",
-            data: { auth: "", channel: `chatrooms.${chatroomId}.v2` },
-          }),
-        );
+        for (const ch of kickSubscribeChannels(chatroomId, channelId)) {
+          ws.send(
+            JSON.stringify({
+              event: "pusher:subscribe",
+              data: { auth: "", channel: ch },
+            }),
+          );
+        }
         if (resolvedSlug) {
-          saveKickSession({ slug: resolvedSlug, chatroomId });
+          saveKickSession({ slug: resolvedSlug, chatroomId, channelId });
         }
         setStatus("live");
       };
@@ -190,6 +229,8 @@ export function useKickChat() {
         try {
           const frame = JSON.parse(String(ev.data)) as { event?: string; data?: string };
           if (!frame.event || !frame.data) return;
+          if (frame.event.startsWith("pusher:") || frame.event.startsWith("pusher_internal:")) return;
+
           const eventName = frame.event;
           const isChat = eventName.includes("ChatMessage");
           const isGift = eventLooksLikeGift(eventName);
@@ -202,10 +243,29 @@ export function useKickChat() {
             user?: KickSender;
           };
 
+          const ident = identityFromSender(payload.sender ?? payload.user);
+
+          if (isGift) {
+            const amount = extractGiftAmount(payload);
+            if (amount == null || amount <= 0) return;
+            const mid = giftMessageId(eventName, payload, amount);
+            if (seenIds.current.has(mid)) return;
+            seenIds.current.add(mid);
+            if (seenIds.current.size > 400) {
+              const first = seenIds.current.values().next().value;
+              if (first) seenIds.current.delete(first);
+            }
+            push(ident.user, ident.userKey, `هدية ${amount} كيك`, ident.color, {
+              kind: "gift",
+              giftAmount: amount,
+            });
+            return;
+          }
+
           const mid =
             payload.id != null
               ? String(payload.id)
-              : `${eventName}:${payload.content ?? ""}:${JSON.stringify(payload.amount ?? payload.kicks ?? "")}`;
+              : `${eventName}:${payload.content ?? ""}:${ident.userKey}`;
           if (mid) {
             if (seenIds.current.has(mid)) return;
             seenIds.current.add(mid);
@@ -213,18 +273,6 @@ export function useKickChat() {
               const first = seenIds.current.values().next().value;
               if (first) seenIds.current.delete(first);
             }
-          }
-
-          const ident = identityFromSender(payload.sender ?? payload.user);
-
-          if (isGift) {
-            const amount = extractGiftAmount(payload);
-            if (amount == null || amount <= 0) return;
-            push(ident.user, ident.userKey, `هدية ${amount} كيك`, ident.color, {
-              kind: "gift",
-              giftAmount: amount,
-            });
-            return;
           }
 
           const text = payload.content?.trim();

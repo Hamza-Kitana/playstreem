@@ -26,8 +26,28 @@ export function KickChatProvider({ children }: { children: ReactNode }) {
 
     const session = loadKickSession();
     if (session) {
-      chat.connect(session.chatroomId, `kick.com/${session.slug}`, session.slug);
-      return;
+      if (session.channelId) {
+        chat.connect(session.chatroomId, `kick.com/${session.slug}`, session.slug, session.channelId);
+        return;
+      }
+      let cancelled = false;
+      void (async () => {
+        try {
+          const info = await resolve({ data: { slug: session.slug } });
+          if (cancelled) return;
+          saveKickSession({
+            slug: info.slug,
+            chatroomId: info.chatroomId,
+            channelId: info.channelId,
+          });
+          chat.connect(info.chatroomId, `kick.com/${info.slug}`, info.slug, info.channelId);
+        } catch {
+          chat.connect(session.chatroomId, `kick.com/${session.slug}`, session.slug);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
     }
 
     const legacy = loadLegacyKickSlug();
@@ -38,8 +58,8 @@ export function KickChatProvider({ children }: { children: ReactNode }) {
       try {
         const info = await resolve({ data: { slug: legacy } });
         if (cancelled) return;
-        saveKickSession({ slug: info.slug, chatroomId: info.chatroomId });
-        chat.connect(info.chatroomId, `kick.com/${info.slug}`, info.slug);
+        saveKickSession({ slug: info.slug, chatroomId: info.chatroomId, channelId: info.channelId });
+        chat.connect(info.chatroomId, `kick.com/${info.slug}`, info.slug, info.channelId);
       } catch {
         clearKickSession();
       }

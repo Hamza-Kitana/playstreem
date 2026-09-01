@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Crosshair, Heart, Maximize2, Minimize2, Rocket, Skull, Swords, Trophy, Zap } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Crosshair, Gift, Heart, Maximize2, MessageCircle, Minimize2, Rocket, Skull, Swords, Trophy, Zap } from "lucide-react";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
 import { ZOMBIE_DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
@@ -10,7 +10,7 @@ import type {
   WeaponUnlockInfo,
   ZombieFpsEngine,
 } from "@/lib/zombie-fps-engine";
-import { computeBossProfile } from "@/lib/zombie-fps-engine";
+import { computeBossProfile, computeTitanProfile, computeZombieScaling, TITAN_COMMENT_INTERVAL } from "@/lib/zombie-fps-engine";
 import { Button } from "@/components/ui/button";
 import { GameCard } from "@/components/Reveal";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,12 @@ type Contributor = {
   color: string;
   zombies: number;
   bosses: number;
+  kicks: number;
+};
+
+type LiveLeaders = {
+  commenters: Contributor[];
+  kickers: Contributor[];
 };
 
 type FeedItem = {
@@ -58,11 +64,22 @@ function isZombieTrigger(text: string) {
   return compact.includes("زومبي") || compact.includes("zombie");
 }
 
-type PendingSpawn = { kind: "zombie" | "boss"; from: string; count: number };
+type PendingSpawn = { kind: "zombie" | "boss" | "titan"; from: string; count: number };
 
-function bossesFromKicks(amount: number) {
-  if (!Number.isFinite(amount) || amount < 50) return 0;
-  return Math.floor(amount / 50) * 3;
+function spawnsFromKicks(amount: number): { bosses: number; titans: number } | null {
+  if (!Number.isFinite(amount) || amount < 5) return null;
+  if (amount > 100) return { bosses: 0, titans: 3 };
+  if (amount >= 100) return { bosses: 1, titans: 1 };
+  if (amount >= 50) return { bosses: 0, titans: 1 };
+  if (amount >= 10) return { bosses: 2, titans: 0 };
+  return { bosses: 1, titans: 0 };
+}
+
+function describeKickSpawns(plan: { bosses: number; titans: number }) {
+  const parts: string[] = [];
+  if (plan.titans > 0) parts.push(`${plan.titans} ذيل أسطوري`);
+  if (plan.bosses > 0) parts.push(`${plan.bosses} وحش كبير`);
+  return parts.join(" + ");
 }
 
 function emptyContributors() {
@@ -83,6 +100,7 @@ function bumpContributor(
     color: m.color,
     zombies: 0,
     bosses: 0,
+    kicks: 0,
   };
   prev[field] += count;
   prev.user = m.user;
@@ -90,11 +108,49 @@ function bumpContributor(
   map.set(key, prev);
 }
 
+function bumpKickContributor(map: Map<string, Contributor>, m: ChatMessage, amount: number) {
+  const key = participantKey(m) || m.user.toLowerCase();
+  if (!key || amount <= 0) return;
+  const prev = map.get(key) ?? {
+    user: m.user,
+    userKey: key,
+    color: m.color,
+    zombies: 0,
+    bosses: 0,
+    kicks: 0,
+  };
+  prev.kicks += amount;
+  prev.user = m.user;
+  prev.color = m.color;
+  map.set(key, prev);
+}
+
+function rankTopCommenters(map: Map<string, Contributor>, limit = 3) {
+  return Array.from(map.values())
+    .filter((c) => c.zombies > 0 || c.bosses > 0)
+    .sort((a, b) => b.zombies + b.bosses * 2 - (a.zombies + a.bosses * 2))
+    .slice(0, limit);
+}
+
+function rankTopKickers(map: Map<string, Contributor>, limit = 3) {
+  return Array.from(map.values())
+    .filter((c) => c.kicks > 0)
+    .sort((a, b) => b.kicks - a.kicks)
+    .slice(0, limit);
+}
+
+function liveLeadersFrom(map: Map<string, Contributor>): LiveLeaders {
+  return {
+    commenters: rankTopCommenters(map, 3),
+    kickers: rankTopKickers(map, 3),
+  };
+}
+
 function rankContributors(map: Map<string, Contributor>) {
   return Array.from(map.values())
     .map((c) => ({
       ...c,
-      score: c.zombies + c.bosses * 5,
+      score: c.zombies + c.bosses * 5 + Math.floor(c.kicks / 10),
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 12);
@@ -130,8 +186,10 @@ export default function ZombieShooterGame({
     magSize: 50,
     reloading: false,
     reloadPct: 1,
+    hurtFlash: 0,
   });
   const [feed, setFeed] = useState<FeedItem[]>([]);
+  const [liveLeaders, setLiveLeaders] = useState<LiveLeaders>({ commenters: [], kickers: [] });
   const [healToast, setHealToast] = useState<HealToast | null>(null);
   const [hpBarFlash, setHpBarFlash] = useState<"heal" | null>(null);
   const [endState, setEndState] = useState<EndState | null>(null);
@@ -145,6 +203,7 @@ export default function ZombieShooterGame({
   const zombieCommentCountRef = useRef(0);
   const contributorsRef = useRef(emptyContributors());
   const bossEveryRef = useRef(bossEvery);
+  const roundDurationRef = useRef(180);
   const feedId = useRef(1);
   const healToastTimer = useRef<number | null>(null);
   const hpFlashTimer = useRef<number | null>(null);
@@ -154,26 +213,65 @@ export default function ZombieShooterGame({
   stopSessionRef.current = session.stop;
   bossEveryRef.current = bossEvery;
 
+  const handleHudUpdate = useCallback((next: FpsHud) => {
+    setHud((prev) => {
+      if (
+        prev.hp === next.hp &&
+        prev.kills === next.kills &&
+        prev.alive === next.alive &&
+        prev.queued === next.queued &&
+        prev.comments === next.comments &&
+        prev.bosses === next.bosses &&
+        prev.locked === next.locked &&
+        prev.weapon === next.weapon &&
+        prev.weaponLabel === next.weaponLabel &&
+        prev.rifleTier === next.rifleTier &&
+        prev.hasRpg === next.hasRpg &&
+        prev.hasRiflePlus === next.hasRiflePlus &&
+        prev.ammo === next.ammo &&
+        prev.reloading === next.reloading &&
+        Math.abs(prev.reloadPct - next.reloadPct) < 0.05 &&
+        Math.abs(prev.hurtFlash - next.hurtFlash) < 0.04
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
+  const handleHudRef = useRef(handleHudUpdate);
+  handleHudRef.current = handleHudUpdate;
+
   const pushFeed = (text: string, tone: FeedItem["tone"]) => {
     const id = feedId.current++;
     setFeed((prev) => [{ id, text, tone }, ...prev].slice(0, 8));
   };
 
+  const refreshLiveLeaders = useCallback(() => {
+    setLiveLeaders(liveLeadersFrom(contributorsRef.current));
+  }, []);
+
   const showHealFeedback = (info: HealInfo) => {
-    const text = `+${info.amount} دم`;
+    const text =
+      info.kind === "titan"
+        ? `+${info.amount} دم — طاقة الذيل`
+        : info.kind === "boss"
+          ? `+${info.amount} دم — هيل الوحش`
+          : `+${info.amount} دم`;
     const id = Date.now();
     setHealToast({ id, text, kind: info.kind });
     setHpBarFlash("heal");
     pushFeed(
-      info.kind === "boss"
-        ? `قتلت وحش → +${info.amount} دم (زومبيين)`
-        : `قتلت زومبي → +${info.amount} دم`,
+      info.kind === "titan"
+        ? `امتصيت طاقة الذيل → +${info.amount} دم`
+        : info.kind === "boss"
+          ? `هيل من الوحش → +${info.amount} دم`
+          : `هيل من الزومبي → +${info.amount} دم`,
       "heal",
     );
     if (healToastTimer.current) window.clearTimeout(healToastTimer.current);
     if (hpFlashTimer.current) window.clearTimeout(hpFlashTimer.current);
-    healToastTimer.current = window.setTimeout(() => setHealToast(null), 1300);
-    hpFlashTimer.current = window.setTimeout(() => setHpBarFlash(null), 700);
+    healToastTimer.current = window.setTimeout(() => setHealToast(null), 1500);
+    hpFlashTimer.current = window.setTimeout(() => setHpBarFlash(null), 900);
   };
 
   const showWeaponUnlock = (info: WeaponUnlockInfo) => {
@@ -182,8 +280,13 @@ export default function ZombieShooterGame({
 
   const showBossSpawn = (info: BossSpawnInfo) => {
     const seg = info.segments > 1 ? ` · ${info.segments} هيلات` : "";
+    const prefix = info.isTitan
+      ? "وحش استثنائي — "
+      : info.isMega
+        ? "تحذير — "
+        : "";
     pushFeed(
-      `${info.isMega ? "تحذير — " : ""}${info.title} نزل! (${info.hp} دم${seg}) — ${info.from}`,
+      `${prefix}${info.title} نزل! (${info.hp} دم${seg}) — ${info.from}`,
       "boss",
     );
   };
@@ -240,11 +343,23 @@ export default function ZombieShooterGame({
     if (endHandled.current) return;
 
     if (m.kind === "gift" && m.giftAmount) {
-      const bosses = bossesFromKicks(m.giftAmount);
-      if (bosses <= 0) return;
-      enqueueSpawn("boss", m.user, bosses);
-      bumpContributor(contributorsRef.current, m, "bosses", bosses);
-      pushFeed(`${m.user} أرسل ${m.giftAmount} كيك → ${bosses} وحوش`, "gift");
+      const plan = spawnsFromKicks(m.giftAmount);
+      if (!plan) return;
+      bumpKickContributor(contributorsRef.current, m, m.giftAmount);
+      if (plan.bosses > 0) {
+        enqueueSpawn("boss", m.user, plan.bosses);
+        bumpContributor(contributorsRef.current, m, "bosses", plan.bosses);
+      }
+      if (plan.titans > 0) {
+        enqueueSpawn("titan", m.user, plan.titans);
+        bumpContributor(contributorsRef.current, m, "bosses", plan.titans);
+      }
+      pushFeed(`${m.user} أرسل ${m.giftAmount} كيك → ${describeKickSpawns(plan)}`, "gift");
+      setHud((h) => ({
+        ...h,
+        queued: h.queued + plan.bosses + plan.titans,
+      }));
+      refreshLiveLeaders();
       return;
     }
 
@@ -261,10 +376,14 @@ export default function ZombieShooterGame({
     // Keep engine counter in sync when available.
     engineRef.current?.bumpZombieComment();
 
-    if (comments > 0 && comments % bossEveryRef.current === 0) {
+    if (comments > 0 && comments % TITAN_COMMENT_INTERVAL === 0) {
+      enqueueSpawn("titan", m.user, 1);
+      bumpContributor(contributorsRef.current, m, "bosses", 1);
+    } else if (comments > 0 && comments % bossEveryRef.current === 0) {
       enqueueSpawn("boss", m.user, 1);
       bumpContributor(contributorsRef.current, m, "bosses", 1);
     }
+    refreshLiveLeaders();
   });
 
   useEffect(() => {
@@ -278,12 +397,13 @@ export default function ZombieShooterGame({
       const { createZombieFpsEngine } = await import("@/lib/zombie-fps-engine");
       if (cancelled || !mountRef.current) return;
       engine = createZombieFpsEngine(mountRef.current, {
-        onHud: setHud,
+        onHud: (next) => handleHudRef.current(next),
         onDefeat: () => finishGameRef.current("defeated"),
         onHeal: showHealFeedback,
         onWeaponUnlock: showWeaponUnlock,
         onBossSpawn: showBossSpawn,
         bossEveryThreshold: bossEvery,
+        roundDurationSec: roundDurationRef.current,
       });
       if (cancelled) {
         engine.dispose();
@@ -350,6 +470,7 @@ export default function ZombieShooterGame({
   const startMatch = () => {
     if (!chatActive) return;
     contributorsRef.current = emptyContributors();
+    setLiveLeaders({ commenters: [], kickers: [] });
     pendingSpawnsRef.current = [];
     zombieCommentCountRef.current = 0;
     endHandled.current = false;
@@ -377,6 +498,7 @@ export default function ZombieShooterGame({
       reloading: false,
       reloadPct: 1,
     });
+    roundDurationRef.current = session.durationSec;
     playingRef.current = true;
     setPhase("playing");
     session.start();
@@ -404,7 +526,18 @@ export default function ZombieShooterGame({
     return rem === 0 ? bossEvery : rem;
   }, [bossEvery, hud.comments]);
 
+  const nextTitanIn = useMemo(() => {
+    if (hud.comments === 0) return TITAN_COMMENT_INTERVAL;
+    const rem = TITAN_COMMENT_INTERVAL - (hud.comments % TITAN_COMMENT_INTERVAL);
+    return rem === 0 ? TITAN_COMMENT_INTERVAL : rem;
+  }, [hud.comments]);
+
   const bossPreview = useMemo(() => computeBossProfile(bossEvery), [bossEvery]);
+  const titanPreview = useMemo(() => computeTitanProfile(bossEvery), [bossEvery]);
+  const zombieScaling = useMemo(
+    () => computeZombieScaling(session.durationSec, bossEvery),
+    [session.durationSec, bossEvery],
+  );
 
   return (
     <GameCard id="zombie" className="space-y-5">
@@ -425,16 +558,17 @@ export default function ZombieShooterGame({
             <div className="pointer-events-none absolute -right-10 top-0 size-56 rounded-full bg-emerald-400/10 blur-3xl" />
             <p className="text-sm font-extrabold text-emerald-200">تجربة FPS كاملة</p>
             <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">
-              منظور أول شخص واقعي، سلاح بيدك، تمشي داخل ماب مغلقة، وتصوّب بالماوس. تقدر تكبّر اللعبة
-              لملء الشاشة كاملة أثناء البث.
+              منظور أول شخص واقعي، سلاح بيدك، تمشي داخل ماب مفتوحة فيها جبال، وتصوّب بالماوس. تقدر
+              تكبّر اللعبة لملء الشاشة كاملة أثناء البث.
             </p>
-            <div className="mt-4 grid gap-2 text-xs font-bold text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-4 grid gap-2 text-xs font-bold text-muted-foreground sm:grid-cols-2 lg:grid-cols-5">
               <div className="rounded-xl bg-background/50 px-3 py-2">حركة: WASD</div>
+              <div className="rounded-xl bg-background/50 px-3 py-2">قفز: Space</div>
               <div className="rounded-xl bg-background/50 px-3 py-2">
                 نظر: الماوس (Pointer Lock)
               </div>
               <div className="rounded-xl bg-background/50 px-3 py-2">إطلاق: كبسة يسار</div>
-              <div className="rounded-xl bg-background/50 px-3 py-2">زوم: كبسة يمين (بندقية)</div>
+              <div className="rounded-xl bg-background/50 px-3 py-2">زوم: حرف K (بندقية)</div>
             </div>
           </div>
 
@@ -452,6 +586,14 @@ export default function ZombieShooterGame({
                   </option>
                 ))}
               </select>
+              <div className="mt-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5">
+                <p className="text-[10px] text-muted-foreground">قوة الزومبي — أقل وقت = أقوى</p>
+                <p className="mt-0.5 text-sm font-extrabold text-emerald-300">{zombieScaling.label}</p>
+                <p className="mt-1 text-[11px] font-bold text-white/80">
+                  دم ×{zombieScaling.hpMult.toFixed(2)} · سرعة ×{zombieScaling.speedMult.toFixed(2)} · ضرر ×
+                  {zombieScaling.damageMult.toFixed(2)}
+                </p>
+              </div>
             </label>
             <label className="space-y-1.5 rounded-2xl border border-border/70 bg-secondary/30 p-4 text-xs font-bold text-muted-foreground">
               وحش كبير كل كم تعليق زومبي؟
@@ -507,10 +649,26 @@ export default function ZombieShooterGame({
             </label>
           </div>
 
-          <div className="grid gap-3 rounded-2xl border border-border/70 bg-gradient-to-br from-rose-500/10 to-emerald-500/10 p-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-2xl border border-cyan-500/40 bg-gradient-to-r from-cyan-950/50 via-sky-950/35 to-background p-4">
+            <p className="text-[10px] font-bold tracking-wide text-cyan-300/90 uppercase">
+              وحش استثنائي — كل {TITAN_COMMENT_INTERVAL} تعليق (دائماً)
+            </p>
+            <p className="mt-1 text-base font-extrabold text-cyan-200">{titanPreview.title}</p>
+            <p className="mt-1 text-xs leading-6 text-white/75">
+              3 هيلات · {titanPreview.hp} دم · لون سماوي مختلف · ضربة ذيل تنزل أكثر من نص دمك · يهيل لحاله
+              إذا وقفت تطلق عليه
+            </p>
+          </div>
+
+          <div className="grid gap-3 rounded-2xl border border-border/70 bg-gradient-to-br from-rose-500/10 to-emerald-500/10 p-4 sm:grid-cols-2 lg:grid-cols-5">
             <div className="rounded-xl bg-background/50 p-3">
               <p className="text-xs text-muted-foreground">تعليق زومبي</p>
               <p className="mt-1 text-sm font-extrabold">ينزل زومبي واحد</p>
+            </div>
+            <div className="rounded-xl bg-background/50 p-3">
+              <p className="text-xs text-muted-foreground">كل {TITAN_COMMENT_INTERVAL} تعليق</p>
+              <p className="mt-1 text-sm font-extrabold text-cyan-300">{titanPreview.title}</p>
+              <p className="mt-0.5 text-[10px] font-bold text-cyan-200/90">3 هيلات · ذيل مدمر</p>
             </div>
             <div className="rounded-xl bg-background/50 p-3">
               <p className="text-xs text-muted-foreground">كل {bossEvery} تعليق</p>
@@ -546,7 +704,9 @@ export default function ZombieShooterGame({
 
           <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4">
             <p className="text-xs font-bold text-muted-foreground">هدايا كيك</p>
-            <p className="mt-1 text-sm font-extrabold">٥٠→٣ وحوش · ١٠٠→٦ وحوش</p>
+            <p className="mt-1 text-sm font-extrabold">
+              ٥→وحش · ١٠→٢ · ٥٠→ذيل أسطوري · ١٠٠→كبير+ذيل · +١٠٠→٣ أذيال
+            </p>
           </div>
 
           <Button
@@ -614,6 +774,33 @@ export default function ZombieShooterGame({
               )}
             />
 
+            {/* Cinematic atmosphere */}
+            <div className="pointer-events-none absolute inset-0 z-[5] bg-[radial-gradient(ellipse_at_center,transparent_38%,rgba(0,0,0,0.62)_100%)]" />
+            <div
+              className="pointer-events-none absolute inset-0 z-[6] transition-opacity duration-75"
+              style={{
+                opacity: Math.min(0.75, hud.hurtFlash * 0.6),
+                background: `radial-gradient(ellipse at center, transparent 32%, rgba(120,18,18,${hud.hurtFlash * 0.55}) 100%)`,
+                boxShadow: `inset 0 0 ${36 + hud.hurtFlash * 90}px rgba(160,24,24,${hud.hurtFlash * 0.38})`,
+              }}
+            />
+            <div
+              className="pointer-events-none absolute inset-0 z-[7] opacity-[0.035] mix-blend-overlay"
+              style={{
+                backgroundImage:
+                  "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+              }}
+            />
+            {hud.hp <= 25 ? (
+              <div
+                className="pointer-events-none absolute inset-0 z-[8] animate-pulse"
+                style={{
+                  opacity: 0.18 + (1 - hud.hp / 25) * 0.22,
+                  boxShadow: "inset 0 0 120px rgba(180,20,20,0.45)",
+                }}
+              />
+            ) : null}
+
             {/* Always-clickable top controls (above lock overlay) */}
             <div className="absolute inset-x-0 top-0 z-50 flex flex-wrap items-start justify-between gap-2 bg-gradient-to-b from-black/80 to-transparent p-3 sm:p-4">
               <div className="pointer-events-none grid grid-cols-3 gap-2 sm:grid-cols-6">
@@ -663,12 +850,14 @@ export default function ZombieShooterGame({
               </div>
             </div>
 
+            <LiveLeaderboardPanel leaders={liveLeaders} />
+
             {/* Crosshair */}
             <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center">
-              <div className="relative size-9 opacity-90">
-                <span className="absolute top-1/2 left-[2px] right-[2px] h-[2px] -translate-y-1/2 bg-emerald-200/95" />
-                <span className="absolute top-[2px] bottom-[2px] left-1/2 w-[2px] -translate-x-1/2 bg-emerald-200/95" />
-                <span className="absolute top-1/2 left-1/2 size-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
+              <div className="relative size-8 opacity-80">
+                <span className="absolute top-1/2 left-[3px] right-[3px] h-px -translate-y-1/2 bg-white/75 shadow-[0_0_4px_rgba(0,0,0,0.8)]" />
+                <span className="absolute top-[3px] bottom-[3px] left-1/2 w-px -translate-x-1/2 bg-white/75 shadow-[0_0_4px_rgba(0,0,0,0.8)]" />
+                <span className="absolute top-1/2 left-1/2 size-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/90" />
               </div>
             </div>
 
@@ -676,24 +865,32 @@ export default function ZombieShooterGame({
               <div
                 key={healToast.id}
                 className={cn(
-                  "pointer-events-none absolute left-1/2 top-[38%] z-40 animate-heal-rise",
-                  healToast.kind === "boss"
-                    ? "text-fuchsia-200"
-                    : "text-emerald-200",
+                  "pointer-events-none absolute bottom-[4.75rem] left-1/2 z-40 animate-heal-absorb",
+                  healToast.kind === "titan"
+                    ? "text-cyan-100"
+                    : healToast.kind === "boss"
+                      ? "text-fuchsia-100"
+                      : "text-emerald-100",
                 )}
               >
                 <div
                   className={cn(
-                    "flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-base font-extrabold shadow-lg backdrop-blur-md",
-                    healToast.kind === "boss"
-                      ? "border-fuchsia-400/50 bg-fuchsia-500/20"
-                      : "border-emerald-400/50 bg-emerald-500/20",
+                    "flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-extrabold shadow-xl backdrop-blur-md sm:text-base",
+                    healToast.kind === "titan"
+                      ? "border-cyan-300/55 bg-cyan-500/25 shadow-cyan-500/30"
+                      : healToast.kind === "boss"
+                        ? "border-fuchsia-400/50 bg-fuchsia-500/25 shadow-fuchsia-500/25"
+                        : "border-emerald-400/55 bg-emerald-500/25 shadow-emerald-500/25",
                   )}
                 >
                   <Heart
                     className={cn(
-                      "size-5",
-                      healToast.kind === "boss" ? "fill-fuchsia-300" : "fill-emerald-300",
+                      "size-5 animate-pulse",
+                      healToast.kind === "titan"
+                        ? "fill-cyan-200 text-cyan-100"
+                        : healToast.kind === "boss"
+                          ? "fill-fuchsia-300 text-fuchsia-100"
+                          : "fill-emerald-300 text-emerald-100",
                     )}
                   />
                   {healToast.text}
@@ -763,23 +960,42 @@ export default function ZombieShooterGame({
 
             {/* Bottom HP */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-4 pt-14">
-              <div className="mx-auto mb-2 max-w-lg text-center text-[11px] font-bold text-emerald-100/80">
-                الوحش القادم بعد {nextBossIn} تعليق · {hud.bossThreat}
+              <div className="relative mx-auto max-w-lg">
+                {healToast ? (
+                  <div
+                    key={`hp-flash-${healToast.id}`}
+                    className={cn(
+                      "pointer-events-none absolute -top-1 left-0 right-0 h-3 rounded-full blur-md animate-heal-bar-glow",
+                      healToast.kind === "titan"
+                        ? "bg-cyan-400/70"
+                        : healToast.kind === "boss"
+                          ? "bg-fuchsia-400/70"
+                          : "bg-emerald-400/70",
+                    )}
+                  />
+                ) : null}
+                <div className="mb-2 text-center text-[11px] font-bold text-emerald-100/80">
+                وحش الذيل بعد {nextTitanIn} تعليق · وحش عادي بعد {nextBossIn} · {hud.bossThreat}
                 {hud.bossSegments > 1 ? ` · ${hud.bossSegments} هيلات (${hud.bossHpPreview} دم)` : ""}
                 · وحوش نزلت: {hud.bosses}
-              </div>
-              <div className="mx-auto h-3 max-w-lg overflow-hidden rounded-full border border-white/10 bg-white/10">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-all duration-300",
-                    hpBarFlash === "heal"
-                      ? "bg-emerald-300 shadow-[0_0_18px_rgba(74,222,128,0.75)]"
-                      : hud.hp <= 30
-                        ? "bg-rose-500"
-                        : "bg-emerald-400",
-                  )}
-                  style={{ width: `${hud.hp}%` }}
-                />
+                </div>
+                <div className="h-3 overflow-hidden rounded-full border border-white/10 bg-white/10">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all duration-500",
+                      hpBarFlash === "heal"
+                        ? healToast?.kind === "titan"
+                          ? "bg-cyan-300 shadow-[0_0_22px_rgba(34,211,238,0.85)]"
+                          : healToast?.kind === "boss"
+                            ? "bg-fuchsia-300 shadow-[0_0_22px_rgba(232,121,249,0.85)]"
+                            : "bg-emerald-300 shadow-[0_0_22px_rgba(74,222,128,0.85)]"
+                        : hud.hp <= 30
+                          ? "bg-rose-500"
+                          : "bg-emerald-400",
+                    )}
+                    style={{ width: `${hud.hp}%` }}
+                  />
+                </div>
               </div>
             </div>
 
@@ -793,7 +1009,7 @@ export default function ZombieShooterGame({
                   <Crosshair className="mx-auto size-8 text-emerald-300" />
                   <p className="mt-3 text-lg font-extrabold text-emerald-100">اضغط للعب</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    سكرول يغيّر السلاح · زوم يمين (بندقية) · R للتحميل · F للتكبير · ثم اضغط هنا للعب
+                    سكرول يغيّر السلاح · K للزوم · Space للقفز · R للتحميل · F للتكبير · ثم اضغط هنا للعب
                   </p>
                 </div>
               </button>
@@ -894,7 +1110,9 @@ export default function ZombieShooterGame({
                           {i < 3 ? <Trophy className="size-3.5 text-amber-300" /> : null}
                         </div>
                         <span className="text-xs text-muted-foreground">
-                          زومبي {c.zombies} · وحوش {c.bosses}
+                          زومبي {c.zombies}
+                          {c.bosses > 0 ? ` · وحوش ${c.bosses}` : ""}
+                          {c.kicks > 0 ? ` · ${c.kicks} كيك` : ""}
                         </span>
                       </div>
                     ))}
@@ -910,6 +1128,110 @@ export default function ZombieShooterGame({
         </div>
       ) : null}
     </GameCard>
+  );
+}
+
+function LiveLeaderboardPanel({ leaders }: { leaders: LiveLeaders }) {
+  const hasAny = leaders.commenters.length > 0 || leaders.kickers.length > 0;
+
+  return (
+    <div className="pointer-events-none absolute top-[4.25rem] right-3 z-40 w-[min(calc(100%-1.5rem),12.5rem)] sm:top-[4.5rem] sm:right-4 sm:w-56">
+      <div className="overflow-hidden rounded-2xl border border-white/15 bg-black/72 shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-md">
+        <div className="border-b border-white/10 bg-gradient-to-l from-amber-500/15 via-transparent to-emerald-500/10 px-3 py-2">
+          <p className="flex items-center gap-1.5 text-[10px] font-extrabold tracking-wide text-amber-100/90 uppercase">
+            <Trophy className="size-3.5 text-amber-300" />
+            لوحة الأبطال
+          </p>
+        </div>
+
+        <div className="space-y-2 p-2">
+          <LeaderboardSection
+            title="أكثر تعليق"
+            icon={MessageCircle}
+            accent="emerald"
+            emptyLabel="لا تعليقات بعد"
+            items={leaders.commenters}
+            value={(c) =>
+              c.bosses > 0 ? `${c.zombies} زومبي · ${c.bosses} وحش` : `${c.zombies} تعليق`
+            }
+          />
+          <LeaderboardSection
+            title="أكثر كيكس"
+            icon={Gift}
+            accent="amber"
+            emptyLabel="لا هدايا بعد"
+            items={leaders.kickers}
+            value={(c) => `${c.kicks} كيك`}
+          />
+        </div>
+
+        {!hasAny ? (
+          <p className="border-t border-white/8 px-3 py-2 text-center text-[10px] font-bold text-white/45">
+            الشات يبني الترتيب مباشرة
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function LeaderboardSection({
+  title,
+  icon: Icon,
+  accent,
+  emptyLabel,
+  items,
+  value,
+}: {
+  title: string;
+  icon: typeof MessageCircle;
+  accent: "emerald" | "amber";
+  emptyLabel: string;
+  items: Contributor[];
+  value: (c: Contributor) => string;
+}) {
+  const accentBorder = accent === "amber" ? "border-amber-400/35" : "border-emerald-400/35";
+  const accentBg = accent === "amber" ? "bg-amber-500/12" : "bg-emerald-500/12";
+  const accentText = accent === "amber" ? "text-amber-200" : "text-emerald-200";
+  const rankColors = ["text-amber-300", "text-slate-200", "text-orange-300/90"];
+
+  return (
+    <div className={cn("rounded-xl border p-2", accentBorder, accentBg)}>
+      <p className={cn("mb-1.5 flex items-center gap-1.5 text-[10px] font-extrabold", accentText)}>
+        <Icon className="size-3.5 shrink-0" />
+        {title}
+      </p>
+      {items.length === 0 ? (
+        <p className="px-1 py-1 text-[10px] font-bold text-white/40">{emptyLabel}</p>
+      ) : (
+        <ul className="space-y-1">
+          {items.map((c, i) => (
+            <li
+              key={c.userKey}
+              className={cn(
+                "flex items-center justify-between gap-2 rounded-lg px-1.5 py-1",
+                i === 0 ? "bg-white/8" : "bg-black/20",
+              )}
+            >
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span
+                  className={cn(
+                    "grid size-5 shrink-0 place-items-center rounded-full bg-black/50 text-[10px] font-black",
+                    rankColors[i] ?? "text-white/70",
+                  )}
+                >
+                  {i + 1}
+                </span>
+                <span className="truncate text-[11px] font-extrabold" style={{ color: c.color }}>
+                  {c.user}
+                </span>
+              </div>
+              <span className="shrink-0 text-[10px] font-bold text-white/55">{value(c)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

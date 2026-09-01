@@ -5,6 +5,7 @@ const LEGACY_SLUG_KEY = "al-daboor-kick-channel";
 export type KickSession = {
   slug: string;
   chatroomId: number;
+  channelId?: number;
 };
 
 export function loadKickSession(): KickSession | null {
@@ -19,7 +20,11 @@ export function loadKickSession(): KickSession | null {
         typeof parsed.chatroomId === "number" &&
         Number.isFinite(parsed.chatroomId)
       ) {
-        return { slug: parsed.slug.toLowerCase(), chatroomId: parsed.chatroomId };
+        const channelId =
+          typeof parsed.channelId === "number" && Number.isFinite(parsed.channelId)
+            ? parsed.channelId
+            : undefined;
+        return { slug: parsed.slug.toLowerCase(), chatroomId: parsed.chatroomId, channelId };
       }
     }
   } catch {

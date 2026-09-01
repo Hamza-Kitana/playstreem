@@ -295,11 +295,51 @@
   }
 }
 
-@utility animate-pop-in {
-  animation: pop-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+@keyframes heal-absorb {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 18px) scale(0.82);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.06);
+  }
+  55% {
+    opacity: 1;
+    transform: translate(-50%, -6px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -22px) scale(0.96);
+  }
 }
+
+@keyframes heal-bar-glow {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.65);
+  }
+  25% {
+    opacity: 1;
+    transform: scaleX(1.02);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
+
 @utility animate-heal-rise {
   animation: heal-rise 1.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@utility animate-heal-absorb {
+  animation: heal-absorb 1.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@utility animate-heal-bar-glow {
+  animation: heal-bar-glow 0.9s ease-out both;
+}
+@utility animate-pop-in {
+  animation: pop-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @utility animate-chat-in {

@@ -19,6 +19,8 @@ const liveSchema = z.object({
 export type KickChannelInfo = {
   slug: string;
   chatroomId: number;
+  /** Kick channel id — used for gift/Kicks events on `channel.{id}`. */
+  channelId: number;
   displayName: string;
   avatar: string | null;
   followers: number | null;
@@ -43,16 +45,19 @@ async function fetchKickChannel(slug: string): Promise<KickChannelInfo | null> {
       const res = await fetch(url, { headers: KICK_HEADERS });
       if (!res.ok) continue;
       const json = (await res.json()) as {
+        id?: number;
         chatroom?: { id?: number };
         user?: { username?: string; profile_pic?: string | null };
         followers_count?: number;
         livestream?: unknown;
       };
       const chatroomId = json.chatroom?.id;
-      if (typeof chatroomId !== "number") continue;
+      const channelId = json.id;
+      if (typeof chatroomId !== "number" || typeof channelId !== "number") continue;
       return {
         slug,
         chatroomId,
+        channelId,
         displayName: json.user?.username ?? slug,
         avatar: json.user?.profile_pic ?? null,
         followers: typeof json.followers_count === "number" ? json.followers_count : null,

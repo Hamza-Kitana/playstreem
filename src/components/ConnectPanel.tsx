@@ -30,7 +30,7 @@ export default function ConnectPanel({
 }: {
   status: ChatStatus;
   channel: string | null;
-  onConnect: (chatroomId: number, label: string, slug?: string) => void;
+  onConnect: (chatroomId: number, label: string, slug?: string, channelId?: number) => void;
   onStop: () => void;
 }) {
   const resolve = useServerFn(resolveKickChannel);
@@ -78,10 +78,10 @@ export default function ConnectPanel({
     setLoading(true);
     try {
       const info = await resolve({ data: { slug } });
-      saveKickSession({ slug: info.slug, chatroomId: info.chatroomId });
+      saveKickSession({ slug: info.slug, chatroomId: info.chatroomId, channelId: info.channelId });
       setInput(info.slug);
       setHint(`تم الربط عبر ${source}`);
-      onConnect(info.chatroomId, `kick.com/${info.slug}`, info.slug);
+      onConnect(info.chatroomId, `kick.com/${info.slug}`, info.slug, info.channelId);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "تعذّر الاتصال بالقناة.");
     } finally {

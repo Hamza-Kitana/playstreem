@@ -87,8 +87,8 @@ export default function HomeVerifiedSidebar() {
     setConnectingSlug(slug);
     try {
       const info = await resolve({ data: { slug } });
-      saveKickSession({ slug: info.slug, chatroomId: info.chatroomId });
-      chat.connect(info.chatroomId, `kick.com/${info.slug}`, info.slug);
+      saveKickSession({ slug: info.slug, chatroomId: info.chatroomId, channelId: info.channelId });
+      chat.connect(info.chatroomId, `kick.com/${info.slug}`, info.slug, info.channelId);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "تعذّر الربط.");
     } finally {

@@ -11,6 +11,7 @@ import type {
   ZombieFpsEngine,
 } from "@/lib/zombie-fps-engine";
 import { computeBossProfile, computeTitanProfile, computeZombieScaling, TITAN_COMMENT_INTERVAL } from "@/lib/zombie-fps-engine";
+import { createZombieAudio } from "@/lib/zombie-audio";
 import { Button } from "@/components/ui/button";
 import { GameCard } from "@/components/Reveal";
 import { cn } from "@/lib/utils";
@@ -51,6 +52,11 @@ type EndState = {
   bossesSpawned: number;
   livedSec: number;
   leaders: Contributor[];
+};
+
+type RoundVerdict = {
+  id: number;
+  outcome: EndState["outcome"];
 };
 
 function isZombieTrigger(text: string) {
@@ -193,12 +199,15 @@ export default function ZombieShooterGame({
   const [healToast, setHealToast] = useState<HealToast | null>(null);
   const [hpBarFlash, setHpBarFlash] = useState<"heal" | null>(null);
   const [endState, setEndState] = useState<EndState | null>(null);
-  const [endReveal, setEndReveal] = useState(false);
+  const [roundVerdict, setRoundVerdict] = useState<RoundVerdict | null>(null);
+  const [titanFxId, setTitanFxId] = useState(0);
 
   const session = useGameSession(180);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const mountRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<ZombieFpsEngine | null>(null);
+  const audioRef = useRef<ReturnType<typeof createZombieAudio> | null>(null);
+  if (!audioRef.current) audioRef.current = createZombieAudio();
   const pendingSpawnsRef = useRef<PendingSpawn[]>([]);
   const zombieCommentCountRef = useRef(0);
   const contributorsRef = useRef(emptyContributors());
@@ -289,6 +298,8 @@ export default function ZombieShooterGame({
       `${prefix}${info.title} نزل! (${info.hp} دم${seg}) — ${info.from}`,
       "boss",
     );
+    audioRef.current?.playBossRoar(info.isTitan);
+    if (info.isTitan) setTitanFxId(Date.now());
   };
 
   const enqueueSpawn = (kind: PendingSpawn["kind"], from: string, count = 1) => {
@@ -316,20 +327,23 @@ export default function ZombieShooterGame({
     if (document.fullscreenElement) {
       void document.exitFullscreen().catch(() => undefined);
     }
-    const eng = engineRef.current;
-    eng?.markEnded(outcome);
-    const stats = eng?.getStats();
-    setEndState({
-      outcome,
-      kills: stats?.kills ?? 0,
-      spawned: stats?.spawned ?? 0,
-      bossesSpawned: stats?.bossesSpawned ?? 0,
-      livedSec: stats?.livedSec ?? 0,
-      leaders: rankContributors(contributorsRef.current),
-    });
-    setPhase("ended");
-    setEndReveal(false);
-    window.setTimeout(() => setEndReveal(true), 1400);
+    audioRef.current?.playVerdict(outcome);
+    setRoundVerdict({ id: Date.now(), outcome });
+    window.setTimeout(() => {
+      const eng = engineRef.current;
+      eng?.markEnded(outcome);
+      const stats = eng?.getStats();
+      setEndState({
+        outcome,
+        kills: stats?.kills ?? 0,
+        spawned: stats?.spawned ?? 0,
+        bossesSpawned: stats?.bossesSpawned ?? 0,
+        livedSec: stats?.livedSec ?? 0,
+        leaders: rankContributors(contributorsRef.current),
+      });
+      setRoundVerdict(null);
+      setPhase("ended");
+    }, 2800);
   };
 
   useEffect(() => {
@@ -402,6 +416,9 @@ export default function ZombieShooterGame({
         onHeal: showHealFeedback,
         onWeaponUnlock: showWeaponUnlock,
         onBossSpawn: showBossSpawn,
+        onFootstep: () => audioRef.current?.playFootstep(),
+        onShoot: (weapon) => audioRef.current?.playShoot(weapon),
+        onMobGroan: (kind) => audioRef.current?.playZombieGroan(kind),
         bossEveryThreshold: bossEvery,
         roundDurationSec: roundDurationRef.current,
       });
@@ -467,6 +484,20 @@ export default function ZombieShooterGame({
     return () => window.removeEventListener("keydown", onKey);
   }, [phase]);
 
+  useEffect(() => {
+    if (phase === "playing") audioRef.current?.unlock();
+  }, [phase]);
+
+  useEffect(() => {
+    if (!titanFxId) return;
+    const t = window.setTimeout(() => setTitanFxId(0), 4500);
+    return () => window.clearTimeout(t);
+  }, [titanFxId]);
+
+  useEffect(() => {
+    return () => audioRef.current?.dispose();
+  }, []);
+
   const startMatch = () => {
     if (!chatActive) return;
     contributorsRef.current = emptyContributors();
@@ -476,7 +507,8 @@ export default function ZombieShooterGame({
     endHandled.current = false;
     setFeed([]);
     setEndState(null);
-    setEndReveal(false);
+    setRoundVerdict(null);
+    setTitanFxId(0);
     setHud({
       hp: PLAYER_MAX_HP,
       kills: 0,
@@ -497,6 +529,7 @@ export default function ZombieShooterGame({
       magSize: 50,
       reloading: false,
       reloadPct: 1,
+      hurtFlash: 0,
     });
     roundDurationRef.current = session.durationSec;
     playingRef.current = true;
@@ -515,6 +548,8 @@ export default function ZombieShooterGame({
     engineRef.current?.dispose();
     engineRef.current = null;
     setPhase("lobby");
+    setRoundVerdict(null);
+    setTitanFxId(0);
     setEndState(null);
     setEndReveal(false);
     setFeed([]);
@@ -802,6 +837,74 @@ export default function ZombieShooterGame({
               />
             ) : null}
 
+            {titanFxId ? (
+              <>
+                <div
+                  key={`curtain-${titanFxId}`}
+                  className="pointer-events-none absolute inset-0 z-[42] animate-titan-curtain bg-[radial-gradient(ellipse_at_center,transparent_12%,rgba(0,0,0,0.85)_100%)]"
+                />
+                <div
+                  key={`beam-${titanFxId}`}
+                  className="pointer-events-none absolute inset-x-0 top-0 z-[41] h-[70%] origin-top animate-titan-beam bg-[radial-gradient(ellipse_at_50%_0%,rgba(165,243,255,0.62)_0%,rgba(34,211,238,0.2)_30%,transparent_70%)]"
+                />
+                <div
+                  key={`titan-msg-${titanFxId}`}
+                  className="pointer-events-none absolute inset-x-0 top-[20%] z-[43] px-4 text-center"
+                >
+                  <p className="animate-verdict-burst font-display text-2xl font-black text-cyan-50 drop-shadow-[0_0_28px_rgba(34,211,238,0.9)] sm:text-4xl">
+                    وحش الذيل الأسطوري نزل!
+                  </p>
+                  <p className="mt-2 animate-verdict-burst text-sm font-bold text-cyan-200/80 sm:text-base">
+                    الأرض تهتز... استعد!
+                  </p>
+                </div>
+              </>
+            ) : null}
+
+            {roundVerdict ? (
+              <div className="pointer-events-none absolute inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-[3px]">
+                <div
+                  key={roundVerdict.id}
+                  className={cn(
+                    "animate-verdict-burst max-w-lg px-6 text-center sm:px-10",
+                    roundVerdict.outcome === "survived"
+                      ? "text-emerald-50"
+                      : "text-rose-50",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "mx-auto mb-5 flex size-20 items-center justify-center rounded-full border-2 sm:size-24",
+                      roundVerdict.outcome === "survived"
+                        ? "border-emerald-300/60 bg-emerald-500/20 shadow-[0_0_60px_rgba(74,222,128,0.45)]"
+                        : "border-rose-300/60 bg-rose-500/20 shadow-[0_0_60px_rgba(248,113,113,0.45)]",
+                    )}
+                  >
+                    {roundVerdict.outcome === "survived" ? (
+                      <Trophy className="size-10 text-emerald-200 sm:size-12" />
+                    ) : (
+                      <Skull className="size-10 text-rose-200 sm:size-12" />
+                    )}
+                  </div>
+                  <h2
+                    className={cn(
+                      "font-display text-5xl font-black tracking-tight sm:text-7xl",
+                      roundVerdict.outcome === "survived"
+                        ? "shimmer-text"
+                        : "text-rose-100",
+                    )}
+                  >
+                    {roundVerdict.outcome === "survived" ? "ربحت!" : "خسرت!"}
+                  </h2>
+                  <p className="mt-4 text-base font-extrabold text-white/90 sm:text-xl">
+                    {roundVerdict.outcome === "survived"
+                      ? "صمدت حتى نهاية الوقت — الستريمر انتصر!"
+                      : "الشات أسقطك — المشاهدون فازوا!"}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
             {/* Always-clickable top controls (above lock overlay) */}
             <div className="absolute inset-x-0 top-0 z-50 flex flex-wrap items-start justify-between gap-2 bg-gradient-to-b from-black/80 to-transparent p-3 sm:p-4">
               <div className="pointer-events-none grid grid-cols-3 gap-2 sm:grid-cols-6">
@@ -1048,14 +1151,7 @@ export default function ZombieShooterGame({
       {phase === "ended" && endState ? (
         <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-br from-secondary/50 to-background p-6 sm:p-8">
           <div className="pointer-events-none absolute -top-20 left-1/2 size-72 -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
-          {!endReveal ? (
-            <div className="relative space-y-3 py-10 text-center">
-              <div className="mx-auto size-14 animate-spin rounded-full border-4 border-primary/25 border-t-primary" />
-              <p className="text-lg font-extrabold">جاري إعلان النتيجة...</p>
-              <p className="text-sm text-muted-foreground">تشويق قبل كشف الفائزين</p>
-            </div>
-          ) : (
-            <div className="relative space-y-6">
+          <div className="relative space-y-6">
               <div className="text-center">
                 {endState.outcome === "defeated" ? (
                   <>
@@ -1124,8 +1220,7 @@ export default function ZombieShooterGame({
               <Button type="button" className="w-full font-extrabold" onClick={resetLobby}>
                 رجوع للإعداد
               </Button>
-            </div>
-          )}
+          </div>
         </div>
       ) : null}
     </GameCard>

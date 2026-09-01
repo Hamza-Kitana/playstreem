@@ -1283,6 +1283,9 @@ export function createZombieFpsEngine(
     onHeal?: (info: HealInfo) => void;
     onWeaponUnlock?: (info: WeaponUnlockInfo) => void;
     onBossSpawn?: (info: BossSpawnInfo) => void;
+    onFootstep?: () => void;
+    onShoot?: (weapon: WeaponId) => void;
+    onMobGroan?: (kind: MobKind) => void;
     bossEveryThreshold?: number;
     roundDurationSec?: number;
   } = {},
@@ -1571,6 +1574,10 @@ export function createZombieFpsEngine(
   let hurtFlash = 0;
   let healPulse = 0;
   let bossSpawnPulse = 0;
+  let titanCinematic = 0;
+  let titanSpot: THREE.SpotLight | null = null;
+  let titanSpotMob: Mob | null = null;
+  let groanCd = 2.5;
   let kills = 0;
   let spawned = 0;
   let bossesSpawned = 0;
@@ -1730,11 +1737,23 @@ export function createZombieFpsEngine(
     spawned += 1;
     if (boss) {
       bossesSpawned += 1;
-      bossSpawnPulse = 1;
+      bossSpawnPulse = isTitan ? 1.35 : 1;
       shake = Math.max(
         shake,
-        0.35 + profile!.tier * 0.2 + (profile!.isMega ? 0.55 : 0) + (isTitan ? 0.75 : 0),
+        0.35 + profile!.tier * 0.2 + (profile!.isMega ? 0.55 : 0) + (isTitan ? 3.2 : 0),
       );
+      if (isTitan) {
+        titanCinematic = 1;
+        titanSpotMob = mob;
+        if (titanSpot) {
+          scene.remove(titanSpot);
+          titanSpot.dispose();
+        }
+        titanSpot = new THREE.SpotLight(0xb8f4ff, 0, 62, Math.PI / 5.5, 0.38, 1.4);
+        titanSpot.position.set(spawnPos.x, spawnGround + 24, spawnPos.z);
+        titanSpot.target = root;
+        scene.add(titanSpot);
+      }
       spawnSpark(
         root.position.clone().setY(
           2.5 + profile!.tier * 0.4 + (profile!.isMega ? 1.2 : 0) + (isTitan ? 1.5 : 0),
@@ -2070,6 +2089,7 @@ export function createZombieFpsEngine(
     shake = Math.max(shake, spec.shake);
     flashMuzzle(spec);
     spawnMuzzleSmoke();
+    opts.onShoot?.(activeWeapon);
     if (activeWeapon === "rpg") fireRpg();
     else fireRifle(spec);
     if (usesMagazine(activeWeapon)) {
@@ -2196,7 +2216,25 @@ export function createZombieFpsEngine(
       damagePulse = Math.max(0, damagePulse - dt * 1.8);
       hurtFlash = Math.max(0, hurtFlash - dt * 2.6);
       healPulse = Math.max(0, healPulse - dt * 2.4);
-      bossSpawnPulse = Math.max(0, bossSpawnPulse - dt * 1.6);
+      bossSpawnPulse = Math.max(0, bossSpawnPulse - dt * (titanCinematic > 0.05 ? 0.55 : 1.6));
+      if (titanCinematic > 0) {
+        titanCinematic = Math.max(0, titanCinematic - dt * 0.24);
+      }
+      if (titanSpot) {
+        if (titanSpotMob && titanCinematic > 0.02) {
+          const pos = titanSpotMob.root.position;
+          titanSpot.position.set(pos.x, pos.y + 22, pos.z);
+          titanSpot.intensity = 6 + titanCinematic * 32;
+        } else {
+          titanSpot.intensity = Math.max(0, titanSpot.intensity - dt * 14);
+          if (titanSpot.intensity <= 0.05) {
+            scene.remove(titanSpot);
+            titanSpot.dispose();
+            titanSpot = null;
+            titanSpotMob = null;
+          }
+        }
+      }
       muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt * 22);
       if (flashMesh.material instanceof THREE.MeshBasicMaterial) {
         flashMesh.material.opacity = Math.max(0, flashMesh.material.opacity - dt * 10);
@@ -2271,6 +2309,7 @@ export function createZombieFpsEngine(
         footDustCd -= dt;
         if (footDustCd <= 0) {
           footDustCd = 0.18;
+          opts.onFootstep?.();
           spawnSpark(
             tmpV2.set(
               camera.position.x - forward.x * 0.35,
@@ -2287,8 +2326,30 @@ export function createZombieFpsEngine(
       const bobX = moving && playerAltitude <= 0.06 ? Math.cos(bob * 0.5) * 0.02 : 0;
       camera.position.y = groundH + PLAYER_EYE_HEIGHT + playerAltitude + bobY;
       if (shake > 0) {
-        camera.position.x += (Math.random() - 0.5) * shake * 0.08;
+        const quake = titanCinematic > 0.15 ? titanCinematic * 0.14 : 0;
+        camera.position.x += (Math.random() - 0.5) * shake * 0.08 + Math.sin(livedSec * 26) * quake;
         camera.position.y += (Math.random() - 0.5) * shake * 0.06;
+        camera.position.z += Math.cos(livedSec * 22) * quake;
+      }
+
+      groanCd -= dt;
+      if (groanCd <= 0 && mobs.length > 0) {
+        groanCd = 2.2 + Math.random() * 3.5;
+        let nearest: Mob | null = null;
+        let nearestDist = Infinity;
+        for (const m of mobs) {
+          const d = Math.hypot(
+            camera.position.x - m.root.position.x,
+            camera.position.z - m.root.position.z,
+          );
+          if (d < nearestDist) {
+            nearestDist = d;
+            nearest = m;
+          }
+        }
+        if (nearest && nearestDist < 22) {
+          opts.onMobGroan?.(nearest.kind);
+        }
       }
 
       const reloadT = reloadTimer > 0 ? reloadTimer / RELOAD_TIME : 0;
@@ -2503,7 +2564,11 @@ export function createZombieFpsEngine(
 
     // Damage/heal feedback via exposure tint.
     renderer.toneMappingExposure =
-      1.18 - damagePulse * 0.35 + healPulse * 0.28 - bossSpawnPulse * 0.22;
+      1.18 -
+      damagePulse * 0.35 +
+      healPulse * 0.28 -
+      bossSpawnPulse * 0.22 -
+      titanCinematic * 0.52;
 
     hudAcc += dt;
     if (hudAcc > HUD_EMIT_INTERVAL) {
@@ -2548,6 +2613,10 @@ export function createZombieFpsEngine(
       for (const puff of smokePuffs) {
         scene.remove(puff.mesh);
         (puff.mesh.material as THREE.Material).dispose();
+      }
+      if (titanSpot) {
+        scene.remove(titanSpot);
+        titanSpot.dispose();
       }
       sparkGeo.dispose();
       smokeGeo.dispose();

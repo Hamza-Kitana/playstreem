@@ -286,11 +286,14 @@
   0% {
     opacity: 0;
   }
-  8% {
-    opacity: 0.88;
+  6% {
+    opacity: 0.92;
   }
-  35% {
-    opacity: 0.72;
+  28% {
+    opacity: 0.82;
+  }
+  52% {
+    opacity: 0.68;
   }
   100% {
     opacity: 0;
@@ -302,12 +305,15 @@
     opacity: 0;
     transform: scaleY(0.4);
   }
-  10% {
+  8% {
     opacity: 1;
     transform: scaleY(1);
   }
-  55% {
-    opacity: 0.85;
+  42% {
+    opacity: 0.9;
+  }
+  68% {
+    opacity: 0.72;
   }
   100% {
     opacity: 0;
@@ -403,10 +409,10 @@
   animation: verdict-burst 2.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 @utility animate-titan-curtain {
-  animation: titan-curtain 4.2s ease-out both;
+  animation: titan-curtain 6.8s ease-out both;
 }
 @utility animate-titan-beam {
-  animation: titan-beam 3.8s ease-out both;
+  animation: titan-beam 6.2s ease-out both;
 }
 
 @utility animate-chat-in {

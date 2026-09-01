@@ -490,7 +490,7 @@ export default function ZombieShooterGame({
 
   useEffect(() => {
     if (!titanFxId) return;
-    const t = window.setTimeout(() => setTitanFxId(0), 4500);
+    const t = window.setTimeout(() => setTitanFxId(0), 6800);
     return () => window.clearTimeout(t);
   }, [titanFxId]);
 
@@ -691,7 +691,7 @@ export default function ZombieShooterGame({
             </p>
             <p className="mt-1 text-base font-extrabold text-cyan-200">{titanPreview.title}</p>
             <p className="mt-1 text-xs leading-6 text-white/75">
-              3 هيلات · {titanPreview.hp} دم · لون سماوي مختلف · ضربة ذيل تنزل أكثر من نص دمك · يهيل لحاله
+              3 هيلات · {titanPreview.hp} دم · أسرع · ضربة قاضية كل 10 ثوانٍ · يهيل لحاله
               إذا وقفت تطلق عليه
             </p>
           </div>

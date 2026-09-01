@@ -37,24 +37,10 @@ export const VERIFIED_STREAMERS: VerifiedStreamer[] = [
     note: "موثّق لدى Al-Daboor — شارة LIVE تظهر لما يكون البث شغّال.",
   },
   {
-    name: "rahma_gamin_g",
-    slug: "rahma_gamin_g",
+    name: "3MRO_KH",
+    slug: "3mro-kh",
     tag: "ستريمر موثّق",
-    hue: 148,
-    note: "موثّقة لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
-  },
-  {
-    name: "nyrex-x",
-    slug: "nyrex-x",
-    tag: "ستريمر موثّق",
-    hue: 172,
-    note: "موثّق لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
-  },
-  {
-    name: "LTxMax",
-    slug: "ltxmax",
-    tag: "ستريمر موثّق",
-    hue: 156,
-    note: "موثّق لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
+    hue: 154,
+    note: "موثّق لدى Al-Daboor — قعدة ع الرايق، شوف البث على الكرت أو اربط القناة بكبسة.",
   },
 ];

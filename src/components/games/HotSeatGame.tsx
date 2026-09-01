@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Armchair, Crown, Play, RotateCcw, Users } from "lucide-react";
 import type { ChatMessage } from "@/hooks/useKickChat";
 import { useGameSession } from "@/hooks/useGameSession";
@@ -24,6 +24,82 @@ type Chair = {
 };
 
 type Phase = "lobby" | "spinning" | "claiming" | "round_end" | "winner";
+
+type SeatMove = {
+  chairId: number;
+  player: Player;
+  fromAngle: number;
+  toAngle: number;
+};
+
+const SEAT_MOVE_MS = 780;
+
+function lerpPct(a: string, b: string, t: number) {
+  const pa = Number.parseFloat(a);
+  const pb = Number.parseFloat(b);
+  return `${pa + (pb - pa) * t}%`;
+}
+
+function MovingToSeat({
+  move,
+  onDone,
+}: {
+  move: SeatMove;
+  onDone: () => void;
+}) {
+  const [t, setT] = useState(0);
+  const doneRef = useRef(false);
+
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - start) / SEAT_MOVE_MS);
+      const ease = 1 - Math.pow(1 - p, 3);
+      setT(ease);
+      if (p < 1) {
+        raf = requestAnimationFrame(tick);
+      } else if (!doneRef.current) {
+        doneRef.current = true;
+        onDone();
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [onDone]);
+
+  const from = polar(42, move.fromAngle);
+  const to = polar(18, move.toAngle);
+  const sit = t > 0.82 ? (t - 0.82) / 0.18 : 0;
+  const scale = 1 - sit * 0.14;
+
+  return (
+    <div
+      className="pointer-events-none absolute z-30 flex flex-col items-center"
+      style={{
+        left: lerpPct(from.left, to.left, t),
+        top: lerpPct(from.top, to.top, t),
+        transform: `translate(-50%, -50%) scale(${scale})`,
+      }}
+    >
+      <span
+        className="grid size-9 place-items-center rounded-full border-2 border-primary/50 bg-black/60 text-xs font-extrabold shadow-lg sm:size-10"
+        style={{
+          color: move.player.color,
+          boxShadow: `0 0 22px -4px ${move.player.color}`,
+        }}
+      >
+        {move.player.name.slice(0, 1)}
+      </span>
+      <span
+        className="mt-1 max-w-[5rem] truncate rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-bold backdrop-blur-sm"
+        style={{ color: move.player.color }}
+      >
+        {move.player.name}
+      </span>
+    </div>
+  );
+}
 
 function isJoinCommand(text: string) {
   const t = normalizeAr(text);
@@ -85,22 +161,31 @@ export default function HotSeatGame({
   const [winner, setWinner] = useState<Player | null>(null);
   const [winnerOpen, setWinnerOpen] = useState(false);
   const [round, setRound] = useState(1);
+  const [seatMoves, setSeatMoves] = useState<SeatMove[]>([]);
 
   const session = useGameSession(30);
   const phaseRef = useRef(phase);
   const chairsRef = useRef(chairs);
   const playersRef = useRef(players);
+  const spinAngleRef = useRef(0);
   const finishingRef = useRef(false);
+  const seatMovesRef = useRef(seatMoves);
   phaseRef.current = phase;
   chairsRef.current = chairs;
   playersRef.current = players;
+  spinAngleRef.current = spinAngle;
+  seatMovesRef.current = seatMoves;
 
-  const seatedNames = useMemo(
-    () => new Set(chairs.filter((c) => c.seated).map((c) => c.seated!.name.toLowerCase())),
-    [chairs],
-  );
+  const seatedNames = useMemo(() => {
+    const names = new Set(chairs.filter((c) => c.seated).map((c) => c.seated!.name.toLowerCase()));
+    for (const move of seatMoves) names.add(move.player.name.toLowerCase());
+    return names;
+  }, [chairs, seatMoves]);
 
-  const chairsTaken = chairs.filter((c) => c.seated).length;
+  const reservedChairIds = useMemo(() => new Set(seatMoves.map((m) => m.chairId)), [seatMoves]);
+
+  const chairsTaken =
+    chairs.filter((c) => c.seated).length + seatMoves.length;
   const chairsTotal = chairs.length;
 
   const finishClaimRound = () => {
@@ -108,6 +193,17 @@ export default function HotSeatGame({
     if (phaseRef.current !== "claiming") return;
     finishingRef.current = true;
     session.stop();
+
+    if (seatMovesRef.current.length > 0) {
+      const merged = chairsRef.current.map((c) => ({ ...c }));
+      for (const move of seatMovesRef.current) {
+        const chair = merged.find((ch) => ch.id === move.chairId && !ch.seated);
+        if (chair) chair.seated = move.player;
+      }
+      setSeatMoves([]);
+      setChairs(merged);
+      chairsRef.current = merged;
+    }
 
     const currentPlayers = playersRef.current;
     if (currentPlayers.length < 2) {
@@ -187,7 +283,7 @@ export default function HotSeatGame({
     });
   });
 
-  // Claim numbers while claiming
+  // Claim numbers while claiming — walk to chair then sit
   useNewMessages(messages, phase === "claiming" && chatActive, (m) => {
     const num = extractNumber(m.text);
     if (num == null) return;
@@ -195,26 +291,54 @@ export default function HotSeatGame({
     if (!name) return;
     const key = name.toLowerCase();
 
-    if (!playersRef.current.some((p) => p.name.toLowerCase() === key)) return;
+    const roster = playersRef.current;
+    if (!roster.some((p) => p.name.toLowerCase() === key)) return;
 
-    setChairs((prev) => {
-      if (prev.some((c) => c.seated?.name.toLowerCase() === key)) return prev;
-      const target = prev.find((c) => c.number === num && !c.seated);
-      if (!target) return prev;
-      const player = playersRef.current.find((p) => p.name.toLowerCase() === key);
-      if (!player) return prev;
-      return prev.map((c) => (c.id === target.id ? { ...c, seated: player } : c));
-    });
+    const currentChairs = chairsRef.current;
+    if (currentChairs.some((c) => c.seated?.name.toLowerCase() === key)) return;
+    if (seatMovesRef.current.some((move) => move.player.name.toLowerCase() === key)) return;
+
+    const target = currentChairs.find(
+      (c) => c.number === num && !c.seated && !seatMovesRef.current.some((move) => move.chairId === c.id),
+    );
+    if (!target) return;
+
+    const player = roster.find((p) => p.name.toLowerCase() === key);
+    if (!player) return;
+
+    const playerIdx = roster.findIndex((p) => p.name.toLowerCase() === key);
+    const chairIdx = currentChairs.findIndex((c) => c.id === target.id);
+    const nPlayers = roster.length;
+    const nChairs = currentChairs.length;
+    const fromAngle = (playerIdx / nPlayers) * 360 + spinAngleRef.current;
+    const toAngle = nChairs === 1 ? 0 : (chairIdx / nChairs) * 360;
+
+    setSeatMoves((prev) => [
+      ...prev,
+      { chairId: target.id, player, fromAngle, toAngle },
+    ]);
   });
 
-  // End claim early when all chairs filled
+  const completeSeatMove = useCallback((chairId: number) => {
+    setSeatMoves((prevMoves) => {
+      const move = prevMoves.find((m) => m.chairId === chairId);
+      if (!move) return prevMoves;
+      setChairs((prev) =>
+        prev.map((c) => (c.id === chairId ? { ...c, seated: move.player } : c)),
+      );
+      return prevMoves.filter((m) => m.chairId !== chairId);
+    });
+  }, []);
+
+  // End claim early when all chairs filled (after walk animations finish)
   useEffect(() => {
     if (phase !== "claiming") return;
     if (chairs.length === 0) return;
+    if (seatMoves.length > 0) return;
     if (chairs.every((c) => c.seated)) {
       finishClaimRoundRef.current();
     }
-  }, [chairs, phase]);
+  }, [chairs, phase, seatMoves.length]);
 
   // Claim timer expire
   useEffect(() => {
@@ -244,6 +368,7 @@ export default function HotSeatGame({
     }
     finishingRef.current = false;
     setEliminatedFlash([]);
+    setSeatMoves([]);
     setRound(nextRound);
     setPlayers(roster);
     const count = roster.length - 1;
@@ -291,6 +416,7 @@ export default function HotSeatGame({
     setPlayers([]);
     setChairs([]);
     setSpinAngle(0);
+    setSeatMoves([]);
     setEliminatedFlash([]);
     setWinner(null);
     setWinnerOpen(false);
@@ -388,6 +514,8 @@ export default function HotSeatGame({
             const n = chairs.length;
             const angle = n === 1 ? 0 : (i / n) * 360;
             const pos = polar(18, angle);
+            const reserved = reservedChairIds.has(chair.id);
+            const occupied = Boolean(chair.seated);
             return (
               <div
                 key={chair.id}
@@ -396,21 +524,30 @@ export default function HotSeatGame({
               >
                 <div
                   className={cn(
-                    "grid size-12 place-items-center rounded-2xl border sm:size-14",
-                    chair.seated
+                    "grid size-12 place-items-center rounded-2xl border transition-all duration-300 sm:size-14",
+                    occupied
                       ? "border-primary/60 bg-primary/20 shadow-[0_0_24px_-8px_var(--neon)]"
-                      : "border-white/15 bg-black/45",
+                      : reserved
+                        ? "border-primary/40 bg-primary/10 shadow-[0_0_18px_-10px_var(--neon)] animate-pulse"
+                        : "border-white/15 bg-black/45",
                   )}
                 >
                   <Armchair
-                    className={cn("size-6 sm:size-7", chair.seated ? "text-primary" : "text-muted-foreground")}
+                    className={cn(
+                      "size-6 sm:size-7",
+                      occupied || reserved ? "text-primary" : "text-muted-foreground",
+                    )}
                   />
                 </div>
                 {chair.number != null ? (
                   <span
                     className={cn(
                       "mt-1 rounded-full px-2 py-0.5 font-brand text-sm font-bold tabular-nums sm:text-base",
-                      chair.seated ? "bg-primary text-primary-foreground" : "bg-white/10 text-foreground",
+                      occupied
+                        ? "bg-primary text-primary-foreground"
+                        : reserved
+                          ? "bg-primary/30 text-primary"
+                          : "bg-white/10 text-foreground",
                     )}
                   >
                     {chair.number}
@@ -420,15 +557,25 @@ export default function HotSeatGame({
                 )}
                 {chair.seated ? (
                   <span
-                    className="mt-0.5 max-w-full truncate text-[10px] font-extrabold"
+                    className="animate-pop-in mt-0.5 max-w-full truncate text-[10px] font-extrabold"
                     style={{ color: chair.seated.color }}
                   >
                     {chair.seated.name}
                   </span>
+                ) : reserved ? (
+                  <span className="mt-0.5 text-[10px] font-bold text-primary/80">يجي…</span>
                 ) : null}
               </div>
             );
           })}
+
+          {seatMoves.map((move) => (
+            <MovingToSeat
+              key={`move-${move.chairId}-${move.player.name}`}
+              move={move}
+              onDone={() => completeSeatMove(move.chairId)}
+            />
+          ))}
 
           {/* Players around the circle */}
           {players.map((p, i) => {

@@ -20,7 +20,6 @@ import type { GameMoment } from "@/lib/game-moments";
 import { cn } from "@/lib/utils";
 import GameStage, { type Phase } from "@/components/games/GameStage";
 import SelectField from "@/components/games/SelectField";
-import GameMomentOverlay from "@/components/games/GameMomentOverlay";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -273,14 +272,14 @@ export default function FootballGame({
     if (current?.kind === "player") {
       setRevealed(true);
       setMoment({
-        ...stoppedMoment(),
+        ...stoppedMoment(c.stoppedManual),
         highlight: current.player.name,
         actionLabel: hasNext ? c.nextRound : c.finalResult,
         onAction: () => goNext(true),
       });
     } else {
       setMoment({
-        ...stoppedMoment(),
+        ...stoppedMoment(c.stoppedManual),
         actionLabel: hasNext ? c.nextRound : c.finalResult,
         onAction: () => goNext(true),
       });
@@ -309,6 +308,8 @@ export default function FootballGame({
           setFinished(false);
           setMoment(null);
         }}
+        moment={moment}
+        onDismissMoment={() => setMoment(null)}
         settings={
           <div className="grid gap-4 sm:grid-cols-2">
             <SelectField
@@ -351,107 +352,99 @@ export default function FootballGame({
           </div>
         }
         play={
-          <div className="game-play-grid min-h-0 flex-1">
-            <div className="game-play-shell flex min-h-0 flex-col gap-3">
-              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className="rounded-full border px-3 py-1.5 text-xs font-extrabold uppercase"
-                    style={{
-                      borderColor: `${ACCENT}55`,
-                      color: GLOW,
-                      background: `${ACCENT}15`,
-                    }}
-                  >
-                    {index + 1} / {deck.length}
-                  </span>
-                  <span
-                    className={cn(
-                      "rounded-full px-3 py-1.5 text-xs font-extrabold",
-                      isPlayerRound ? "bg-amber-500/20 text-amber-200" : "bg-white/10 text-white/70",
-                    )}
-                  >
-                    {isPlayerRound ? g.playerBadge : g.triviaBadge}
-                    {current?.kind === "trivia" && current.hard ? ` · ${g.hard}` : ""}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "font-brand text-xl font-black tabular-nums",
-                      urgent ? "text-red-400" : "text-white",
-                    )}
-                  >
-                    {session.left != null ? formatClock(session.left) : c.unlimited}
-                  </span>
-                  {session.running ? (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      className="h-9 gap-1 font-extrabold"
-                      onClick={stopRound}
-                    >
-                      <Square className="size-3.5" />
-                      {c.stop}
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-9 gap-1 font-extrabold"
-                      disabled={!chatActive}
-                      onClick={() => session.start(durationSec)}
-                    >
-                      <RotateCcw className="size-3.5" />
-                      {c.resume}
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              <div className="game-play-arena relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-emerald-500/20 bg-black/30 p-4 sm:p-6">
-                {current?.kind === "trivia" ? (
-                  <div className="flex min-h-0 flex-1 flex-col items-center justify-center text-center">
-                    <p className="font-display max-w-3xl text-2xl leading-relaxed font-bold text-white sm:text-3xl lg:text-4xl">
-                      {current.q}
-                    </p>
-                    <p className="mt-6 text-sm font-bold text-white/45">{c.firstCorrect}</p>
-                  </div>
-                ) : null}
-                {current?.kind === "player" ? (
-                  <>
-                    <p className="mb-3 text-center text-sm font-extrabold text-amber-200/90">
-                      {g.guessPrompt}
-                    </p>
-                    <PlayerCard
-                      player={current.player}
-                      revealed={revealed || Boolean(winner)}
-                      hintLevel={hintLevel}
-                      labels={{
-                        hidden: g.hiddenPlayer,
-                        hintNationality: g.hintNationality,
-                        hintDebut: g.hintDebut,
-                        hintClub: g.hintClub,
-                        hintPosition: g.hintPosition,
-                        hintLevel: g.hintLevel,
+          <div className="game-play-shell min-h-0 flex-1">
+            <div className="game-play-grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_17.5rem]">
+              <div className="flex min-h-0 flex-col gap-3">
+                <div className="game-toolbar flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-2xl border border-emerald-500/20 bg-black/30 px-3 py-2.5 sm:px-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className="rounded-full border px-3 py-1.5 text-xs font-extrabold uppercase"
+                      style={{
+                        borderColor: `${ACCENT}55`,
+                        color: GLOW,
+                        background: `${ACCENT}15`,
                       }}
-                    />
-                  </>
-                ) : null}
+                    >
+                      {index + 1} / {deck.length}
+                    </span>
+                    <span
+                      className={cn(
+                        "rounded-full px-3 py-1.5 text-xs font-extrabold",
+                        isPlayerRound ? "bg-amber-500/20 text-amber-200" : "bg-white/10 text-white/70",
+                      )}
+                    >
+                      {isPlayerRound ? g.playerBadge : g.triviaBadge}
+                      {current?.kind === "trivia" && current.hard ? ` · ${g.hard}` : ""}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "font-brand text-xl font-black tabular-nums",
+                        urgent ? "text-red-400" : "text-white",
+                      )}
+                    >
+                      {session.left != null ? formatClock(session.left) : c.unlimited}
+                    </span>
+                    {session.running ? (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="h-9 gap-1 font-extrabold"
+                        onClick={stopRound}
+                      >
+                        <Square className="size-3.5" />
+                        {c.stop}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-9 gap-1 font-extrabold"
+                        disabled={!chatActive || Boolean(moment)}
+                        onClick={() => session.start(durationSec)}
+                      >
+                        <RotateCcw className="size-3.5" />
+                        {c.resume}
+                      </Button>
+                    )}
+                  </div>
+                </div>
 
-                {moment ? (
-                  <GameMomentOverlay
-                    moment={moment}
-                    accent={ACCENT}
-                    glow={GLOW}
-                    onDismiss={() => goNext(true)}
-                  />
-                ) : null}
+                <div className="relative flex min-h-[min(52vh,28rem)] flex-1 flex-col overflow-hidden rounded-2xl border border-emerald-500/20 bg-black/30 p-4 sm:p-6">
+                  {current?.kind === "trivia" ? (
+                    <div className="flex min-h-0 flex-1 flex-col items-center justify-center text-center">
+                      <p className="font-display max-w-3xl text-2xl leading-relaxed font-bold text-white sm:text-3xl lg:text-4xl">
+                        {current.q}
+                      </p>
+                      <p className="mt-6 text-sm font-bold text-white/45">{c.firstCorrect}</p>
+                    </div>
+                  ) : null}
+                  {current?.kind === "player" ? (
+                    <>
+                      <p className="mb-3 shrink-0 text-center text-sm font-extrabold text-amber-200/90">
+                        {g.guessPrompt}
+                      </p>
+                      <PlayerCard
+                        player={current.player}
+                        revealed={revealed || Boolean(winner)}
+                        hintLevel={hintLevel}
+                        labels={{
+                          hidden: g.hiddenPlayer,
+                          hintNationality: g.hintNationality,
+                          hintDebut: g.hintDebut,
+                          hintClub: g.hintClub,
+                          hintPosition: g.hintPosition,
+                          hintLevel: g.hintLevel,
+                        }}
+                      />
+                    </>
+                  ) : null}
+                </div>
               </div>
-            </div>
 
-            <aside className="flex min-h-0 w-full shrink-0 flex-col gap-3 lg:w-64">
+              <aside className="flex min-h-0 w-full shrink-0 flex-col gap-3 lg:w-auto">
               <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
                 <h4 className="text-xs font-extrabold tracking-wider text-white/50 uppercase">
                   {g.scoreboard}
@@ -483,7 +476,8 @@ export default function FootballGame({
                   </p>
                 </div>
               ) : null}
-            </aside>
+              </aside>
+            </div>
           </div>
         }
       />

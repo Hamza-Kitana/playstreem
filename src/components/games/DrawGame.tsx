@@ -109,6 +109,7 @@ function DrawCanvas({
     const wrap = wrapRef.current;
     if (!canvas || !wrap) return;
     const rect = wrap.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.max(1, Math.floor(rect.width * dpr));
     canvas.height = Math.max(1, Math.floor(rect.height * dpr));
@@ -119,9 +120,13 @@ function DrawCanvas({
 
   useEffect(() => {
     resize();
-    const ro = new ResizeObserver(resize);
+    const ro = new ResizeObserver(() => resize());
     if (wrapRef.current) ro.observe(wrapRef.current);
-    return () => ro.disconnect();
+    window.addEventListener("resize", resize);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", resize);
+    };
   }, [resize]);
 
   const pos = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -135,6 +140,7 @@ function DrawCanvas({
 
   const onDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (disabled) return;
+    e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     drawingRef.current = true;
     const p = pos(e);
@@ -151,6 +157,7 @@ function DrawCanvas({
 
   const onMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!drawingRef.current || disabled) return;
+    e.preventDefault();
     const last = strokesRef.current[strokesRef.current.length - 1];
     if (!last) return;
     last.points.push(pos(e));
@@ -175,11 +182,11 @@ function DrawCanvas({
   }, [paint]);
 
   return (
-    <div ref={wrapRef} className="relative min-h-0 flex-1">
+    <div ref={wrapRef} className="relative h-full min-h-[220px] w-full flex-1">
       <canvas
         ref={canvasRef}
         className={cn(
-          "absolute inset-0 h-full w-full touch-none rounded-[1.25rem]",
+          "absolute inset-0 block h-full w-full touch-none rounded-[1.25rem] bg-[#fff7ed]",
           disabled ? "cursor-not-allowed opacity-80" : eraser ? "cursor-cell" : "cursor-crosshair",
         )}
         onPointerDown={onDown}
@@ -359,7 +366,7 @@ export default function DrawGame({
           <div className="game-play-shell min-h-0 flex-1">
             <div className="game-play-grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_17.5rem]">
               <div
-                className="flex min-h-0 flex-col overflow-hidden rounded-[1.5rem] border"
+                className="flex h-full min-h-0 flex-col overflow-hidden rounded-[1.5rem] border"
                 style={{ borderColor: `${ACCENT}40` }}
               >
                 <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-white/10 bg-black/35 px-3 py-2.5">
@@ -424,11 +431,11 @@ export default function DrawGame({
                   </button>
                 </div>
 
-                <div ref={canvasHostRef} className="relative min-h-0 flex-1 bg-[#1c1410] p-3">
-                  <DrawCanvas key={boardKey} disabled={!session.running || finished} color={brush} size={size} eraser={eraser} />
+                <div ref={canvasHostRef} className="relative flex min-h-[min(52vh,28rem)] flex-1 flex-col bg-[#1c1410] p-3">
+                  <DrawCanvas key={boardKey} disabled={finished} color={brush} size={size} eraser={eraser} />
                   {!session.running && !finished ? (
-                    <div className="pointer-events-none absolute inset-3 grid place-items-center rounded-[1.25rem] bg-black/35">
-                      <p className="rounded-full bg-black/60 px-4 py-2 text-sm font-bold text-white/80">{c.pressResume}</p>
+                    <div className="pointer-events-none absolute inset-x-3 top-3 flex justify-center">
+                      <p className="rounded-full bg-black/60 px-4 py-2 text-xs font-bold text-white/80">{c.pressResume}</p>
                     </div>
                   ) : null}
                 </div>

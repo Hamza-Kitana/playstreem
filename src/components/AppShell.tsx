@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const FULL_BLEED = new Set(["/about", "/contact", "/streamers", "/chat"]);
+const GAME_ROUTES = new Set(["/quiz", "/seat", "/vote", "/rate", "/phrase", "/flag", "/riddle", "/zombie"]);
 const CHAT_OPEN_KEY = "al-daboor-side-chat-open";
 
 function loadChatOpenPreference() {
@@ -33,7 +34,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const chatActive = chat.status === "live";
   const isHome = pathname === "/";
-  const fullBleed = FULL_BLEED.has(pathname) || isHome;
+  const isGame = GAME_ROUTES.has(pathname);
+  const fullBleed = FULL_BLEED.has(pathname) || isHome || isGame;
   const onStreamers = pathname === "/streamers";
   const onChatPage = pathname === "/chat";
   const isOverlay = pathname === "/quiz/overlay";
@@ -76,9 +78,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
           "route-fade",
           isHome
             ? "h-dvh w-full max-w-none px-3 pt-[4.75rem] pb-3 sm:px-5 sm:pt-[5.25rem]"
-            : fullBleed
-              ? "w-full max-w-none px-0 pt-24 pb-16"
-              : "mx-auto w-full max-w-7xl px-4 pt-24 pb-16 sm:px-6 sm:pt-28",
+            : isGame
+              ? "w-full max-w-none px-3 pt-24 pb-10 sm:px-5 lg:px-8 xl:px-10"
+              : fullBleed
+                ? "w-full max-w-none px-0 pt-24 pb-16"
+                : "mx-auto w-full max-w-7xl px-4 pt-24 pb-16 sm:px-6 sm:pt-28",
         )}
       >
         {children}

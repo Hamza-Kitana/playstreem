@@ -1,21 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Medal, Star, Target, Users } from "lucide-react";
+import {
+  Clock,
+  Medal,
+  Plus,
+  Square,
+  Star,
+  Target,
+  Trash2,
+  Users,
+} from "lucide-react";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
 import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { GameCard } from "@/components/Reveal";
+import GameStage, { type Phase } from "@/components/games/GameStage";
+import SelectField from "@/components/games/SelectField";
 
 const RATE_SETUP_STORAGE_KEY = "rate-game-setup-v1";
+const ACCENT = "#facc15";
+const GLOW = "#fde047";
 
 export default function RateGame({
   messages,
@@ -24,19 +28,15 @@ export default function RateGame({
   messages: ChatMessage[];
   chatActive: boolean;
 }) {
+  const [phase, setPhase] = useState<Phase>("setup");
   const [criterionInput, setCriterionInput] = useState("");
   const [personInput, setPersonInput] = useState("");
   const [criteria, setCriteria] = useState<string[]>([]);
   const [people, setPeople] = useState<string[]>([]);
   const [selectedPerson, setSelectedPerson] = useState("");
   const [selectedCriterion, setSelectedCriterion] = useState("");
-  const [personDialogOpen, setPersonDialogOpen] = useState(false);
-  const [activePerson, setActivePerson] = useState("");
-  const [criteriaDialogOpen, setCriteriaDialogOpen] = useState(true);
-  const [peopleDialogOpen, setPeopleDialogOpen] = useState(false);
   const [ratings, setRatings] = useState<number[]>([]);
   const [showFinalResults, setShowFinalResults] = useState(false);
-  const [finalLoading, setFinalLoading] = useState(false);
   const [roundResults, setRoundResults] = useState<
     { person: string; criterion: string; avg: number; count: number }[]
   >([]);
@@ -44,7 +44,6 @@ export default function RateGame({
 
   const ratingsRef = useRef(ratings);
   const roundLockedRef = useRef(false);
-  const revealTimeoutRef = useRef<number | null>(null);
   ratingsRef.current = ratings;
 
   const roundAvg = useMemo(
@@ -88,10 +87,7 @@ export default function RateGame({
   useEffect(() => {
     window.localStorage.setItem(
       RATE_SETUP_STORAGE_KEY,
-      JSON.stringify({
-        criteria,
-        people,
-      }),
+      JSON.stringify({ criteria, people }),
     );
   }, [criteria, people]);
 
@@ -122,10 +118,8 @@ export default function RateGame({
   const commitRound = useCallback(() => {
     if (roundLockedRef.current) return;
     roundLockedRef.current = true;
-
     const current = ratingsRef.current;
     if (!selectedPerson || !selectedCriterion) return;
-
     const a = current.length ? current.reduce((x, y) => x + y, 0) / current.length : 0;
     setRoundResults((prev) => {
       const next = [...prev];
@@ -170,48 +164,38 @@ export default function RateGame({
   }, [ratings]);
   const maxD = Math.max(...dist, 1);
 
-  const start = () => {
-    if (!selectedPerson || !selectedCriterion) return;
-    roundLockedRef.current = false;
-    setRatings([]);
-    session.start();
-  };
-
-  const stop = () => {
-    commitRound();
-    session.stop();
-  };
-
   const startRoundFor = (person: string, criterion: string) => {
     if (session.running) return;
     setSelectedPerson(person);
     setSelectedCriterion(criterion);
     setShowFinalResults(false);
-    setFinalLoading(false);
     roundLockedRef.current = false;
     setRatings([]);
     session.start();
-    setPersonDialogOpen(false);
+  };
+
+  const stopRound = () => {
+    commitRound();
+    session.stop();
+  };
+
+  const startTournament = () => {
+    setShowFinalResults(false);
+    setPhase("playing");
+  };
+
+  const backToSetup = () => {
+    session.stop();
+    setPhase("setup");
   };
 
   const resetTournament = () => {
-    if (revealTimeoutRef.current) {
-      window.clearTimeout(revealTimeoutRef.current);
-      revealTimeoutRef.current = null;
-    }
     session.stop();
     setRatings([]);
     setRoundResults([]);
     setShowFinalResults(false);
-    setFinalLoading(false);
     roundLockedRef.current = false;
   };
-
-  useEffect(() => {
-    return () => {
-      if (revealTimeoutRef.current) window.clearTimeout(revealTimeoutRef.current);
-    };
-  }, []);
 
   const ranking = useMemo(() => {
     const byPerson = new Map<string, { total: number; votedCriteria: number; voters: number }>();
@@ -234,387 +218,404 @@ export default function RateGame({
   const progressDone = roundResults.length;
   const progressTotal = people.length * criteria.length;
   const pct = (roundAvg / 10) * 100;
-  const currentRoundLabel =
-    selectedPerson && selectedCriterion
-      ? `${selectedPerson} · ${selectedCriterion}`
-      : "لا توجد جولة حالية";
-
-  const revealFinalResults = () => {
-    if (roundResults.length === 0 || finalLoading) return;
-    setFinalLoading(true);
-    setShowFinalResults(false);
-    revealTimeoutRef.current = window.setTimeout(() => {
-      setFinalLoading(false);
-      setShowFinalResults(true);
-      revealTimeoutRef.current = null;
-    }, 2600);
-  };
+  const canStart = criteria.length > 0 && people.length > 0;
+  const clockLabel = session.running
+    ? session.left == null
+      ? "∞"
+      : formatClock(session.left)
+    : formatClock(session.durationSec > 0 ? session.durationSec : 0);
 
   return (
-    <GameCard id="rate" className="space-y-6">
-      <Dialog open={criteriaDialogOpen} onOpenChange={setCriteriaDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>إعداد التصنيفات</DialogTitle>
-            <DialogDescription>أضف الأشياء التي تريد تقييم الأشخاص عليها.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="flex gap-2">
-              <Input
-                value={criterionInput}
-                onChange={(e) => setCriterionInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
-                  e.preventDefault();
-                  addCriterion();
-                }}
-                placeholder="مثال: القوة"
-              />
-              <Button type="button" onClick={addCriterion}>
-                إضافة
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {criteria.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  className="rounded-full bg-secondary px-3 py-1 text-xs font-bold"
-                  onClick={() => setCriteria((prev) => prev.filter((x) => x !== c))}
-                >
-                  {c} ×
-                </button>
-              ))}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={criteria.length === 0}
-              onClick={() => setCriteria([])}
-            >
-              إزالة كل التصنيفات
-            </Button>
-            <Button
-              type="button"
-              disabled={criteria.length === 0}
-              onClick={() => {
-                setCriteriaDialogOpen(false);
-                setPeopleDialogOpen(true);
-              }}
-            >
-              التالي: إعداد الأشخاص
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={peopleDialogOpen} onOpenChange={setPeopleDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>إعداد الأشخاص</DialogTitle>
-            <DialogDescription>أضف الأشخاص الذين تريد تقييمهم.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="flex gap-2">
-              <Input
-                value={personInput}
-                onChange={(e) => setPersonInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
-                  e.preventDefault();
-                  addPerson();
-                }}
-                placeholder="مثال: محمد"
-              />
-              <Button type="button" onClick={addPerson}>
-                إضافة
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {people.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  className="rounded-full bg-secondary px-3 py-1 text-xs font-bold"
-                  onClick={() => setPeople((prev) => prev.filter((x) => x !== p))}
-                >
-                  {p} ×
-                </button>
-              ))}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={people.length === 0}
-              onClick={() => setPeople([])}
-            >
-              إزالة كل الأشخاص
-            </Button>
-            <Button
-              type="button"
-              disabled={people.length === 0}
-              onClick={() => setPeopleDialogOpen(false)}
-            >
-              بدء التقييم
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={personDialogOpen} onOpenChange={setPersonDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{activePerson || "الشخص"}</DialogTitle>
-            <DialogDescription>اختر التصنيف وابدأ الجولة مباشرة.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            {criteria.length === 0 ? (
-              <p className="text-sm text-muted-foreground">أضف تصنيفات أولاً.</p>
-            ) : null}
-            {criteria.map((criterion) => {
-              const existing = roundResults.find(
-                (r) => r.person === activePerson && r.criterion === criterion,
-              );
-              return (
-                <div
-                  key={`${activePerson}-${criterion}`}
-                  className="flex items-center justify-between rounded-xl border border-border/70 bg-secondary/20 px-3 py-2"
-                >
-                  <div>
-                    <p className="font-bold">{criterion}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {existing
-                        ? `آخر نتيجة: ${existing.avg.toFixed(1)} (${existing.count} صوت)`
-                        : "لا توجد نتيجة بعد"}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    disabled={session.running || !chatActive}
-                    onClick={() => startRoundFor(activePerson, criterion)}
-                  >
-                    بدء
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <div className="space-y-5">
-        <div className="flex items-center gap-2">
-          <Star className="size-5 text-accent" />
-          <h4 className="text-lg font-extrabold">بطولة تقييم الأشخاص</h4>
-        </div>
-
-        <div className="grid gap-3 rounded-2xl border border-border/70 bg-gradient-to-l from-secondary/20 to-secondary/45 p-4 md:grid-cols-2">
-          <Button type="button" variant="secondary" onClick={() => setCriteriaDialogOpen(true)}>
-            <Target className="size-4" />
-            تعديل التصنيفات ({criteria.length})
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => setPeopleDialogOpen(true)}>
-            <Users className="size-4" />
-            تعديل الأشخاص ({people.length})
-          </Button>
-        </div>
-
-        <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-background/90 to-secondary/30 p-5 shadow-[0_0_0_1px_hsl(var(--border)/0.25)]">
-          <p className="text-sm font-extrabold">الأشخاص (كروت)</p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {people.length === 0 ? (
-              <p className="text-sm text-muted-foreground">أضف أشخاص أولاً من نافذة الإعداد.</p>
-            ) : null}
-            {people.map((person) => {
-              const doneForPerson = roundResults.filter((r) => r.person === person).length;
-              const allDone = criteria.length > 0 && doneForPerson >= criteria.length;
-              const initials = person.slice(0, 1).toUpperCase();
-              return (
-                <button
-                  key={person}
-                  type="button"
-                  disabled={session.running}
-                  onClick={() => {
-                    setActivePerson(person);
-                    setPersonDialogOpen(true);
-                  }}
-                  className="group rounded-2xl border border-border/70 bg-gradient-to-br from-secondary/35 to-background/30 p-4 text-right transition hover:-translate-y-0.5 hover:border-primary/45 hover:from-secondary/55 hover:to-background/50 disabled:opacity-60"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-base font-extrabold">{person}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        الجولات المنجزة: {doneForPerson} / {criteria.length}
-                      </p>
-                    </div>
-                    <div className="grid size-10 place-items-center rounded-full bg-primary/20 text-sm font-black text-primary ring-1 ring-primary/35">
-                      {initials}
-                    </div>
-                  </div>
-                  <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-background/70">
-                    <div
-                      className={`h-full rounded-full transition-all ${allDone ? "bg-emerald-400" : "bg-primary"}`}
-                      style={{
-                        width: `${criteria.length > 0 ? (doneForPerson / criteria.length) * 100 : 0}%`,
-                      }}
-                    />
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            التقدم: {progressDone} / {progressTotal || 0} جولة معتمدة
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-secondary/35 to-background/35 p-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="min-w-[10rem] flex-1">
-              <p className="mb-1.5 text-xs font-bold text-muted-foreground">مدة الجولة</p>
-              <select
-                value={session.durationSec}
-                disabled={session.running}
-                onChange={(e) => session.setDurationSec(Number(e.target.value))}
-                className="border-input bg-background focus-visible:ring-ring h-11 w-full rounded-md border px-3 text-sm font-bold outline-none focus-visible:ring-2"
-              >
-                {DURATION_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="min-w-[12rem] rounded-xl bg-background/60 px-3 py-2 text-sm">
-              <p className="text-xs text-muted-foreground">الجولة الحالية</p>
-              <p className="font-extrabold">{currentRoundLabel}</p>
-              <p className="text-xs text-muted-foreground">
-                {session.running
-                  ? `متبقي ${session.left == null ? "بدون حد" : formatClock(session.left)}`
-                  : "بانتظار اختيار بدء من الكروت"}
-              </p>
-            </div>
-            {session.running ? (
-              <Button type="button" variant="destructive" onClick={stop}>
-                إيقاف واعتماد الجولة
-              </Button>
-            ) : null}
-          </div>
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            كل حساب يقيم مرة واحدة فقط لكل جولة. اختيار بدء يتم من نافذة الشخص.
-          </p>
-          {!chatActive ? (
-            <p className="mt-1 text-[11px] font-bold text-destructive">اربط كيك قبل البدء.</p>
-          ) : null}
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="default"
-            disabled={roundResults.length === 0}
-            onClick={revealFinalResults}
-          >
-            عرض النتيجة النهائية
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={session.running}
-            onClick={resetTournament}
-          >
-            إعادة ضبط البطولة
-          </Button>
-        </div>
-
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-accent/20 to-transparent p-6 text-center">
-          <div className="absolute -bottom-14 left-1/2 size-56 -translate-x-1/2 rounded-full bg-accent/20 blur-3xl" />
-          <p className="relative text-xs font-bold tracking-widest text-accent">
-            {session.running ? "الجولة مفتوحة" : "متوسط الجولة الحالية"}
-          </p>
-          <p className="relative mt-1 text-6xl font-extrabold tabular-nums">
-            <span className="shimmer-text">{roundAvg.toFixed(1)}</span>
-          </p>
-          <p className="relative text-sm text-muted-foreground">{ratings.length} تقييم</p>
-          <div className="relative mx-auto mt-5 h-3 max-w-sm overflow-hidden rounded-full bg-background/60">
-            <div
-              className="h-full rounded-full bg-gradient-to-l from-primary via-chart-3 to-accent transition-[width] duration-700"
-              style={{ width: `${pct}%` }}
+    <GameStage
+      phase={phase}
+      accent={ACCENT}
+      glow={GLOW}
+      icon={<Star />}
+      title="بطولة التقييم"
+      description="ضيف الأشخاص والتصنيفات — الجمهور يعطي رقم من 0-10 من الشات، ويتحدد الفائز بالمتوسط."
+      chatActive={chatActive}
+      canStart={canStart}
+      setupCtaLabel={canStart ? "التالي · جهّز البطولة" : "ضيف تصنيف وشخص أولاً"}
+      startLabel="ابدأ البطولة"
+      onGoReady={() => {
+        if (canStart) setPhase("ready");
+      }}
+      onStart={startTournament}
+      onBackToSetup={backToSetup}
+      settings={
+        <div className="grid gap-4 md:grid-cols-2">
+          <ListEditor
+            title="التصنيفات"
+            icon={<Target className="size-4" />}
+            accent={ACCENT}
+            glow={GLOW}
+            items={criteria}
+            input={criterionInput}
+            onInput={setCriterionInput}
+            onAdd={addCriterion}
+            onRemove={(v) => setCriteria((prev) => prev.filter((x) => x !== v))}
+            placeholder="مثال: القوة"
+          />
+          <ListEditor
+            title="الأشخاص"
+            icon={<Users className="size-4" />}
+            accent={ACCENT}
+            glow={GLOW}
+            items={people}
+            input={personInput}
+            onInput={setPersonInput}
+            onAdd={addPerson}
+            onRemove={(v) => setPeople((prev) => prev.filter((x) => x !== v))}
+            placeholder="مثال: محمد"
+          />
+          <div className="md:col-span-2">
+            <SelectField
+              label="مدة الجولة"
+              icon={<Clock className="size-4" />}
+              accent={ACCENT}
+              value={String(session.durationSec)}
+              onChange={(v) => session.setDurationSec(Number(v))}
+              options={DURATION_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
             />
           </div>
         </div>
-
-        <div className="flex h-28 items-end gap-1.5">
-          {dist.map((count, i) => (
-            <div key={i} className="flex flex-1 flex-col items-center gap-1">
-              <div
-                className="w-full rounded-t-md bg-gradient-to-t from-accent/40 to-primary/80 transition-[height] duration-500"
-                style={{ height: `${(count / maxD) * 80}px` }}
-              />
-              <span className="text-[10px] text-muted-foreground">{i}</span>
+      }
+      play={
+        <div className="mx-auto max-w-6xl space-y-5">
+          {/* Top bar */}
+          <div
+            className="glass flex flex-wrap items-center justify-between gap-3 rounded-3xl border p-4"
+            style={{ borderColor: `${ACCENT}44` }}
+          >
+            <div className="flex items-center gap-3">
+              <span
+                className="grid size-10 place-items-center rounded-2xl"
+                style={{ background: `${ACCENT}22`, color: ACCENT }}
+              >
+                <Star className="size-5" />
+              </span>
+              <div>
+                <p className="text-sm font-extrabold text-white">
+                  {session.running ? `جولة: ${selectedPerson} · ${selectedCriterion}` : "بطولة تقييم"}
+                </p>
+                <p className="text-[11px] text-white/50">
+                  التقدم: {progressDone} / {progressTotal || 0} جولة
+                </p>
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
 
-      {finalLoading || showFinalResults ? (
-        <div className="rounded-2xl bg-secondary/40 p-5">
-          <h4 className="mb-4 text-lg font-extrabold">النتائج النهائية</h4>
-          {finalLoading ? (
-            <div className="space-y-3 text-center">
-              <div className="mx-auto size-12 animate-spin rounded-full border-4 border-primary/30 border-t-primary" />
-              <p className="text-sm font-bold">جاري تجهيز النتائج النهائية...</p>
-              <p className="text-xs text-muted-foreground">لحظات التشويق قبل الإعلان</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                className="h-10 rounded-2xl border-white/12 bg-white/[0.03] font-bold"
+                disabled={session.running}
+                onClick={resetTournament}
+              >
+                إعادة ضبط
+              </Button>
+              <Button
+                className="h-10 gap-1.5 rounded-2xl font-extrabold text-white hover:brightness-110"
+                style={{ background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})` }}
+                disabled={roundResults.length === 0}
+                onClick={() => setShowFinalResults((v) => !v)}
+              >
+                <Medal className="size-4" /> النتيجة النهائية
+              </Button>
             </div>
-          ) : showFinalResults ? (
-            ranking.length === 0 ? (
-              <p className="text-sm text-muted-foreground">لا توجد نتائج كافية للعرض.</p>
-            ) : (
-              <div className="space-y-2">
-                {ranking.map((r, i) => (
-                  <div
-                    key={r.person}
-                    className={`animate-pop-in flex items-center justify-between rounded-xl px-3 py-2 ${
-                      i < 3 ? "bg-gradient-to-l from-primary/20 to-accent/20" : "bg-background/50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex size-7 items-center justify-center rounded-full bg-background text-xs font-extrabold">
-                        {i + 1}
-                      </span>
-                      <span className="font-bold">{r.person}</span>
-                      {i < 3 ? <Medal className="size-4 text-accent" /> : null}
-                    </div>
-                    <span className="text-sm">
-                      <span className="font-extrabold text-primary">{r.avg.toFixed(2)}</span>
-                      <span className="text-muted-foreground"> · {r.voters} صوت</span>
-                    </span>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+            {/* Cards grid */}
+            <div
+              className="rounded-[1.75rem] border p-5"
+              style={{
+                borderColor: `${ACCENT}44`,
+                background: "linear-gradient(180deg, oklch(0.14 0.06 90 / 0.7), oklch(0.09 0.03 285 / 0.9))",
+              }}
+            >
+              <p className="mb-4 text-sm font-extrabold text-white">اختر شخص وتصنيف لبدء الجولة</p>
+              {people.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-white/12 bg-black/25 px-4 py-8 text-center text-sm text-white/50">
+                  ما في أشخاص — رجعت للإعدادات؟
+                </p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {people.map((person) => {
+                    const doneForPerson = roundResults.filter((r) => r.person === person).length;
+                    const allDone = criteria.length > 0 && doneForPerson >= criteria.length;
+                    return (
+                      <div
+                        key={person}
+                        className="rounded-2xl border border-white/10 bg-black/25 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-base font-extrabold text-white">{person}</span>
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider"
+                            style={{
+                              background: allDone ? `${ACCENT}25` : "rgba(255,255,255,0.06)",
+                              color: allDone ? GLOW : "rgba(255,255,255,0.55)",
+                            }}
+                          >
+                            {doneForPerson} / {criteria.length}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/5">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${criteria.length > 0 ? (doneForPerson / criteria.length) * 100 : 0}%`,
+                              background: `linear-gradient(90deg, ${ACCENT}, ${GLOW})`,
+                            }}
+                          />
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {criteria.map((criterion) => {
+                            const existing = roundResults.find(
+                              (r) => r.person === person && r.criterion === criterion,
+                            );
+                            return (
+                              <button
+                                key={`${person}-${criterion}`}
+                                type="button"
+                                disabled={session.running || !chatActive}
+                                onClick={() => startRoundFor(person, criterion)}
+                                className="rounded-full border px-3 py-1 text-[11px] font-bold text-white/85 transition disabled:cursor-not-allowed disabled:opacity-50 hover:brightness-110"
+                                style={{
+                                  borderColor: existing ? `${ACCENT}66` : "rgba(255,255,255,0.10)",
+                                  background: existing ? `${ACCENT}22` : "rgba(0,0,0,0.35)",
+                                }}
+                              >
+                                {criterion}
+                                {existing ? (
+                                  <span
+                                    className="ms-1 tabular-nums"
+                                    style={{ color: GLOW }}
+                                  >
+                                    · {existing.avg.toFixed(1)}
+                                  </span>
+                                ) : null}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Live scoreboard */}
+            <aside
+              className="rounded-[1.75rem] border p-5"
+              style={{
+                borderColor: `${ACCENT}44`,
+                background: `radial-gradient(80% 60% at 50% 0%, ${ACCENT}20, transparent 65%), oklch(0.10 0.03 285 / 0.95)`,
+              }}
+            >
+              <p
+                className="text-[11px] font-extrabold tracking-[0.28em] uppercase text-center"
+                style={{ color: GLOW }}
+              >
+                {session.running ? "الجولة الحالية" : "متوسط الجولة"}
+              </p>
+              <p className="mt-2 text-center text-sm font-extrabold text-white">
+                {selectedPerson && selectedCriterion
+                  ? `${selectedPerson} · ${selectedCriterion}`
+                  : "—"}
+              </p>
+
+              <div className="mt-4 text-center">
+                <p
+                  className="font-brand text-6xl font-black leading-none tabular-nums"
+                  style={{ color: GLOW }}
+                >
+                  {roundAvg.toFixed(1)}
+                </p>
+                <p className="mt-1 text-xs text-white/55">{ratings.length} تقييم</p>
+              </div>
+
+              <div className="mx-auto mt-4 h-3 max-w-sm overflow-hidden rounded-full bg-white/5">
+                <div
+                  className="h-full rounded-full transition-[width] duration-700"
+                  style={{
+                    width: `${pct}%`,
+                    background: `linear-gradient(90deg, ${ACCENT}, ${GLOW})`,
+                  }}
+                />
+              </div>
+
+              <div className="mt-5 flex h-24 items-end gap-1.5">
+                {dist.map((count, i) => (
+                  <div key={i} className="flex flex-1 flex-col items-center gap-1">
+                    <div
+                      className="w-full rounded-t-md transition-[height] duration-500"
+                      style={{
+                        height: `${(count / maxD) * 70}px`,
+                        background: `linear-gradient(180deg, ${GLOW}, ${ACCENT})`,
+                      }}
+                    />
+                    <span className="text-[10px] text-white/45">{i}</span>
                   </div>
                 ))}
               </div>
-            )
+
+              <div className="mt-4 flex flex-wrap justify-between gap-2 text-xs">
+                <span className="text-white/55">
+                  {session.running ? `متبقّي ${clockLabel}` : "بانتظار جولة"}
+                </span>
+                {session.running ? (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="rounded-lg font-extrabold"
+                    onClick={stopRound}
+                  >
+                    <Square className="size-3.5" /> إيقاف واعتماد
+                  </Button>
+                ) : null}
+              </div>
+            </aside>
+          </div>
+
+          {showFinalResults ? (
+            <div
+              className="rounded-3xl border p-6"
+              style={{ borderColor: `${ACCENT}44`, background: `${ACCENT}0d` }}
+            >
+              <h4 className="mb-4 text-lg font-extrabold text-white">النتائج النهائية</h4>
+              {ranking.length === 0 ? (
+                <p className="text-sm text-white/55">لا توجد نتائج كافية للعرض.</p>
+              ) : (
+                <div className="space-y-2">
+                  {ranking.map((r, i) => (
+                    <div
+                      key={r.person}
+                      className="animate-pop-in flex items-center justify-between rounded-2xl px-4 py-3"
+                      style={{
+                        background: i < 3 ? `${ACCENT}18` : "rgba(255,255,255,0.04)",
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span
+                          className="grid size-8 place-items-center rounded-full text-xs font-black"
+                          style={{
+                            background:
+                              i === 0
+                                ? `linear-gradient(135deg, ${GLOW}, ${ACCENT})`
+                                : "rgba(0,0,0,0.4)",
+                            color: i === 0 ? "black" : "white",
+                          }}
+                        >
+                          {i + 1}
+                        </span>
+                        <span className="font-bold text-white">{r.person}</span>
+                        {i < 3 ? <Medal className="size-4" style={{ color: GLOW }} /> : null}
+                      </div>
+                      <span className="text-sm">
+                        <span className="font-extrabold tabular-nums" style={{ color: GLOW }}>
+                          {r.avg.toFixed(2)}
+                        </span>
+                        <span className="text-white/55"> · {r.voters} صوت</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : null}
-          <Button
-            variant="ghost"
-            className="mt-4 w-full"
-            disabled={session.running || finalLoading}
-            onClick={() => {
-              if (revealTimeoutRef.current) {
-                window.clearTimeout(revealTimeoutRef.current);
-                revealTimeoutRef.current = null;
-              }
-              setFinalLoading(false);
-              setShowFinalResults(false);
-            }}
-          >
-            إخفاء النتيجة النهائية
-          </Button>
         </div>
-      ) : null}
-    </GameCard>
+      }
+    />
+  );
+}
+
+function ListEditor({
+  title,
+  icon,
+  accent,
+  glow,
+  items,
+  input,
+  onInput,
+  onAdd,
+  onRemove,
+  placeholder,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  accent: string;
+  glow: string;
+  items: string[];
+  input: string;
+  onInput: (v: string) => void;
+  onAdd: () => void;
+  onRemove: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-[11px] font-extrabold tracking-wider text-white/60 uppercase">
+          <span style={{ color: accent }}>{icon}</span>
+          {title}
+        </div>
+        <span
+          className="rounded-full px-2 py-0.5 text-[10px] font-extrabold"
+          style={{ background: `${accent}22`, color: glow }}
+        >
+          {items.length}
+        </span>
+      </div>
+      <div className="flex gap-2">
+        <Input
+          value={input}
+          onChange={(e) => onInput(e.target.value)}
+          placeholder={placeholder}
+          className="h-10 flex-1 rounded-xl border-white/10 bg-black/25 text-sm font-bold"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              onAdd();
+            }
+          }}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          className="h-10 rounded-xl border-white/12 bg-white/[0.03] font-bold"
+          onClick={onAdd}
+        >
+          <Plus className="size-4" />
+        </Button>
+      </div>
+      {items.length === 0 ? (
+        <p className="mt-3 rounded-xl border border-dashed border-white/10 bg-black/20 px-3 py-3 text-center text-xs text-white/45">
+          لا يوجد {title.toLowerCase()} — ضيف من فوق
+        </p>
+      ) : (
+        <ul className="mt-3 flex flex-wrap gap-1.5">
+          {items.map((item) => (
+            <li
+              key={item}
+              className="group flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold text-white"
+              style={{ borderColor: `${accent}44`, background: `${accent}12` }}
+            >
+              {item}
+              <button
+                type="button"
+                onClick={() => onRemove(item)}
+                className="grid size-4 place-items-center rounded-full text-white/50 hover:text-destructive"
+              >
+                <Trash2 className="size-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

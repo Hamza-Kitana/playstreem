@@ -13,8 +13,12 @@ import type {
 import { computeBossProfile, computeTitanProfile, computeZombieScaling, TITAN_COMMENT_INTERVAL } from "@/lib/zombie-fps-engine";
 import { createZombieAudio } from "@/lib/zombie-audio";
 import { Button } from "@/components/ui/button";
-import { GameCard } from "@/components/Reveal";
+import GameStage, { type Phase as StagePhase } from "@/components/games/GameStage";
+import SelectField from "@/components/games/SelectField";
 import { cn } from "@/lib/utils";
+
+const ACCENT = "#ef4444";
+const GLOW = "#fb7185";
 
 const BOSS_EVERY_OPTIONS = [5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100, 125, 150] as const;
 const PLAYER_MAX_HP = 100;
@@ -170,6 +174,7 @@ export default function ZombieShooterGame({
   chatActive: boolean;
 }) {
   const [bossEvery, setBossEvery] = useState(20);
+  const [stagePhase, setStagePhase] = useState<StagePhase>("setup");
   const [phase, setPhase] = useState<"lobby" | "playing" | "ended">("lobby");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hud, setHud] = useState<FpsHud>({
@@ -534,6 +539,7 @@ export default function ZombieShooterGame({
     roundDurationRef.current = session.durationSec;
     playingRef.current = true;
     setPhase("playing");
+    setStagePhase("playing");
     session.start();
   };
 
@@ -548,6 +554,7 @@ export default function ZombieShooterGame({
     engineRef.current?.dispose();
     engineRef.current = null;
     setPhase("lobby");
+    setStagePhase("setup");
     setRoundVerdict(null);
     setTitanFxId(0);
     setEndState(null);
@@ -575,190 +582,134 @@ export default function ZombieShooterGame({
   );
 
   return (
-    <GameCard id="zombie" className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Skull className="size-5 text-rose-400" />
-          <h4 className="text-lg font-extrabold">شوتر الزومبي — First Person</h4>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          اكتبوا <span className="font-bold text-foreground">زومبي</span> في الشات — وأنت تدافع
-          بمنظور أول شخص.
-        </p>
-      </div>
-
-      {phase === "lobby" ? (
+    <GameStage
+      phase={stagePhase}
+      accent={ACCENT}
+      glow={GLOW}
+      icon={<Skull />}
+      title="شوتر الزومبي — First Person"
+      description="منظور أول شخص واقعي. المشاهدون يكتبون «زومبي» في الشات وينزلون على الماب. أنت تصوّب وتصمد."
+      chatActive={chatActive}
+      canStart={true}
+      setupCtaLabel="التالي · جهّز الماب"
+      startLabel="دخول الماب (First Person)"
+      onGoReady={() => setStagePhase("ready")}
+      onStart={startMatch}
+      onBackToSetup={resetLobby}
+      settings={
         <div className="space-y-4">
-          <div className="relative overflow-hidden rounded-3xl border border-emerald-500/25 bg-gradient-to-br from-emerald-950/60 via-background to-rose-950/40 p-6 sm:p-8">
-            <div className="pointer-events-none absolute -right-10 top-0 size-56 rounded-full bg-emerald-400/10 blur-3xl" />
-            <p className="text-sm font-extrabold text-emerald-200">تجربة FPS كاملة</p>
-            <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">
-              منظور أول شخص واقعي، سلاح بيدك، تمشي داخل ماب مفتوحة فيها جبال، وتصوّب بالماوس. تقدر
-              تكبّر اللعبة لملء الشاشة كاملة أثناء البث.
-            </p>
-            <div className="mt-4 grid gap-2 text-xs font-bold text-muted-foreground sm:grid-cols-2 lg:grid-cols-6">
-              <div className="rounded-xl bg-background/50 px-3 py-2">حركة: WASD</div>
-              <div className="rounded-xl bg-background/50 px-3 py-2">قفز: Space</div>
-              <div className="rounded-xl bg-background/50 px-3 py-2">
-                نظر: الماوس (Pointer Lock)
-              </div>
-              <div className="rounded-xl bg-background/50 px-3 py-2">إطلاق: كبسة يسار</div>
-              <div className="rounded-xl bg-background/50 px-3 py-2">زوم: كليك يمين (بندقية)</div>
-              <div className="rounded-xl bg-background/50 px-3 py-2">تكبير شاشة: K</div>
-            </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <SelectField
+              label="مدة الجولة"
+              accent={ACCENT}
+              value={String(session.durationSec)}
+              onChange={(v) => session.setDurationSec(Number(v))}
+              options={ZOMBIE_DURATION_OPTIONS.map((o) => ({
+                value: String(o.value),
+                label: o.label,
+              }))}
+            />
+            <SelectField
+              label="وحش كبير كل كم تعليق؟"
+              accent={ACCENT}
+              value={String(bossEvery)}
+              onChange={(v) => setBossEvery(Number(v))}
+              options={BOSS_EVERY_OPTIONS.map((n) => ({
+                value: String(n),
+                label: `كل ${n} تعليقات`,
+              }))}
+            />
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="space-y-1.5 rounded-2xl border border-border/70 bg-secondary/30 p-4 text-xs font-bold text-muted-foreground">
-              مدة الجولة
-              <select
-                value={session.durationSec}
-                onChange={(e) => session.setDurationSec(Number(e.target.value))}
-                className="border-input bg-background focus-visible:ring-ring mt-1 h-11 w-full rounded-md border px-3 text-sm font-bold text-foreground outline-none focus-visible:ring-2"
-              >
-                {ZOMBIE_DURATION_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              <div className="mt-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5">
-                <p className="text-[10px] text-muted-foreground">قوة الزومبي — أقل وقت = أقوى</p>
-                <p className="mt-0.5 text-sm font-extrabold text-emerald-300">{zombieScaling.label}</p>
-                <p className="mt-1 text-[11px] font-bold text-white/80">
-                  دم ×{zombieScaling.hpMult.toFixed(2)} · سرعة ×{zombieScaling.speedMult.toFixed(2)} · ضرر ×
-                  {zombieScaling.damageMult.toFixed(2)}
-                </p>
-              </div>
-            </label>
-            <label className="space-y-1.5 rounded-2xl border border-border/70 bg-secondary/30 p-4 text-xs font-bold text-muted-foreground">
-              وحش كبير كل كم تعليق زومبي؟
-              <select
-                value={bossEvery}
-                onChange={(e) => setBossEvery(Number(e.target.value))}
-                className="border-input bg-background focus-visible:ring-ring mt-1 h-11 w-full rounded-md border px-3 text-sm font-bold text-foreground outline-none focus-visible:ring-2"
-              >
-                {BOSS_EVERY_OPTIONS.map((n) => (
-                  <option key={n} value={n}>
-                    كل {n} تعليقات
-                  </option>
-                ))}
-              </select>
-              <div
-                className={cn(
-                  "mt-2 rounded-xl border px-3 py-2.5",
-                  bossPreview.isMega
-                    ? "border-orange-500/50 bg-gradient-to-r from-orange-600/20 via-rose-600/15 to-red-900/20"
-                    : bossPreview.tier >= 3
-                      ? "border-rose-500/40 bg-gradient-to-r from-rose-500/15 to-fuchsia-500/15"
-                      : bossPreview.tier >= 2
-                        ? "border-fuchsia-500/35 bg-fuchsia-500/10"
-                        : bossPreview.tier >= 1
-                          ? "border-amber-500/35 bg-amber-500/10"
-                          : "border-emerald-500/25 bg-emerald-500/10",
-                )}
-              >
-                <p className="text-[10px] text-muted-foreground">
-                  {bossPreview.isMega ? "وحش مذبحة — شكل مختلف وقوة جبار" : "قوة الوحش المتوقع"}
-                </p>
-                <p
-                  className={cn(
-                    "mt-0.5 text-sm font-extrabold",
-                    bossPreview.isMega
-                      ? "text-orange-300"
-                      : bossPreview.tier >= 3
-                        ? "text-rose-300"
-                        : bossPreview.tier >= 2
-                          ? "text-fuchsia-300"
-                          : bossPreview.tier >= 1
-                            ? "text-amber-300"
-                            : "text-emerald-300",
-                  )}
-                >
-                  {bossPreview.title}
-                  {bossPreview.segments > 1 ? ` · ${bossPreview.segments} هيلات` : ""}
-                </p>
-                <p className="mt-1 text-[11px] font-bold text-white/80">
-                  {bossPreview.hp} دم · ضرر {bossPreview.damage} · ×{bossPreview.multiplier.toFixed(1)}
-                </p>
-              </div>
-            </label>
-          </div>
-
-          <div className="rounded-2xl border border-cyan-500/40 bg-gradient-to-r from-cyan-950/50 via-sky-950/35 to-background p-4">
-            <p className="text-[10px] font-bold tracking-wide text-cyan-300/90 uppercase">
-              وحش استثنائي — كل {TITAN_COMMENT_INTERVAL} تعليق (دائماً)
-            </p>
-            <p className="mt-1 text-base font-extrabold text-cyan-200">{titanPreview.title}</p>
-            <p className="mt-1 text-xs leading-6 text-white/75">
-              3 هيلات · {titanPreview.hp} دم · أسرع · ضربة قاضية كل 10 ثوانٍ · يهيل لحاله
-              إذا وقفت تطلق عليه
-            </p>
-          </div>
-
-          <div className="grid gap-3 rounded-2xl border border-border/70 bg-gradient-to-br from-rose-500/10 to-emerald-500/10 p-4 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="rounded-xl bg-background/50 p-3">
-              <p className="text-xs text-muted-foreground">تعليق زومبي</p>
-              <p className="mt-1 text-sm font-extrabold">ينزل زومبي واحد</p>
-            </div>
-            <div className="rounded-xl bg-background/50 p-3">
-              <p className="text-xs text-muted-foreground">كل {TITAN_COMMENT_INTERVAL} تعليق</p>
-              <p className="mt-1 text-sm font-extrabold text-cyan-300">{titanPreview.title}</p>
-              <p className="mt-0.5 text-[10px] font-bold text-cyan-200/90">3 هيلات · ذيل مدمر</p>
-            </div>
-            <div className="rounded-xl bg-background/50 p-3">
-              <p className="text-xs text-muted-foreground">كل {bossEvery} تعليق</p>
-              <p className="mt-1 text-sm font-extrabold">{bossPreview.title}</p>
-              <p className="mt-0.5 text-[10px] font-bold text-fuchsia-300">
-                {bossPreview.hp} دم{bossPreview.segments > 1 ? ` · ${bossPreview.segments} هيلات` : ""}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div
+              className="rounded-2xl border p-3"
+              style={{
+                borderColor: `${ACCENT}44`,
+                background: `linear-gradient(135deg, ${ACCENT}18, transparent 70%)`,
+              }}
+            >
+              <p className="text-[10px] font-extrabold tracking-wider text-white/60 uppercase">
+                قوة الزومبي
+              </p>
+              <p className="mt-1 text-sm font-black" style={{ color: GLOW }}>
+                {zombieScaling.label}
+              </p>
+              <p className="mt-1 text-[10px] font-bold text-white/60">
+                دم ×{zombieScaling.hpMult.toFixed(2)} · سرعة ×{zombieScaling.speedMult.toFixed(2)}
               </p>
             </div>
-            <div className="rounded-xl bg-background/50 p-3">
-              <p className="text-xs text-muted-foreground">قتل زومبي</p>
-              <p className="mt-1 text-sm font-extrabold text-emerald-300">+4 دم</p>
+
+            <div
+              className={cn(
+                "rounded-2xl border p-3",
+                bossPreview.isMega ? "border-orange-500/50" : "",
+              )}
+              style={{
+                borderColor: bossPreview.isMega ? "#f97316aa" : `${ACCENT}44`,
+                background: bossPreview.isMega
+                  ? "linear-gradient(135deg, #f9731622, transparent 70%)"
+                  : `linear-gradient(135deg, ${ACCENT}18, transparent 70%)`,
+              }}
+            >
+              <p className="text-[10px] font-extrabold tracking-wider text-white/60 uppercase">
+                الوحش المتوقع
+              </p>
+              <p
+                className="mt-1 text-sm font-black"
+                style={{ color: bossPreview.isMega ? "#fb923c" : GLOW }}
+              >
+                {bossPreview.title}
+              </p>
+              <p className="mt-1 text-[10px] font-bold text-white/60">
+                {bossPreview.hp} دم
+                {bossPreview.segments > 1 ? ` · ${bossPreview.segments} هيلات` : ""}
+              </p>
             </div>
-            <div className="rounded-xl bg-background/50 p-3">
-              <p className="text-xs text-muted-foreground">قتل وحش كبير</p>
-              <p className="mt-1 text-sm font-extrabold text-fuchsia-300">+8 دم (زومبيين) + ترقية</p>
+
+            <div
+              className="rounded-2xl border p-3"
+              style={{
+                borderColor: "#22d3ee66",
+                background: "linear-gradient(135deg, #22d3ee18, transparent 70%)",
+              }}
+            >
+              <p className="text-[10px] font-extrabold tracking-wider text-white/60 uppercase">
+                كل {TITAN_COMMENT_INTERVAL} تعليق
+              </p>
+              <p className="mt-1 text-sm font-black text-cyan-300">{titanPreview.title}</p>
+              <p className="mt-1 text-[10px] font-bold text-white/60">
+                3 هيلات · ذيل مدمر · يهيل نفسه
+              </p>
             </div>
           </div>
 
-          <div className="grid gap-3 rounded-2xl border border-border/70 bg-secondary/30 p-4 sm:grid-cols-3">
-            <div className="rounded-xl bg-background/50 p-3">
-              <p className="text-xs text-muted-foreground">بعد أول وحش</p>
-              <p className="mt-1 text-sm font-extrabold text-amber-300">بندقية قوية + آر بي جي</p>
-            </div>
-            <div className="rounded-xl bg-background/50 p-3">
-              <p className="text-xs text-muted-foreground">كل وحش إضافي</p>
-              <p className="mt-1 text-sm font-extrabold text-amber-200">ترقية البندقية (حتى 3)</p>
-            </div>
-            <div className="rounded-xl bg-background/50 p-3">
-              <p className="text-xs text-muted-foreground">تبديل السلاح</p>
-              <p className="mt-1 text-sm font-extrabold">سكرول الماوس</p>
-            </div>
+          <div className="grid gap-2 rounded-2xl border border-white/10 bg-black/25 p-4 sm:grid-cols-2 lg:grid-cols-3 text-xs">
+            <ControlHint label="حركة" value="WASD" />
+            <ControlHint label="نظر" value="الماوس (Pointer Lock)" />
+            <ControlHint label="إطلاق" value="كبسة يسار" />
+            <ControlHint label="زوم" value="كليك يمين" />
+            <ControlHint label="قفز" value="Space" />
+            <ControlHint label="ملء الشاشة" value="K" />
           </div>
 
-          <div className="rounded-2xl border border-border/70 bg-secondary/30 p-4">
-            <p className="text-xs font-bold text-muted-foreground">هدايا كيك</p>
-            <p className="mt-1 text-sm font-extrabold">
+          <div
+            className="rounded-2xl border p-3 text-xs"
+            style={{
+              borderColor: `${ACCENT}33`,
+              background: `${ACCENT}0d`,
+            }}
+          >
+            <p className="font-extrabold text-white/80">هدايا كيك:</p>
+            <p className="mt-1 text-white/60">
               ٥→وحش · ١٠→٢ · ٥٠→ذيل أسطوري · ١٠٠→كبير+ذيل · +١٠٠→٣ أذيال
             </p>
           </div>
-
-          <Button
-            type="button"
-            className="h-12 w-full text-base font-extrabold"
-            disabled={!chatActive}
-            onClick={startMatch}
-          >
-            <Crosshair className="size-4" />
-            دخول الماب (First Person)
-          </Button>
-          {!chatActive ? (
-            <p className="text-center text-xs font-bold text-destructive">اربط كيك قبل البدء.</p>
-          ) : null}
         </div>
-      ) : null}
+      }
+      play={
+        <div className="mx-auto max-w-7xl space-y-4">
+
 
       {phase === "playing" ? (
         <div className="space-y-3">
@@ -1217,13 +1168,29 @@ export default function ZombieShooterGame({
                 )}
               </div>
 
-              <Button type="button" className="w-full font-extrabold" onClick={resetLobby}>
+              <Button
+                type="button"
+                className="w-full rounded-2xl font-extrabold text-white hover:brightness-110"
+                style={{ background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})` }}
+                onClick={resetLobby}
+              >
                 رجوع للإعداد
               </Button>
           </div>
         </div>
       ) : null}
-    </GameCard>
+        </div>
+      }
+    />
+  );
+}
+
+function ControlHint({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg bg-white/[0.04] px-3 py-2">
+      <span className="font-bold text-white/55">{label}</span>
+      <span className="font-extrabold text-white">{value}</span>
+    </div>
   );
 }
 

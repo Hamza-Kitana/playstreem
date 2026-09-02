@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Armchair, Crown, Play, RotateCcw, Users } from "lucide-react";
+import { Armchair, Crown, RotateCcw } from "lucide-react";
 import type { ChatMessage } from "@/hooks/useKickChat";
 import { useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
@@ -13,17 +13,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import GameStage, { type Phase as StagePhase } from "@/components/games/GameStage";
+
+const ACCENT = "#22d3ee";
+const GLOW = "#67e8f9";
 
 type Player = { name: string; color: string };
 
 type Chair = {
   id: number;
-  /** null while spinning / before numbers reveal */
   number: number | null;
   seated: Player | null;
 };
 
-type Phase = "lobby" | "spinning" | "claiming" | "round_end" | "winner";
+type InnerPhase = "spinning" | "claiming" | "round_end" | "winner";
 
 type SeatMove = {
   chairId: number;
@@ -40,13 +43,7 @@ function lerpPct(a: string, b: string, t: number) {
   return `${pa + (pb - pa) * t}%`;
 }
 
-function MovingToSeat({
-  move,
-  onDone,
-}: {
-  move: SeatMove;
-  onDone: () => void;
-}) {
+function MovingToSeat({ move, onDone }: { move: SeatMove; onDone: () => void }) {
   const [t, setT] = useState(0);
   const doneRef = useRef(false);
 
@@ -57,9 +54,8 @@ function MovingToSeat({
       const p = Math.min(1, (now - start) / SEAT_MOVE_MS);
       const ease = 1 - Math.pow(1 - p, 3);
       setT(ease);
-      if (p < 1) {
-        raf = requestAnimationFrame(tick);
-      } else if (!doneRef.current) {
+      if (p < 1) raf = requestAnimationFrame(tick);
+      else if (!doneRef.current) {
         doneRef.current = true;
         onDone();
       }
@@ -83,9 +79,10 @@ function MovingToSeat({
       }}
     >
       <span
-        className="grid size-9 place-items-center rounded-full border-2 border-primary/50 bg-black/60 text-xs font-extrabold shadow-lg sm:size-10"
+        className="grid size-9 place-items-center rounded-full border-2 bg-black/60 text-xs font-extrabold shadow-lg sm:size-10"
         style={{
           color: move.player.color,
+          borderColor: `${ACCENT}80`,
           boxShadow: `0 0 22px -4px ${move.player.color}`,
         }}
       >
@@ -116,7 +113,6 @@ function extractNumber(text: string): number | null {
 }
 
 function pickClaimSeconds() {
-  // Inclusive 2–12s, different each round — players can't predict the cutoff.
   return 2 + Math.floor(Math.random() * 11);
 }
 
@@ -153,7 +149,8 @@ export default function HotSeatGame({
   messages: ChatMessage[];
   chatActive: boolean;
 }) {
-  const [phase, setPhase] = useState<Phase>("lobby");
+  const [stagePhase, setStagePhase] = useState<StagePhase>("setup");
+  const [innerPhase, setInnerPhase] = useState<InnerPhase>("spinning");
   const [players, setPlayers] = useState<Player[]>([]);
   const [chairs, setChairs] = useState<Chair[]>([]);
   const [spinAngle, setSpinAngle] = useState(0);
@@ -164,13 +161,13 @@ export default function HotSeatGame({
   const [seatMoves, setSeatMoves] = useState<SeatMove[]>([]);
 
   const session = useGameSession(30);
-  const phaseRef = useRef(phase);
+  const innerPhaseRef = useRef(innerPhase);
   const chairsRef = useRef(chairs);
   const playersRef = useRef(players);
   const spinAngleRef = useRef(0);
   const finishingRef = useRef(false);
   const seatMovesRef = useRef(seatMoves);
-  phaseRef.current = phase;
+  innerPhaseRef.current = innerPhase;
   chairsRef.current = chairs;
   playersRef.current = players;
   spinAngleRef.current = spinAngle;
@@ -184,13 +181,12 @@ export default function HotSeatGame({
 
   const reservedChairIds = useMemo(() => new Set(seatMoves.map((m) => m.chairId)), [seatMoves]);
 
-  const chairsTaken =
-    chairs.filter((c) => c.seated).length + seatMoves.length;
+  const chairsTaken = chairs.filter((c) => c.seated).length + seatMoves.length;
   const chairsTotal = chairs.length;
 
   const finishClaimRound = () => {
     if (finishingRef.current) return;
-    if (phaseRef.current !== "claiming") return;
+    if (innerPhaseRef.current !== "claiming") return;
     finishingRef.current = true;
     session.stop();
 
@@ -210,14 +206,12 @@ export default function HotSeatGame({
       const champ = currentPlayers[0] ?? null;
       setPlayers(champ ? [champ] : []);
       setChairs([]);
-      setPhase("winner");
+      setInnerPhase("winner");
       setWinner(champ);
       setWinnerOpen(Boolean(champ));
       return;
     }
 
-    // Snapshot chairs, then fill any empty seats randomly from people who didn't claim.
-    // Always exactly ONE player is left without a chair (players = chairs + 1).
     let nextChairs = chairsRef.current.map((c) => ({ ...c }));
     const seatedKeys = new Set(
       nextChairs.filter((c) => c.seated).map((c) => c.seated!.name.toLowerCase()),
@@ -238,8 +232,6 @@ export default function HotSeatGame({
     chairsRef.current = nextChairs;
 
     const leftover = currentPlayers.filter((p) => !seatedKeys.has(p.name.toLowerCase()));
-    // Safety: if somehow 0 leftover (bug), knock one random seated player... shouldn't happen
-    // If somehow >1 leftover, knock only ONE — others survive (user rule: one out per round)
     let eliminated: Player;
     if (leftover.length === 1) {
       eliminated = leftover[0]!;
@@ -258,7 +250,7 @@ export default function HotSeatGame({
       const champ = survivors[0] ?? null;
       setPlayers(champ ? [champ] : []);
       setChairs([]);
-      setPhase("winner");
+      setInnerPhase("winner");
       setWinner(champ);
       setWinnerOpen(Boolean(champ));
       return;
@@ -266,14 +258,14 @@ export default function HotSeatGame({
 
     setPlayers(survivors);
     setChairs([]);
-    setPhase("round_end");
+    setInnerPhase("round_end");
   };
 
   const finishClaimRoundRef = useRef(finishClaimRound);
   finishClaimRoundRef.current = finishClaimRound;
 
-  // Lobby joins
-  useNewMessages(messages, phase === "lobby" && chatActive, (m) => {
+  // Lobby joins during setup
+  useNewMessages(messages, stagePhase === "setup" && chatActive, (m) => {
     if (!isJoinCommand(m.text)) return;
     const name = m.user.trim();
     if (!name) return;
@@ -283,8 +275,8 @@ export default function HotSeatGame({
     });
   });
 
-  // Claim numbers while claiming — walk to chair then sit
-  useNewMessages(messages, phase === "claiming" && chatActive, (m) => {
+  // Claim numbers while claiming
+  useNewMessages(messages, stagePhase === "playing" && innerPhase === "claiming" && chatActive, (m) => {
     const num = extractNumber(m.text);
     if (num == null) return;
     const name = m.user.trim();
@@ -323,24 +315,20 @@ export default function HotSeatGame({
     setSeatMoves((prevMoves) => {
       const move = prevMoves.find((m) => m.chairId === chairId);
       if (!move) return prevMoves;
-      setChairs((prev) =>
-        prev.map((c) => (c.id === chairId ? { ...c, seated: move.player } : c)),
-      );
+      setChairs((prev) => prev.map((c) => (c.id === chairId ? { ...c, seated: move.player } : c)));
       return prevMoves.filter((m) => m.chairId !== chairId);
     });
   }, []);
 
-  // End claim early when all chairs filled (after walk animations finish)
   useEffect(() => {
-    if (phase !== "claiming") return;
+    if (innerPhase !== "claiming") return;
     if (chairs.length === 0) return;
     if (seatMoves.length > 0) return;
     if (chairs.every((c) => c.seated)) {
       finishClaimRoundRef.current();
     }
-  }, [chairs, phase, seatMoves.length]);
+  }, [chairs, innerPhase, seatMoves.length]);
 
-  // Claim timer expire
   useEffect(() => {
     session.setOnExpire(() => {
       finishClaimRoundRef.current();
@@ -348,20 +336,19 @@ export default function HotSeatGame({
     return () => session.setOnExpire(null);
   }, [session.setOnExpire]);
 
-  // Auto next round after brief pause
   useEffect(() => {
-    if (phase !== "round_end") return;
+    if (innerPhase !== "round_end") return;
     const t = window.setTimeout(() => {
       beginRound(playersRef.current, round + 1);
     }, 2600);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
+  }, [innerPhase]);
 
   const beginRound = (roster: Player[], nextRound: number) => {
     if (roster.length < 2) {
       const champ = roster[0] ?? null;
-      setPhase("winner");
+      setInnerPhase("winner");
       setWinner(champ);
       setWinnerOpen(Boolean(champ));
       return;
@@ -374,12 +361,12 @@ export default function HotSeatGame({
     const count = roster.length - 1;
     setChairs(Array.from({ length: count }, (_, i) => ({ id: i, number: null, seated: null })));
     setSpinAngle(0);
-    setPhase("spinning");
+    setInnerPhase("spinning");
   };
 
-  // Spin animation then reveal numbers
   useEffect(() => {
-    if (phase !== "spinning") return;
+    if (innerPhase !== "spinning") return;
+    if (stagePhase !== "playing") return;
     finishingRef.current = false;
     let raf = 0;
     const start = performance.now();
@@ -395,25 +382,26 @@ export default function HotSeatGame({
       } else {
         const nums = pickUniqueChairNumbers(chairsRef.current.length);
         setChairs((prev) => prev.map((c, i) => ({ ...c, number: nums[i] ?? null, seated: null })));
-        setPhase("claiming");
+        setInnerPhase("claiming");
         session.start(pickClaimSeconds());
       }
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
+  }, [innerPhase, stagePhase]);
 
   const startGame = () => {
     if (players.length < 2) return;
+    setStagePhase("playing");
     beginRound(players, 1);
   };
 
-  const resetAll = () => {
+  const resetToLobby = () => {
     session.stop();
     finishingRef.current = false;
-    setPhase("lobby");
-    setPlayers([]);
+    setStagePhase("setup");
+    setInnerPhase("spinning");
     setChairs([]);
     setSpinAngle(0);
     setSeatMoves([]);
@@ -423,228 +411,309 @@ export default function HotSeatGame({
     setRound(1);
   };
 
+  const fullReset = () => {
+    resetToLobby();
+    setPlayers([]);
+  };
+
   const statusLine =
-    phase === "lobby"
-      ? "اكتبوا «دخول» في الشات للانضمام"
-      : phase === "spinning"
-        ? "يلفّون حول الدائرة…"
-        : phase === "claiming"
-          ? "طلعَت الأرقام! اكتب رقم الكرسي في الشات"
-          : phase === "round_end"
-            ? "انتهت الجولة — الجولة التالية…"
-            : "انتهت اللعبة";
+    innerPhase === "spinning"
+      ? "يلفّون حول الدائرة…"
+      : innerPhase === "claiming"
+        ? "طلعَت الأرقام! اكتب رقم الكرسي في الشات"
+        : innerPhase === "round_end"
+          ? "انتهت الجولة — الجولة التالية…"
+          : "انتهت اللعبة";
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5">
-      <div className="glass rounded-3xl border border-primary/20 p-4 sm:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm font-bold text-muted-foreground">
-            المطالبة عشوائية بين ٢ و ١٢ ثانية — العداد مخفي عشان التوتر.
-          </p>
-          {phase === "lobby" ? (
-            <Button
-              className="h-11 px-6 font-extrabold"
-              disabled={!chatActive || players.length < 2}
-              onClick={startGame}
+    <>
+      <GameStage
+        phase={stagePhase}
+        accent={ACCENT}
+        glow={GLOW}
+        icon={<Armchair />}
+        title="الكراسي الساخنة"
+        description="الجمهور يدخل من الشات بكلمة «دخول». كل جولة يطلع لاعب واحد لغاية ما يضل بطل الكراسي."
+        chatActive={chatActive}
+        canStart={players.length >= 2}
+        setupCtaLabel={players.length >= 2 ? "التالي · جهّز اللعبة" : "بحاجة ٢ لاعبين على الأقل"}
+        startLabel="ابدأ اللعبة"
+        onGoReady={() => {
+          if (players.length >= 2) setStagePhase("ready");
+        }}
+        onStart={startGame}
+        onBackToSetup={resetToLobby}
+        settings={
+          <div className="space-y-4">
+            <div
+              className="rounded-2xl border p-4 text-center"
+              style={{
+                borderColor: `${ACCENT}44`,
+                background: `linear-gradient(135deg, ${ACCENT}18, transparent 70%)`,
+              }}
             >
-              <Play className="size-4" /> بدء اللعبة
-            </Button>
-          ) : (
-            <Button variant="secondary" className="h-11 font-bold" onClick={resetAll}>
-              <RotateCcw className="size-4" /> إعادة من الصفر
-            </Button>
-          )}
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs font-bold">
-          <span className="text-muted-foreground">
-            <Users className="me-1 inline size-3.5" />
-            داخلين: <span className="text-foreground tabular-nums">{players.length}</span>
-            {phase !== "lobby" ? (
-              <>
-                {" "}
-                · جولة <span className="text-foreground">{round}</span>
-                {" "}
-                · كراسي{" "}
-                <span className="text-foreground">{chairsTotal || Math.max(players.length - 1, 0)}</span>
-              </>
-            ) : null}
-          </span>
-          {phase === "claiming" ? (
-            <span className="text-primary">
-              سارعوا! محجوز {chairsTaken}/{chairsTotal}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">{statusLine}</span>
-          )}
-        </div>
-        {!chatActive ? (
-          <p className="mt-2 text-[11px] font-bold text-destructive">اربط كيك قبل اللعب.</p>
-        ) : null}
-      </div>
-
-      <div className="glass relative overflow-hidden rounded-3xl border border-white/10 p-4 sm:p-6">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(55%_50%_at_50%_45%,color-mix(in_oklab,var(--neon)_12%,transparent),transparent_70%)]" />
-
-        <div className="relative mx-auto aspect-square w-full max-w-xl">
-          {/* Outer ring */}
-          <div className="absolute inset-[6%] rounded-full border border-dashed border-primary/25" />
-          <div className="absolute inset-[22%] rounded-full border border-white/10 bg-black/20" />
-
-          {/* Center label */}
-          <div className="absolute inset-0 grid place-items-center">
-            <div className="z-0 max-w-[40%] text-center">
-              <p className="text-[10px] font-bold tracking-[0.25em] text-primary uppercase">الكراسي</p>
-              <p className="mt-1 text-xs font-bold text-muted-foreground">
-                {phase === "lobby"
-                  ? `${players.length} لاعب`
-                  : phase === "spinning"
-                    ? "يلفّون…"
-                    : phase === "claiming"
-                      ? "اختاروا رقم!"
-                      : phase === "round_end"
-                        ? "ت出局…"
-                        : "الفائز"}
+              <p className="text-[10px] font-extrabold tracking-[0.28em] text-white/60 uppercase">
+                لاعبون منضمّون
+              </p>
+              <p
+                className="font-brand mt-1 text-5xl font-black leading-none tabular-nums"
+                style={{ color: GLOW }}
+              >
+                {players.length}
+              </p>
+              <p className="mt-2 text-xs text-white/60">
+                اكتبوا في الشات <span className="font-extrabold text-white">«دخول»</span> للانضمام
               </p>
             </div>
-          </div>
 
-          {/* Chairs inside */}
-          {chairs.map((chair, i) => {
-            const n = chairs.length;
-            const angle = n === 1 ? 0 : (i / n) * 360;
-            const pos = polar(18, angle);
-            const reserved = reservedChairIds.has(chair.id);
-            const occupied = Boolean(chair.seated);
-            return (
-              <div
-                key={chair.id}
-                className="absolute z-10 flex w-16 -translate-x-1/2 -translate-y-1/2 flex-col items-center sm:w-20"
-                style={{ left: pos.left, top: pos.top }}
-              >
-                <div
-                  className={cn(
-                    "grid size-12 place-items-center rounded-2xl border transition-all duration-300 sm:size-14",
-                    occupied
-                      ? "border-primary/60 bg-primary/20 shadow-[0_0_24px_-8px_var(--neon)]"
-                      : reserved
-                        ? "border-primary/40 bg-primary/10 shadow-[0_0_18px_-10px_var(--neon)] animate-pulse"
-                        : "border-white/15 bg-black/45",
-                  )}
-                >
-                  <Armchair
-                    className={cn(
-                      "size-6 sm:size-7",
-                      occupied || reserved ? "text-primary" : "text-muted-foreground",
-                    )}
-                  />
+            {players.length > 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-[11px] font-extrabold tracking-wider text-white/60 uppercase">
+                    اللاعبون
+                  </p>
+                  <button
+                    type="button"
+                    onClick={fullReset}
+                    className="text-[11px] font-bold text-white/50 hover:text-destructive"
+                  >
+                    مسح الكل
+                  </button>
                 </div>
-                {chair.number != null ? (
-                  <span
-                    className={cn(
-                      "mt-1 rounded-full px-2 py-0.5 font-brand text-sm font-bold tabular-nums sm:text-base",
-                      occupied
-                        ? "bg-primary text-primary-foreground"
-                        : reserved
-                          ? "bg-primary/30 text-primary"
-                          : "bg-white/10 text-foreground",
-                    )}
-                  >
-                    {chair.number}
-                  </span>
-                ) : (
-                  <span className="mt-1 text-[10px] text-muted-foreground">؟</span>
-                )}
-                {chair.seated ? (
-                  <span
-                    className="animate-pop-in mt-0.5 max-w-full truncate text-[10px] font-extrabold"
-                    style={{ color: chair.seated.color }}
-                  >
-                    {chair.seated.name}
-                  </span>
-                ) : reserved ? (
-                  <span className="mt-0.5 text-[10px] font-bold text-primary/80">يجي…</span>
-                ) : null}
+                <div className="flex flex-wrap gap-1.5">
+                  {players.map((p) => (
+                    <span
+                      key={p.name}
+                      className="rounded-full border px-3 py-1 text-xs font-bold"
+                      style={{
+                        borderColor: `color-mix(in oklab, ${p.color} 45%, transparent)`,
+                        background: "rgba(0,0,0,0.35)",
+                        color: p.color,
+                      }}
+                    >
+                      {p.name}
+                    </span>
+                  ))}
+                </div>
               </div>
-            );
-          })}
-
-          {seatMoves.map((move) => (
-            <MovingToSeat
-              key={`move-${move.chairId}-${move.player.name}`}
-              move={move}
-              onDone={() => completeSeatMove(move.chairId)}
-            />
-          ))}
-
-          {/* Players around the circle */}
-          {players.map((p, i) => {
-            const n = Math.max(players.length, 1);
-            const base = (i / n) * 360;
-            const angle = base + (phase === "spinning" || phase === "claiming" || phase === "round_end" ? spinAngle : 0);
-            const seated = seatedNames.has(p.name.toLowerCase());
-            // Seated players stay on chairs visually — hide from outer ring
-            if (seated && (phase === "claiming" || phase === "round_end")) return null;
-            const pos = polar(42, angle);
-            return (
-              <div
-                key={p.name}
-                className={cn(
-                  "absolute z-20 flex max-w-[5.5rem] -translate-x-1/2 -translate-y-1/2 flex-col items-center transition-opacity",
-                  phase === "spinning" && "opacity-95",
-                )}
-                style={{ left: pos.left, top: pos.top }}
-              >
-                <span
-                  className="grid size-9 place-items-center rounded-full border-2 border-white/20 bg-black/55 text-xs font-extrabold shadow-lg sm:size-10"
-                  style={{ color: p.color, boxShadow: `0 0 18px -6px ${p.color}` }}
-                >
-                  {p.name.slice(0, 1)}
-                </span>
-                <span
-                  className="mt-1 max-w-full truncate rounded-full bg-black/50 px-1.5 py-0.5 text-[10px] font-bold backdrop-blur-sm"
-                  style={{ color: p.color }}
-                >
-                  {p.name}
-                </span>
-              </div>
-            );
-          })}
-
-          {players.length === 0 && phase === "lobby" ? (
-            <div className="absolute inset-0 grid place-items-center">
-              <p className="rounded-2xl bg-black/40 px-4 py-3 text-sm text-muted-foreground backdrop-blur-sm">
+            ) : (
+              <p className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-4 py-4 text-center text-xs text-white/45">
                 بانتظار دخول اللاعبين من الشات…
               </p>
-            </div>
-          ) : null}
-        </div>
-
-        {eliminatedFlash.length > 0 && phase === "round_end" ? (
-          <p className="relative mt-4 text-center text-sm font-bold text-destructive">
-            طلعوا: {eliminatedFlash.join(" · ")}
-          </p>
-        ) : null}
-
-        {phase === "lobby" && players.length > 0 ? (
-          <div className="relative mt-4 flex flex-wrap justify-center gap-2">
-            {players.map((p) => (
-              <span
-                key={p.name}
-                className="rounded-full border border-white/10 bg-black/30 px-3 py-1 text-xs font-bold"
-                style={{ color: p.color }}
-              >
-                {p.name}
-              </span>
-            ))}
+            )}
           </div>
-        ) : null}
+        }
+        play={
+          <div className="mx-auto max-w-5xl space-y-5">
+            <div
+              className="glass flex flex-wrap items-center justify-between gap-3 rounded-3xl border p-4"
+              style={{ borderColor: `${ACCENT}44` }}
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className="grid size-10 place-items-center rounded-2xl"
+                  style={{ background: `${ACCENT}22`, color: ACCENT }}
+                >
+                  <Armchair className="size-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-extrabold text-white">
+                    الجولة {round} · {players.length} لاعب · {chairsTotal || Math.max(players.length - 1, 0)} كرسي
+                  </p>
+                  <p className="text-[11px] text-white/50">
+                    {innerPhase === "claiming"
+                      ? `سارعوا! محجوز ${chairsTaken}/${chairsTotal}`
+                      : statusLine}
+                  </p>
+                </div>
+              </div>
 
-        <p className="relative mt-4 text-center text-[11px] leading-6 text-muted-foreground sm:text-xs">
-          {players.length} لاعب ← {Math.max(players.length - 1, 0)} كرسي. كل جولة يطلع شخص واحد فقط.
-          لو خلص الوقت والكراسي لسة فاضية، بتنحجز عشوائي على الباقيين، واللي يضل بدون كرسي يطلع.
-        </p>
-      </div>
+              <Button
+                variant="outline"
+                className="h-10 gap-1.5 rounded-2xl border-white/12 bg-white/[0.03] font-bold"
+                onClick={fullReset}
+              >
+                <RotateCcw className="size-4" /> إعادة من الصفر
+              </Button>
+            </div>
+
+            <div
+              className="relative overflow-hidden rounded-[1.75rem] border p-4 sm:p-6"
+              style={{
+                borderColor: `${ACCENT}44`,
+                background: "linear-gradient(180deg, oklch(0.14 0.05 210 / 0.7), oklch(0.09 0.03 285 / 0.9))",
+              }}
+            >
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  background: `radial-gradient(55% 50% at 50% 45%, ${ACCENT}18, transparent 70%)`,
+                }}
+              />
+
+              <div className="relative mx-auto aspect-square w-full max-w-xl">
+                <div
+                  className="absolute inset-[6%] rounded-full border border-dashed"
+                  style={{ borderColor: `${ACCENT}40` }}
+                />
+                <div className="absolute inset-[22%] rounded-full border border-white/10 bg-black/20" />
+
+                <div className="absolute inset-0 grid place-items-center">
+                  <div className="z-0 max-w-[40%] text-center">
+                    <p
+                      className="text-[10px] font-bold tracking-[0.25em] uppercase"
+                      style={{ color: GLOW }}
+                    >
+                      الكراسي
+                    </p>
+                    <p className="mt-1 text-xs font-bold text-white/60">
+                      {innerPhase === "spinning"
+                        ? "يلفّون…"
+                        : innerPhase === "claiming"
+                          ? "اختاروا رقم!"
+                          : innerPhase === "round_end"
+                            ? "طلع واحد…"
+                            : "الفائز"}
+                    </p>
+                  </div>
+                </div>
+
+                {chairs.map((chair, i) => {
+                  const n = chairs.length;
+                  const angle = n === 1 ? 0 : (i / n) * 360;
+                  const pos = polar(18, angle);
+                  const reserved = reservedChairIds.has(chair.id);
+                  const occupied = Boolean(chair.seated);
+                  return (
+                    <div
+                      key={chair.id}
+                      className="absolute z-10 flex w-16 -translate-x-1/2 -translate-y-1/2 flex-col items-center sm:w-20"
+                      style={{ left: pos.left, top: pos.top }}
+                    >
+                      <div
+                        className={cn(
+                          "grid size-12 place-items-center rounded-2xl border transition-all duration-300 sm:size-14",
+                          reserved && !occupied && "animate-pulse",
+                        )}
+                        style={{
+                          borderColor: occupied
+                            ? `${ACCENT}80`
+                            : reserved
+                              ? `${ACCENT}55`
+                              : "rgba(255,255,255,0.15)",
+                          background: occupied
+                            ? `${ACCENT}22`
+                            : reserved
+                              ? `${ACCENT}12`
+                              : "rgba(0,0,0,0.45)",
+                          boxShadow: occupied
+                            ? `0 0 24px -8px ${ACCENT}`
+                            : reserved
+                              ? `0 0 18px -10px ${ACCENT}`
+                              : "none",
+                        }}
+                      >
+                        <Armchair
+                          className="size-6 sm:size-7"
+                          style={{ color: occupied || reserved ? ACCENT : "rgba(255,255,255,0.55)" }}
+                        />
+                      </div>
+                      {chair.number != null ? (
+                        <span
+                          className="font-brand mt-1 rounded-full px-2 py-0.5 text-sm font-bold tabular-nums sm:text-base"
+                          style={{
+                            background: occupied
+                              ? `linear-gradient(135deg, ${ACCENT}, ${GLOW})`
+                              : reserved
+                                ? `${ACCENT}30`
+                                : "rgba(255,255,255,0.1)",
+                            color: occupied ? "black" : reserved ? GLOW : "white",
+                          }}
+                        >
+                          {chair.number}
+                        </span>
+                      ) : (
+                        <span className="mt-1 text-[10px] text-white/50">؟</span>
+                      )}
+                      {chair.seated ? (
+                        <span
+                          className="animate-pop-in mt-0.5 max-w-full truncate text-[10px] font-extrabold"
+                          style={{ color: chair.seated.color }}
+                        >
+                          {chair.seated.name}
+                        </span>
+                      ) : reserved ? (
+                        <span className="mt-0.5 text-[10px] font-bold" style={{ color: GLOW }}>
+                          يجي…
+                        </span>
+                      ) : null}
+                    </div>
+                  );
+                })}
+
+                {seatMoves.map((move) => (
+                  <MovingToSeat
+                    key={`move-${move.chairId}-${move.player.name}`}
+                    move={move}
+                    onDone={() => completeSeatMove(move.chairId)}
+                  />
+                ))}
+
+                {players.map((p, i) => {
+                  const n = Math.max(players.length, 1);
+                  const base = (i / n) * 360;
+                  const angle =
+                    base +
+                    (innerPhase === "spinning" || innerPhase === "claiming" || innerPhase === "round_end"
+                      ? spinAngle
+                      : 0);
+                  const seated = seatedNames.has(p.name.toLowerCase());
+                  if (seated && (innerPhase === "claiming" || innerPhase === "round_end")) return null;
+                  const pos = polar(42, angle);
+                  return (
+                    <div
+                      key={p.name}
+                      className={cn(
+                        "absolute z-20 flex max-w-[5.5rem] -translate-x-1/2 -translate-y-1/2 flex-col items-center transition-opacity",
+                        innerPhase === "spinning" && "opacity-95",
+                      )}
+                      style={{ left: pos.left, top: pos.top }}
+                    >
+                      <span
+                        className="grid size-9 place-items-center rounded-full border-2 bg-black/55 text-xs font-extrabold shadow-lg sm:size-10"
+                        style={{
+                          color: p.color,
+                          borderColor: "rgba(255,255,255,0.2)",
+                          boxShadow: `0 0 18px -6px ${p.color}`,
+                        }}
+                      >
+                        {p.name.slice(0, 1)}
+                      </span>
+                      <span
+                        className="mt-1 max-w-full truncate rounded-full bg-black/50 px-1.5 py-0.5 text-[10px] font-bold backdrop-blur-sm"
+                        style={{ color: p.color }}
+                      >
+                        {p.name}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {eliminatedFlash.length > 0 && innerPhase === "round_end" ? (
+                <p className="relative mt-4 text-center text-sm font-bold text-destructive">
+                  طلعوا: {eliminatedFlash.join(" · ")}
+                </p>
+              ) : null}
+
+              <p className="relative mt-4 text-center text-[11px] leading-6 text-white/50 sm:text-xs">
+                {players.length} لاعب ← {Math.max(players.length - 1, 0)} كرسي. كل جولة يطلع شخص واحد فقط.
+                لو خلص الوقت والكراسي لسة فاضية، بتنحجز عشوائي، واللي يضل بدون كرسي يطلع.
+              </p>
+            </div>
+          </div>
+        }
+      />
 
       <Dialog
         open={winnerOpen && Boolean(winner)}
@@ -653,9 +722,12 @@ export default function HotSeatGame({
           if (!open) setWinner(null);
         }}
       >
-        <DialogContent className="max-w-sm border-primary/40 bg-[#0c1513] sm:rounded-2xl" dir="rtl">
+        <DialogContent className="max-w-sm border-white/12 bg-[#0d0a1e] sm:rounded-2xl" dir="rtl">
           <DialogHeader className="text-center sm:text-center">
-            <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-primary/15 text-primary">
+            <div
+              className="mx-auto grid size-14 place-items-center rounded-2xl"
+              style={{ background: `${ACCENT}22`, color: GLOW }}
+            >
               <Crown className="size-7" />
             </div>
             <DialogTitle className="text-xl font-extrabold">فاز بالكراسي!</DialogTitle>
@@ -663,7 +735,7 @@ export default function HotSeatGame({
           </DialogHeader>
           {winner ? (
             <p
-              className="animate-pop-in py-2 text-center font-brand text-4xl font-bold"
+              className="animate-pop-in font-brand py-2 text-center text-4xl font-bold"
               style={{ color: winner.color }}
             >
               {winner.name}
@@ -671,10 +743,11 @@ export default function HotSeatGame({
           ) : null}
           <DialogFooter className="sm:justify-center">
             <Button
-              className="w-full font-extrabold"
+              className="w-full rounded-2xl font-extrabold text-white hover:brightness-110"
+              style={{ background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})` }}
               onClick={() => {
                 setWinnerOpen(false);
-                resetAll();
+                fullReset();
               }}
             >
               لعبة جديدة
@@ -682,6 +755,7 @@ export default function HotSeatGame({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
+

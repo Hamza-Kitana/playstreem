@@ -1,12 +1,19 @@
 import { useMemo, useState } from "react";
-import { Eye, EyeOff, Lock, MessageSquareQuote, Sparkles, Users } from "lucide-react";
+import {
+  Clock,
+  Eye,
+  EyeOff,
+  Lock,
+  MessageSquareQuote,
+  Sparkles,
+  Square,
+  Users,
+} from "lucide-react";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
-import { useGameSession } from "@/hooks/useGameSession";
+import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
-import SessionControls from "@/components/games/SessionControls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { GameCard } from "@/components/Reveal";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +22,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import GameStage, { type Phase } from "@/components/games/GameStage";
+import SelectField from "@/components/games/SelectField";
+
+const ACCENT = "#a78bfa";
+const GLOW = "#d8b4fe";
 
 type Hit = {
   id: number;
@@ -32,6 +44,7 @@ export default function PhraseGame({
   messages: ChatMessage[];
   chatActive: boolean;
 }) {
+  const [phase, setPhase] = useState<Phase>("setup");
   const [phrase, setPhrase] = useState("");
   const [hits, setHits] = useState<Hit[]>([]);
   const [wordOpen, setWordOpen] = useState(false);
@@ -40,6 +53,7 @@ export default function PhraseGame({
 
   const target = useMemo(() => normalizeAr(phrase), [phrase]);
   const latest = hits[0] ?? null;
+  const urgent = session.left != null && session.left <= 10;
 
   useNewMessages(messages, session.running, (m) => {
     const who = participantKey(m);
@@ -58,196 +72,323 @@ export default function PhraseGame({
   const start = () => {
     setHits([]);
     session.start();
+    setPhase("playing");
   };
 
+  const backToSetup = () => {
+    session.stop();
+    setPhase("setup");
+  };
+
+  const clockLabel = session.running
+    ? session.left == null
+      ? "∞"
+      : formatClock(session.left)
+    : formatClock(session.durationSec > 0 ? session.durationSec : 0);
+
   return (
-    <GameCard id="phrase" className="space-y-5">
-      <div className="flex items-center gap-2">
-        <MessageSquareQuote className="size-5 text-primary" />
-        <h4 className="text-lg font-extrabold">الجملة</h4>
-      </div>
+    <>
+    <GameStage
+      phase={phase}
+      accent={ACCENT}
+      glow={GLOW}
+      icon={<MessageSquareQuote />}
+      title="الجملة السرّية"
+      description="اكتب كلمة سرية في نافذة خاصة — الجمهور يخمنها بالشات. أول من يصيب اسمه يطلع بهالة."
+      chatActive={chatActive}
+      canStart={Boolean(target)}
+      setupCtaLabel={target ? "التالي · جهّز اللعبة" : "اكتب الكلمة أولاً"}
+      startLabel="ابدأ الجلسة"
+      onGoReady={() => {
+        if (target) setPhase("ready");
+      }}
+      onStart={start}
+      onBackToSetup={backToSetup}
+      settings={
+        <div className="space-y-4">
+          <SelectField
+            label="مدة الجلسة"
+            icon={<Clock className="size-4" />}
+            accent={ACCENT}
+            value={String(session.durationSec)}
+            onChange={(v) => session.setDurationSec(Number(v))}
+            options={DURATION_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+          />
 
-      <SessionControls
-        running={session.running}
-        chatActive={chatActive}
-        durationSec={session.durationSec}
-        left={session.left}
-        participantCount={session.participantCount}
-        canStart={Boolean(target)}
-        startLabel="بدء الجلسة"
-        stopLabel="إيقاف الجلسة"
-        hint="اضغط «اكتب الكلمة السرية» وحطها بنافذة خاصة. ما بتطلع على شاشة البث — الجمهور يخمن في الشات."
-        onDurationChange={session.setDurationSec}
-        onStart={start}
-        onStop={() => session.stop()}
-      />
-
-      <button
-        type="button"
-        disabled={session.running}
-        onClick={() => {
-          setShowWord(false);
-          setWordOpen(true);
-        }}
-        className="flex w-full items-center gap-4 rounded-3xl border-2 border-dashed border-primary/50 bg-primary/10 px-5 py-5 text-right transition hover:border-primary hover:bg-primary/15 disabled:opacity-50"
-      >
-        <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-[0_0_28px_-8px_var(--neon)]">
-          <Lock className="size-7" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-lg font-extrabold sm:text-xl">
-            {target ? "الكلمة السرية جاهزة" : "اضغط هنا واكتب الكلمة السرية"}
-          </span>
-          <span className="mt-1 block text-sm text-muted-foreground">
-            {target
-              ? "مخفية عن الشاشة — اضغط للتعديل قبل البدء"
-              : "نافذة للستريمر فقط، الجمهور ما يشوف الكلمة"}
-          </span>
-        </span>
-      </button>
-
-      <Dialog
-        open={wordOpen}
-        onOpenChange={(open) => {
-          setWordOpen(open);
-          if (!open) setShowWord(false);
-        }}
-      >
-        <DialogContent className="max-w-md border-primary/40 bg-[#0e1715] sm:rounded-3xl" dir="rtl">
-          <DialogHeader className="text-right">
-            <div className="mx-auto mb-2 grid size-14 place-items-center rounded-2xl bg-primary/15 text-primary">
+          <button
+            type="button"
+            onClick={() => {
+              setShowWord(false);
+              setWordOpen(true);
+            }}
+            className="group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl border-2 border-dashed px-5 py-5 text-right transition"
+            style={{
+              borderColor: `${ACCENT}66`,
+              background: target ? `${ACCENT}18` : `${ACCENT}0d`,
+            }}
+          >
+            <span
+              className="grid size-14 shrink-0 place-items-center rounded-2xl text-white transition group-hover:scale-105"
+              style={{
+                background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})`,
+                boxShadow: `0 15px 40px -12px ${ACCENT}`,
+              }}
+            >
               <Lock className="size-7" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-lg font-extrabold text-white sm:text-xl">
+                {target ? "الكلمة السرية جاهزة" : "اضغط هنا واكتب الكلمة السرية"}
+              </span>
+              <span className="mt-1 block text-xs text-white/60 sm:text-sm">
+                {target
+                  ? "مخفية عن الشاشة — اضغط للتعديل"
+                  : "نافذة للستريمر فقط، الجمهور ما يشوف الكلمة"}
+              </span>
+            </span>
+            {target ? (
+              <span
+                className="rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider"
+                style={{ background: `${ACCENT}30`, color: GLOW }}
+              >
+                ✓ محفوظة
+              </span>
+            ) : null}
+          </button>
+        </div>
+      }
+      play={
+        <div className="mx-auto max-w-5xl space-y-5">
+          <div
+            className="glass flex flex-wrap items-center justify-between gap-3 rounded-3xl border p-4"
+            style={{ borderColor: `${ACCENT}44` }}
+          >
+            <div className="flex items-center gap-3">
+              <span
+                className="grid size-10 place-items-center rounded-2xl"
+                style={{ background: `${ACCENT}22`, color: ACCENT }}
+              >
+                <MessageSquareQuote className="size-5" />
+              </span>
+              <div>
+                <p className="text-sm font-extrabold text-white">
+                  {session.running ? "جلسة شغّالة" : "جلسة متوقفة"}
+                </p>
+                <p className="text-[11px] text-white/50">
+                  {session.running
+                    ? `${hits.length} خمّن · ${clockLabel} متبقّي`
+                    : "اضغط استئناف عشان يبدأ الجمهور يخمّن"}
+                </p>
+              </div>
             </div>
-            <DialogTitle className="text-center text-2xl font-extrabold">اكتب الكلمة هنا</DialogTitle>
-            <DialogDescription className="text-center">
-              هاي النافذة إلك أنت. سكّرها قبل ما توجّه الكاميرا على الشاشة.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="relative">
-            <Input
-              autoFocus
-              type={showWord ? "text" : "password"}
-              autoComplete="off"
-              value={phrase}
-              onChange={(e) => setPhrase(e.target.value)}
-              placeholder="مثال: بيتزا"
-              className="h-14 border-primary/40 bg-black/40 pe-12 text-center text-xl font-extrabold"
-              disabled={session.running}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && phrase.trim()) {
-                  setWordOpen(false);
-                  setShowWord(false);
-                }
-              }}
-            />
-            <button
-              type="button"
-              className="absolute top-1/2 left-3 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground hover:text-foreground"
-              onClick={() => setShowWord((v) => !v)}
-              aria-label={showWord ? "إخفاء الكلمة" : "إظهار الكلمة"}
-            >
-              {showWord ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
-            </button>
+
+            {session.running ? (
+              <Button
+                variant="destructive"
+                className="h-11 gap-1.5 rounded-2xl font-extrabold"
+                onClick={() => session.stop()}
+              >
+                <Square className="size-4" /> إيقاف
+              </Button>
+            ) : (
+              <Button
+                className="h-11 gap-1.5 rounded-2xl font-extrabold text-white hover:brightness-110"
+                style={{ background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})` }}
+                onClick={start}
+                disabled={!target || !chatActive}
+              >
+                استئناف
+              </Button>
+            )}
           </div>
-          <DialogFooter className="sm:justify-center">
-            <Button
-              className="h-12 w-full font-extrabold"
-              disabled={!phrase.trim()}
-              onClick={() => {
-                setWordOpen(false);
-                setShowWord(false);
-              }}
-            >
-              تم — أخفي الكلمة
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      {/* Spotlight — never reveal the secret word */}
-      <div className="relative overflow-hidden rounded-[1.75rem] border border-primary/25 bg-gradient-to-br from-primary/15 via-secondary/40 to-background p-8 text-center sm:p-12">
-        <div className="pointer-events-none absolute -top-24 left-1/2 size-72 -translate-x-1/2 rounded-full bg-primary/25 blur-3xl" />
-        <div className="pointer-events-none absolute right-8 bottom-0 size-40 rounded-full bg-[color-mix(in_oklab,var(--neon-2)_20%,transparent)] blur-3xl" />
+          {/* Timer + spotlight */}
+          <div
+            className="relative overflow-hidden rounded-[1.75rem] border p-8 text-center sm:p-14"
+            style={{
+              borderColor: `${ACCENT}55`,
+              background: `
+                radial-gradient(70% 60% at 50% 0%, ${ACCENT}30, transparent 65%),
+                radial-gradient(60% 60% at 100% 100%, ${GLOW}22, transparent 70%),
+                linear-gradient(180deg, oklch(0.14 0.05 300 / 0.85), oklch(0.09 0.03 285 / 0.95))
+              `,
+            }}
+          >
+            <div
+              className="pointer-events-none absolute -top-24 left-1/2 size-80 -translate-x-1/2 rounded-full opacity-40 blur-3xl"
+              style={{ background: ACCENT }}
+            />
 
-        <p className="relative text-xs font-bold tracking-[0.28em] text-primary uppercase">خمّنوا في الشات</p>
-        <p className="relative mx-auto mt-4 max-w-2xl font-brand text-3xl font-bold leading-snug sm:text-5xl">
-          ؟؟؟
-        </p>
-        <p className="relative mt-3 text-sm font-bold text-muted-foreground">
-          الكلمة مخفية — اللي يعرفها يكتبها في الشات
-        </p>
-
-        <div className="relative mx-auto mt-10 min-h-[7.5rem]">
-          {latest ? (
-            <div key={latest.id} className="animate-pop-in">
-              <p className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-4 py-1.5 text-xs font-extrabold text-primary">
-                <Sparkles className="size-3.5" />
-                كتب الكلمة السرية
+            <div className="relative">
+              <p
+                className="text-[11px] font-extrabold tracking-[0.28em] uppercase"
+                style={{ color: GLOW }}
+              >
+                خمّنوا في الشات
               </p>
               <p
-                className="mt-4 font-brand text-4xl font-bold tracking-tight sm:text-6xl"
-                style={{
-                  color: latest.color,
-                  textShadow: `0 0 40px color-mix(in oklab, ${latest.color} 55%, transparent)`,
-                }}
+                className="font-brand mt-3 text-6xl font-bold leading-none tabular-nums sm:text-7xl"
+                style={session.running && !urgent ? { color: GLOW } : session.running && urgent ? { color: "var(--destructive)" } : { color: "rgba(255,255,255,0.55)" }}
               >
-                {latest.user}
+                {clockLabel}
               </p>
-            </div>
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-2 py-6 text-muted-foreground">
-              <Users className="size-8 opacity-40" />
-              <p className="text-sm font-bold">
-                {session.running ? "بانتظار أول واحد يخمن…" : "ابدأ الجلسة عشان تظهر الأسماء هنا"}
+              <p className="mt-5 font-brand text-3xl font-bold leading-snug text-white/50 sm:text-5xl">
+                ؟ ؟ ؟
               </p>
+              <p className="mt-3 text-sm text-white/50">
+                الكلمة مخفية — اللي يعرفها يكتبها في الشات
+              </p>
+
+              <div className="mx-auto mt-10 min-h-[7rem]">
+                {latest ? (
+                  <div key={latest.id} className="animate-pop-in">
+                    <p
+                      className="inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-extrabold"
+                      style={{
+                        borderColor: `${ACCENT}55`,
+                        background: `${ACCENT}18`,
+                        color: GLOW,
+                      }}
+                    >
+                      <Sparkles className="size-3.5" />
+                      خمّن الكلمة السرية
+                    </p>
+                    <p
+                      className="font-brand mt-4 text-4xl font-bold tracking-tight sm:text-6xl"
+                      style={{
+                        color: latest.color,
+                        textShadow: `0 0 40px color-mix(in oklab, ${latest.color} 55%, transparent)`,
+                      }}
+                    >
+                      {latest.user}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2 py-6 text-white/50">
+                    <Users className="size-8 opacity-50" />
+                    <p className="text-sm font-bold">
+                      {session.running ? "بانتظار أول واحد يخمّن…" : "ابدأ الجلسة عشان تظهر الأسماء"}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
-
-        {session.running ? (
-          <p className="relative mt-4 text-sm font-bold text-primary">
-            اللي يخمن صح يظهر اسمه · {hits.length} مشارك
-          </p>
-        ) : null}
-      </div>
-
-      {/* Name wall */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h5 className="text-sm font-extrabold">الأسماء اللي خمّنت صح</h5>
-          {hits.length > 0 && !session.running ? (
-            <Button variant="ghost" size="sm" className="font-bold" onClick={() => setHits([])}>
-              مسح القائمة
-            </Button>
-          ) : null}
-        </div>
-
-        {hits.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-border/70 bg-secondary/20 px-4 py-8 text-center text-sm text-muted-foreground">
-            لما أحد يخمن الكلمة، اسمه يطلع هنا بهالة نيون.
-          </p>
-        ) : (
-          <div className="flex flex-wrap justify-center gap-2.5 sm:justify-start">
-            {hits.map((h, i) => (
-              <span
-                key={h.id}
-                className="animate-pop-in inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3.5 py-2 font-brand text-sm font-bold backdrop-blur-sm sm:text-base"
-                style={{
-                  animationDelay: `${Math.min(i, 8) * 40}ms`,
-                  boxShadow: `0 0 24px -10px color-mix(in oklab, ${h.color} 70%, transparent)`,
-                  borderColor: `color-mix(in oklab, ${h.color} 45%, transparent)`,
-                  color: h.color,
-                }}
-              >
-                <span className="grid size-6 place-items-center rounded-lg bg-white/10 text-[11px] text-foreground/80">
-                  {i + 1}
-                </span>
-                {h.user}
-              </span>
-            ))}
           </div>
-        )}
-      </div>
-    </GameCard>
+
+          {/* Name wall */}
+          <div className="glass rounded-3xl border border-white/10 p-5">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Users className="size-4" style={{ color: GLOW }} />
+                <h5 className="text-sm font-extrabold text-white">
+                  الأسماء اللي خمّنت صح ({hits.length})
+                </h5>
+              </div>
+              {hits.length > 0 && !session.running ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="font-bold text-white/60 hover:text-white"
+                  onClick={() => setHits([])}
+                >
+                  مسح
+                </Button>
+              ) : null}
+            </div>
+
+            {hits.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-white/12 bg-black/25 px-4 py-8 text-center text-sm text-white/45">
+                لما أحد يخمن الكلمة، اسمه يطلع هنا بهالة نيون.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2.5">
+                {hits.map((h, i) => (
+                  <span
+                    key={h.id}
+                    className="animate-pop-in font-brand inline-flex items-center gap-2 rounded-2xl border bg-black/30 px-3.5 py-2 text-sm font-bold backdrop-blur-sm sm:text-base"
+                    style={{
+                      animationDelay: `${Math.min(i, 8) * 40}ms`,
+                      boxShadow: `0 0 24px -10px color-mix(in oklab, ${h.color} 70%, transparent)`,
+                      borderColor: `color-mix(in oklab, ${h.color} 45%, transparent)`,
+                      color: h.color,
+                    }}
+                  >
+                    <span className="grid size-6 place-items-center rounded-lg bg-white/10 text-[11px] text-white/80">
+                      {i + 1}
+                    </span>
+                    {h.user}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      }
+    />
+
+    <Dialog
+      open={wordOpen}
+      onOpenChange={(open) => {
+        setWordOpen(open);
+        if (!open) setShowWord(false);
+      }}
+    >
+      <DialogContent className="max-w-md border-white/12 bg-[#0d0a1e] sm:rounded-3xl" dir="rtl">
+        <DialogHeader className="text-right">
+          <div
+            className="mx-auto mb-2 grid size-14 place-items-center rounded-2xl text-white"
+            style={{ background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})` }}
+          >
+            <Lock className="size-7" />
+          </div>
+          <DialogTitle className="text-center text-2xl font-extrabold">
+            اكتب الكلمة هنا
+          </DialogTitle>
+          <DialogDescription className="text-center">
+            هاي النافذة إلك أنت. سكّرها قبل ما توجّه الكاميرا على الشاشة.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="relative">
+          <Input
+            autoFocus
+            type={showWord ? "text" : "password"}
+            autoComplete="off"
+            value={phrase}
+            onChange={(e) => setPhrase(e.target.value)}
+            placeholder="مثال: بيتزا"
+            className="h-14 border-white/15 bg-black/40 pe-12 text-center text-xl font-extrabold"
+            disabled={session.running}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && phrase.trim()) {
+                setWordOpen(false);
+                setShowWord(false);
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="absolute top-1/2 left-3 -translate-y-1/2 rounded-lg p-1.5 text-white/60 hover:text-white"
+            onClick={() => setShowWord((v) => !v)}
+            aria-label={showWord ? "إخفاء الكلمة" : "إظهار الكلمة"}
+          >
+            {showWord ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+          </button>
+        </div>
+        <DialogFooter className="sm:justify-center">
+          <Button
+            className="h-12 w-full rounded-2xl font-extrabold text-white hover:brightness-110"
+            style={{ background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})` }}
+            disabled={!phrase.trim()}
+            onClick={() => {
+              setWordOpen(false);
+              setShowWord(false);
+            }}
+          >
+            تم — أخفي الكلمة
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

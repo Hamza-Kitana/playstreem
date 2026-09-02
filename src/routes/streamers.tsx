@@ -25,7 +25,6 @@ const VERIFIED = VERIFIED_STREAMERS;
 const GUTTER = "px-4 sm:px-8 lg:px-12 xl:px-16";
 
 function StreamersPage() {
-  const [expandedSlug, setExpandedSlug] = useState<string | null>(null);
   const [liveMap, setLiveMap] = useState<Record<string, boolean | null>>(() =>
     Object.fromEntries(VERIFIED.map((s) => [s.slug, null])),
   );
@@ -159,8 +158,6 @@ function StreamersPage() {
             <Reveal key={s.slug} delay={i * 60} className="h-full">
               <StreamerCard
                 streamer={s}
-                expanded={expandedSlug === s.slug}
-                onHoverChange={setExpandedSlug}
                 isLive={liveMap[s.slug] ?? null}
               />
             </Reveal>

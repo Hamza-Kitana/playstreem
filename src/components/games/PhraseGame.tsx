@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Clock,
   Eye,
@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/dialog";
 import GameStage, { type Phase } from "@/components/games/GameStage";
 import SelectField from "@/components/games/SelectField";
+import type { GameMoment } from "@/lib/game-moments";
+import { loseMoment, stoppedMoment, successMoment } from "@/lib/game-moments";
 
 const ACCENT = "#a78bfa";
 const GLOW = "#d8b4fe";
@@ -49,7 +51,22 @@ export default function PhraseGame({
   const [hits, setHits] = useState<Hit[]>([]);
   const [wordOpen, setWordOpen] = useState(false);
   const [showWord, setShowWord] = useState(false);
+  const [moment, setMoment] = useState<GameMoment | null>(null);
   const session = useGameSession(90);
+  const hitsRef = useRef(hits);
+  hitsRef.current = hits;
+
+  useEffect(() => {
+    session.setOnExpire(() => {
+      const count = hitsRef.current.length;
+      setMoment(
+        count > 0
+          ? successMoment("انتهت الجلسة!", `${count} من الشات خمّنوا الكلمة الصحيحة.`)
+          : loseMoment("انتهى الوقت وما أحد خمّن الكلمة."),
+      );
+    });
+    return () => session.setOnExpire(null);
+  }, [session.setOnExpire]);
 
   const target = useMemo(() => normalizeAr(phrase), [phrase]);
   const latest = hits[0] ?? null;
@@ -70,6 +87,7 @@ export default function PhraseGame({
   });
 
   const start = () => {
+    setMoment(null);
     setHits([]);
     session.start();
     setPhase("playing");
@@ -77,6 +95,7 @@ export default function PhraseGame({
 
   const backToSetup = () => {
     session.stop();
+    setMoment(null);
     setPhase("setup");
   };
 
@@ -104,6 +123,8 @@ export default function PhraseGame({
       }}
       onStart={start}
       onBackToSetup={backToSetup}
+      moment={moment}
+      onDismissMoment={() => setMoment(null)}
       settings={
         <div className="space-y-4">
           <SelectField
@@ -186,7 +207,10 @@ export default function PhraseGame({
               <Button
                 variant="destructive"
                 className="h-11 gap-1.5 rounded-2xl font-extrabold"
-                onClick={() => session.stop()}
+                onClick={() => {
+                  session.stop();
+                  setMoment(stoppedMoment("أوقفت الجلسة يدوياً."));
+                }}
               >
                 <Square className="size-4" /> إيقاف
               </Button>
@@ -302,8 +326,8 @@ export default function PhraseGame({
                 لما أحد يخمن الكلمة، اسمه يطلع هنا بهالة نيون.
               </p>
             ) : (
-              <div className="min-h-0 flex-1 overflow-y-auto">
-              <div className="flex flex-wrap gap-2.5">
+              <div className="min-h-0 flex-1 overflow-hidden">
+              <div className="flex h-full flex-wrap content-start gap-2 overflow-hidden">
                 {hits.map((h, i) => (
                   <span
                     key={h.id}

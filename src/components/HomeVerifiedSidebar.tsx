@@ -164,10 +164,10 @@ export default function HomeVerifiedSidebar() {
               <li key={s.slug}>
                 <div
                   className={cn(
-                    "group relative overflow-hidden rounded-2xl border p-2.5 transition",
+                    "group relative overflow-hidden rounded-2xl border p-2.5 transition-[border-color,background-color,box-shadow,transform] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]",
                     isConnected
                       ? "border-primary/50 bg-primary/10 shadow-[0_10px_30px_-15px_var(--neon)]"
-                      : "border-white/8 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]",
+                      : "border-white/8 bg-white/[0.03] hover:-translate-y-0.5 hover:border-white/22 hover:bg-white/[0.06] hover:shadow-[0_16px_40px_-22px_oklch(0_0_0_/_0.85)]",
                   )}
                 >
                   <div className="flex items-center gap-2.5">

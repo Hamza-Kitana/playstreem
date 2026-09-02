@@ -1,8 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BarChart3, Clock, Plus, Square, Trash2 } from "lucide-react";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
 import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
+import type { GameMoment } from "@/lib/game-moments";
+import { stoppedMoment, timeoutMoment } from "@/lib/game-moments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import GameStage, { type Phase } from "@/components/games/GameStage";
@@ -51,7 +53,15 @@ export default function PollGame({
   const [draft, setDraft] = useState("");
   const [question, setQuestion] = useState("هل نكمل التحدي؟");
   const [votes, setVotes] = useState<number[]>([0, 0, 0]);
+  const [moment, setMoment] = useState<GameMoment | null>(null);
   const session = useGameSession(60);
+
+  useEffect(() => {
+    session.setOnExpire(() => {
+      setMoment(timeoutMoment("انتهى وقت التصويت — النتائج ظاهرة على الشاشة."));
+    });
+    return () => session.setOnExpire(null);
+  }, [session.setOnExpire]);
 
   useNewMessages(messages, session.running, (m) => {
     const who = participantKey(m);
@@ -68,6 +78,7 @@ export default function PollGame({
   const urgent = session.left != null && session.left <= 10;
 
   const start = () => {
+    setMoment(null);
     setVotes(options.map(() => 0));
     session.start();
     setPhase("playing");
@@ -75,6 +86,7 @@ export default function PollGame({
 
   const backToSetup = () => {
     session.stop();
+    setMoment(null);
     setPhase("setup");
   };
 
@@ -99,6 +111,8 @@ export default function PollGame({
       onGoReady={() => setPhase("ready")}
       onStart={start}
       onBackToSetup={backToSetup}
+      moment={moment}
+      onDismissMoment={() => setMoment(null)}
       settings={
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -222,7 +236,10 @@ export default function PollGame({
               <Button
                 variant="destructive"
                 className="h-11 gap-1.5 rounded-2xl font-extrabold"
-                onClick={() => session.stop()}
+                onClick={() => {
+                  session.stop();
+                  setMoment(stoppedMoment("أوقفت التصويت — النتائج محفوظة."));
+                }}
               >
                 <Square className="size-4" /> إيقاف
               </Button>
@@ -263,7 +280,7 @@ export default function PollGame({
               </p>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto sm:space-y-3">
+            <div className="flex min-h-0 flex-1 flex-col justify-center gap-2 overflow-hidden sm:gap-2.5">
               {options.map((opt, i) => {
                 const pct = total ? Math.round((votes[i]! / total) * 100) : 0;
                 const isLeader = leader === i && total > 0;

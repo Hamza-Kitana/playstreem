@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import GameStage, { type Phase } from "@/components/games/GameStage";
 import SelectField from "@/components/games/SelectField";
+import type { GameMoment } from "@/lib/game-moments";
+import { stoppedMoment, successMoment } from "@/lib/game-moments";
 
 const RATE_SETUP_STORAGE_KEY = "rate-game-setup-v1";
 const ACCENT = "#facc15";
@@ -37,6 +39,7 @@ export default function RateGame({
   const [selectedCriterion, setSelectedCriterion] = useState("");
   const [ratings, setRatings] = useState<number[]>([]);
   const [showFinalResults, setShowFinalResults] = useState(false);
+  const [moment, setMoment] = useState<GameMoment | null>(null);
   const [roundResults, setRoundResults] = useState<
     { person: string; criterion: string; avg: number; count: number }[]
   >([]);
@@ -44,7 +47,9 @@ export default function RateGame({
 
   const ratingsRef = useRef(ratings);
   const roundLockedRef = useRef(false);
+  const selectionRef = useRef({ person: selectedPerson, criterion: selectedCriterion });
   ratingsRef.current = ratings;
+  selectionRef.current = { person: selectedPerson, criterion: selectedCriterion };
 
   const roundAvg = useMemo(
     () => (ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0),
@@ -143,8 +148,16 @@ export default function RateGame({
   useEffect(() => {
     session.setOnExpire(() => {
       commitRound();
+      const { person, criterion } = selectionRef.current;
+      setMoment(
+        successMoment(
+          "انتهت الجولة!",
+          person && criterion ? `${person} · ${criterion} — تم اعتماد التقييم.` : "تم اعتماد تقييمات الجولة.",
+        ),
+      );
     });
-  }, [commitRound, session]);
+    return () => session.setOnExpire(null);
+  }, [commitRound, session.setOnExpire]);
 
   useNewMessages(messages, session.running, (m) => {
     const who = participantKey(m);
@@ -177,15 +190,18 @@ export default function RateGame({
   const stopRound = () => {
     commitRound();
     session.stop();
+    setMoment(stoppedMoment("أوقفت الجولة واعتمدت التقييمات الحالية."));
   };
 
   const startTournament = () => {
+    setMoment(null);
     setShowFinalResults(false);
     setPhase("playing");
   };
 
   const backToSetup = () => {
     session.stop();
+    setMoment(null);
     setPhase("setup");
   };
 
@@ -242,6 +258,8 @@ export default function RateGame({
       }}
       onStart={startTournament}
       onBackToSetup={backToSetup}
+      moment={moment}
+      onDismissMoment={() => setMoment(null)}
       settings={
         <div className="grid gap-4 md:grid-cols-2">
           <ListEditor
@@ -339,8 +357,8 @@ export default function RateGame({
                   ما في أشخاص — رجعت للإعدادات؟
                 </p>
               ) : (
-                <div className="min-h-0 flex-1 overflow-y-auto">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="min-h-0 flex-1 overflow-hidden">
+                <div className="grid h-full content-start gap-3 overflow-hidden sm:grid-cols-2 xl:grid-cols-3">
                   {people.map((person) => {
                     const doneForPerson = roundResults.filter((r) => r.person === person).length;
                     const allDone = criteria.length > 0 && doneForPerson >= criteria.length;

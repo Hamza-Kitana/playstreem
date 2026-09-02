@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Clock, Crown, Flag, Globe2, RotateCcw, Square, Trophy } from "lucide-react";
+import { Clock, Flag, Globe2, RotateCcw, Square, Trophy } from "lucide-react";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
 import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
@@ -13,6 +13,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FLAG_BANK, flagImageUrl, shuffleFlags, type FlagItem } from "@/lib/flags";
+import type { GameMoment } from "@/lib/game-moments";
+import { loseMoment, stoppedMoment, winMoment } from "@/lib/game-moments";
 import { cn } from "@/lib/utils";
 import GameStage, { type Phase } from "@/components/games/GameStage";
 import SelectField from "@/components/games/SelectField";
@@ -47,7 +49,7 @@ export default function FlagGame({
   const [scores, setScores] = useState<Record<string, number>>({});
   const [scoreColors, setScoreColors] = useState<Record<string, string>>({});
   const [winner, setWinner] = useState<Winner | null>(null);
-  const [winnerOpen, setWinnerOpen] = useState(false);
+  const [moment, setMoment] = useState<GameMoment | null>(null);
   const [finished, setFinished] = useState(false);
   const [finalOpen, setFinalOpen] = useState(false);
   const [attempts, setAttempts] = useState(0);
@@ -57,7 +59,18 @@ export default function FlagGame({
 
   const current = finished ? undefined : deck[index];
   const hasNext = index < deck.length - 1;
+  const hasNextRef = useRef(hasNext);
+  hasNextRef.current = hasNext;
   const urgent = session.left != null && session.left <= 10;
+
+  useEffect(() => {
+    session.setOnExpire(() => {
+      if (!settled.current) {
+        setMoment(loseMoment("انتهى الوقت بدون إجابة صحيحة."));
+      }
+    });
+    return () => session.setOnExpire(null);
+  }, [session.setOnExpire]);
 
   useEffect(() => {
     setImgOk(true);
@@ -78,16 +91,20 @@ export default function FlagGame({
     if (!answersMatch(text, current)) return;
     settled.current = true;
     setWinner({ user: m.user, answer: m.text, color: m.color });
-    setWinnerOpen(true);
     setScores((s) => ({ ...s, [m.user]: (s[m.user] ?? 0) + 1 }));
     setScoreColors((c) => ({ ...c, [m.user]: m.color }));
     session.stop();
+    setMoment({
+      ...winMoment(m.user, m.color, `الدولة: ${current.name}`),
+      actionLabel: hasNextRef.current ? "العلم التالي" : "النتيجة النهائية",
+      onAction: () => goNext(true),
+    });
   });
 
   const showFinal = () => {
     session.stop();
     setFinished(true);
-    setWinnerOpen(false);
+    setMoment(null);
     setWinner(null);
     setFinalOpen(true);
   };
@@ -102,7 +119,7 @@ export default function FlagGame({
     setIndex((i) => i + 1);
     settled.current = false;
     setWinner(null);
-    setWinnerOpen(false);
+    setMoment(null);
     setAttempts(0);
     session.clearParticipants();
     if (resume) window.setTimeout(() => session.start(), 0);
@@ -112,7 +129,7 @@ export default function FlagGame({
     if (!current || finished) return;
     settled.current = false;
     setWinner(null);
-    setWinnerOpen(false);
+    setMoment(null);
     setAttempts(0);
     session.start();
     setPhase("playing");
@@ -125,7 +142,7 @@ export default function FlagGame({
     setScores({});
     setScoreColors({});
     setWinner(null);
-    setWinnerOpen(false);
+    setMoment(null);
     setFinished(false);
     setFinalOpen(false);
     setAttempts(0);
@@ -160,8 +177,11 @@ export default function FlagGame({
         onStart={start}
         onBackToSetup={() => {
           session.stop();
+          setMoment(null);
           setPhase("setup");
         }}
+        moment={moment}
+        onDismissMoment={() => setMoment(null)}
         settings={
           <div className="space-y-4">
             <SelectField
@@ -223,7 +243,10 @@ export default function FlagGame({
                 <Button
                   variant="destructive"
                   className="h-11 gap-1.5 rounded-2xl font-extrabold"
-                  onClick={() => session.stop()}
+                  onClick={() => {
+                    session.stop();
+                    setMoment(stoppedMoment("أوقفت الجولة يدوياً."));
+                  }}
                 >
                   <Square className="size-4" /> إيقاف
                 </Button>
@@ -375,7 +398,7 @@ export default function FlagGame({
                     <Trophy className="size-5" style={{ color: GLOW }} />
                     <p className="text-base font-extrabold text-white sm:text-lg">المتصدرين</p>
                   </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div className="min-h-0 flex-1 overflow-hidden">
                   {top.length === 0 ? (
                     <p className="rounded-xl bg-white/5 p-3 text-center text-sm text-white/55">
                       الفائزون يظهرون هنا
@@ -423,75 +446,6 @@ export default function FlagGame({
           </div>
         }
       />
-
-      <Dialog
-        open={winnerOpen && Boolean(winner) && !finished}
-        onOpenChange={(open) => {
-          setWinnerOpen(open);
-          if (!open) setWinner(null);
-        }}
-      >
-        <DialogContent className="max-w-sm border-white/12 bg-[#0d0a1e] sm:rounded-2xl" dir="rtl">
-          <DialogHeader className="text-center sm:text-center">
-            <div
-              className="mx-auto grid size-14 place-items-center rounded-2xl"
-              style={{ background: `${ACCENT}22`, color: GLOW }}
-            >
-              <Crown className="size-7" />
-            </div>
-            <DialogTitle className="text-xl font-extrabold">عرف العلم!</DialogTitle>
-            <DialogDescription>
-              الدولة:{" "}
-              <span className="font-bold text-foreground">{current?.name}</span>
-            </DialogDescription>
-          </DialogHeader>
-          {winner ? (
-            <p
-              className="animate-pop-in font-brand py-2 text-center text-4xl font-bold"
-              style={{ color: winner.color }}
-            >
-              {winner.user}
-            </p>
-          ) : null}
-          <DialogFooter className="flex-col gap-2 sm:flex-col sm:space-x-0">
-            {hasNext ? (
-              <>
-                <Button
-                  className="w-full rounded-2xl font-extrabold text-white hover:brightness-110"
-                  style={{ background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})` }}
-                  onClick={() => {
-                    setWinnerOpen(false);
-                    goNext(true);
-                  }}
-                >
-                  العلم التالي وابدأ
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full rounded-2xl border-white/15 bg-white/[0.03] font-bold"
-                  onClick={() => {
-                    setWinnerOpen(false);
-                    goNext(false);
-                  }}
-                >
-                  العلم التالي فقط
-                </Button>
-              </>
-            ) : (
-              <Button
-                className="w-full rounded-2xl font-extrabold text-white hover:brightness-110"
-                style={{ background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})` }}
-                onClick={() => {
-                  setWinnerOpen(false);
-                  showFinal();
-                }}
-              >
-                النتيجة النهائية
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={finalOpen} onOpenChange={setFinalOpen}>
         <DialogContent className="max-w-md border-white/12 bg-[#0d0a1e] sm:rounded-2xl" dir="rtl">

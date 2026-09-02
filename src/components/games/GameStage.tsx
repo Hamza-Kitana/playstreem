@@ -1,7 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, PlugZap, RotateCcw, Sparkles } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import GameCountdownOverlay from "@/components/games/GameCountdownOverlay";
+import GameMomentOverlay from "@/components/games/GameMomentOverlay";
 import { Button } from "@/components/ui/button";
+import type { GameMoment } from "@/lib/game-moments";
 import { cn } from "@/lib/utils";
 
 export type Phase = "setup" | "ready" | "playing";
@@ -28,9 +31,13 @@ type GameStageProps = {
   settings: ReactNode;
   /** Slot rendered while playing — the actual game panel. */
   play: ReactNode;
+  /** Full-screen in-play announcement (timeout, win, lose…). */
+  moment?: GameMoment | null;
+  /** Called when the moment overlay is dismissed without a custom action. */
+  onDismissMoment?: () => void;
   /** Called when the user finishes the setup phase (moves to ready). */
   onGoReady: () => void;
-  /** Called when the user hits start in the ready phase (moves to playing). */
+  /** Called after the 3-2-1 countdown when the user starts from the ready phase. */
   onStart: () => void;
   /** Called when the user hits "تعديل الإعدادات" to go back to setup. */
   onBackToSetup: () => void;
@@ -57,13 +64,15 @@ export default function GameStage({
   startLabel = "ابدأ اللعبة",
   settings,
   play,
+  moment = null,
+  onDismissMoment,
   onGoReady,
   onStart,
   onBackToSetup,
   setupExtras,
 }: GameStageProps) {
   return (
-    <div className="game-page">
+    <div className="game-page overflow-hidden">
       {phase === "setup" ? (
         <SetupStage
           accent={accent}
@@ -95,6 +104,8 @@ export default function GameStage({
           accent={accent}
           glow={glow}
           title={title}
+          moment={moment}
+          onDismissMoment={onDismissMoment}
           onBackToSetup={onBackToSetup}
         >
           {play}
@@ -155,8 +166,8 @@ function SetupStage({
           style={{ background: glow }}
         />
 
-        <div className="relative grid min-h-0 flex-1 gap-4 lg:grid-cols-2 lg:gap-6 xl:gap-8">
-          <div className="flex flex-col justify-center gap-3 sm:gap-4">
+        <div className="relative grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-2 lg:gap-6 xl:gap-8">
+          <div className="flex min-h-0 flex-col justify-center gap-3 sm:gap-4">
             <div className="flex items-center gap-4">
               <span
                 className="grid size-[4.5rem] shrink-0 place-items-center rounded-3xl text-white shadow-[0_20px_60px_-16px_rgba(0,0,0,0.6)] sm:size-20"
@@ -185,8 +196,8 @@ function SetupStage({
             </p>
           </div>
 
-          <div className="flex min-h-0 flex-col gap-3">
-            <div className="min-h-0 flex-1 rounded-2xl border border-white/10 bg-black/25 p-4 backdrop-blur sm:p-5">
+          <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
+            <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-black/25 p-4 backdrop-blur sm:p-5">
               {settings}
             </div>
             {setupExtras ? <div className="shrink-0 text-sm sm:text-base">{setupExtras}</div> : null}
@@ -258,16 +269,37 @@ function ReadyStage({
   onBackToSetup: () => void;
 }) {
   const [pulse, setPulse] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+
   useEffect(() => {
     setPulse(true);
     const id = window.setTimeout(() => setPulse(false), 600);
     return () => window.clearTimeout(id);
   }, []);
 
-  const disabled = !chatActive || !canStart;
+  useEffect(() => {
+    if (countdown === null) return;
+    const delay = countdown === 0 ? 700 : 1000;
+    const id = window.setTimeout(() => {
+      if (countdown === 0) {
+        setCountdown(null);
+        onStart();
+      } else {
+        setCountdown(countdown - 1);
+      }
+    }, delay);
+    return () => window.clearTimeout(id);
+  }, [countdown, onStart]);
+
+  const disabled = !chatActive || !canStart || countdown !== null;
+
+  const beginCountdown = () => {
+    if (disabled) return;
+    setCountdown(3);
+  };
 
   return (
-    <div className="flex h-full min-h-0 w-full items-center justify-center animate-[stage-in_0.55s_cubic-bezier(0.16,1,0.3,1)_both]">
+    <div className="relative flex h-full min-h-0 w-full items-center justify-center overflow-hidden animate-[stage-in_0.55s_cubic-bezier(0.16,1,0.3,1)_both]">
       <div
         className={cn(
           "relative w-full overflow-hidden rounded-[1.25rem] border p-6 text-center sm:rounded-[1.5rem] sm:p-10 lg:p-12",
@@ -318,27 +350,28 @@ function ReadyStage({
             </span>
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-8 text-white/70 sm:text-lg">
-            الإعدادات محفوظة. لما تكون جاهز، اضغط الزر تحت وابدأ اللعبة مباشرة.
+            الإعدادات محفوظة. لما تكون جاهز، اضغط الزر تحت وابدأ العد التنازلي.
           </p>
 
           <div className="mt-8 flex flex-col items-center gap-4 sm:mt-10">
             <Button
               type="button"
               disabled={disabled}
-              onClick={onStart}
+              onClick={beginCountdown}
               className="h-[4.25rem] min-w-[min(100%,20rem)] gap-2 rounded-3xl px-10 text-2xl font-extrabold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[22rem]"
               style={{
                 background: `linear-gradient(135deg, ${accent}, ${glow})`,
                 boxShadow: `0 25px 70px -12px ${accent}`,
               }}
             >
-              {startLabel}
+              {countdown !== null ? "جاري البدء…" : startLabel}
               <Sparkles className="size-6" />
             </Button>
             <button
               type="button"
               onClick={onBackToSetup}
-              className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold text-white/60 transition hover:bg-white/10 hover:text-white sm:text-base"
+              disabled={countdown !== null}
+              className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold text-white/60 transition hover:bg-white/10 hover:text-white disabled:opacity-40 sm:text-base"
             >
               <ArrowRight className="size-4" />
               رجوع للإعدادات
@@ -346,6 +379,10 @@ function ReadyStage({
           </div>
         </div>
       </div>
+
+      {countdown !== null ? (
+        <GameCountdownOverlay value={countdown} accent={accent} glow={glow} />
+      ) : null}
     </div>
   );
 }
@@ -356,17 +393,21 @@ function PlayingStage({
   accent,
   glow,
   title,
+  moment,
+  onDismissMoment,
   onBackToSetup,
   children,
 }: {
   accent: string;
   glow: string;
   title: string;
+  moment?: GameMoment | null;
+  onDismissMoment?: () => void;
   onBackToSetup: () => void;
   children: ReactNode;
 }) {
   return (
-    <div className="game-page animate-[stage-in_0.55s_cubic-bezier(0.16,1,0.3,1)_both]">
+    <div className="game-page overflow-hidden animate-[stage-in_0.55s_cubic-bezier(0.16,1,0.3,1)_both]">
       <div className="mb-1.5 flex shrink-0 flex-wrap items-center justify-between gap-2 sm:mb-2">
         <span
           className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-extrabold tracking-[0.18em] uppercase sm:text-base"
@@ -392,7 +433,17 @@ function PlayingStage({
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+      <div className="game-play-arena">
+        {children}
+        {moment ? (
+          <GameMomentOverlay
+            moment={moment}
+            accent={accent}
+            glow={glow}
+            onDismiss={() => onDismissMoment?.()}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }

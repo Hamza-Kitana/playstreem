@@ -58,36 +58,45 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   // Popout quiz window: no site chrome — pure game window.
   if (isOverlay) {
-    return <div className="min-h-screen bg-[#070d0c] text-foreground">{children}</div>;
+    return <div className="min-h-screen bg-[#070613] text-foreground">{children}</div>;
   }
 
   return (
-    <div className={cn("relative min-h-screen bg-[#0a1110]", isHome && "h-dvh overflow-hidden")}>
+    <div
+      className={cn(
+        "surface-royal relative min-h-screen text-foreground",
+        isHome && "h-dvh overflow-hidden",
+      )}
+    >
       <Background3D />
       <AppHeader />
       <main
+        key={pathname}
         className={cn(
+          "route-fade",
           isHome
             ? "h-dvh w-full max-w-none px-3 pt-[4.75rem] pb-3 sm:px-5 sm:pt-[5.25rem]"
             : fullBleed
               ? "w-full max-w-none px-0 pt-24 pb-16"
-              : "mx-auto max-w-6xl px-4 pt-28 pb-24 sm:px-6 sm:pt-32",
+              : "mx-auto w-full max-w-7xl px-4 pt-24 pb-16 sm:px-6 sm:pt-28",
         )}
       >
         {children}
       </main>
       {!isHome ? (
-      <footer className="border-t border-white/10 bg-[#0e1614] py-8">
-        <div
-          className={cn(
-            "flex flex-col items-center gap-1 px-4 text-center sm:px-6",
-            fullBleed ? "w-full max-w-none" : "mx-auto max-w-6xl",
-          )}
-        >
-          <p className="font-brand text-lg font-bold text-foreground">Al-Daboor</p>
-          <p className="text-sm text-white/55">ألعاب يقودها الشات على كيك</p>
-        </div>
-      </footer>
+        <footer className="border-t border-white/10 bg-black/40 py-8 backdrop-blur">
+          <div
+            className={cn(
+              "flex flex-col items-center gap-1 px-4 text-center sm:px-6",
+              fullBleed ? "w-full max-w-none" : "mx-auto max-w-6xl",
+            )}
+          >
+            <p className="font-brand text-lg font-bold">
+              <span className="shimmer-text">Al-Daboor</span>
+            </p>
+            <p className="text-sm text-white/55">ألعاب يقودها الشات على كيك</p>
+          </div>
+        </footer>
       ) : null}
 
       {chatActive && !onChatPage && !isHome ? (

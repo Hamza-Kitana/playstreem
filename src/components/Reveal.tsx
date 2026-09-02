@@ -27,18 +27,62 @@ export function SectionHeading({
   eyebrow,
   title,
   subtitle,
+  accent,
+  align = "right",
+  compact = false,
 }: {
   eyebrow: string;
   title: string;
   subtitle?: string;
+  /** Optional accent hex color for the eyebrow/badge glow */
+  accent?: string;
+  align?: "right" | "center";
+  compact?: boolean;
 }) {
+  const accentColor = accent ?? "var(--neon)";
   return (
-    <div className="mb-6 text-right">
-      <span className="inline-flex items-center gap-2 rounded-full bg-primary/15 px-3 py-1 text-xs font-extrabold text-primary">
+    <div
+      className={cn(
+        compact ? "mb-4" : "mb-6",
+        align === "center" ? "text-center" : "text-right",
+      )}
+    >
+      <span
+        className="inline-flex items-center gap-2 rounded-full border px-3.5 py-1 text-[11px] font-extrabold tracking-[0.22em] uppercase"
+        style={{
+          borderColor: `color-mix(in oklab, ${accentColor} 45%, transparent)`,
+          background: `color-mix(in oklab, ${accentColor} 12%, transparent)`,
+          color: accentColor,
+        }}
+      >
         {eyebrow}
       </span>
-      <h2 className="mt-2 text-2xl font-extrabold sm:text-4xl">{title}</h2>
-      {subtitle ? <p className="mt-2 max-w-2xl text-sm leading-7 text-white/65 sm:text-base">{subtitle}</p> : null}
+      <h2
+        className={cn(
+          "font-brand mt-2 font-bold leading-tight",
+          compact ? "text-2xl sm:text-3xl" : "text-3xl sm:text-4xl lg:text-5xl",
+        )}
+      >
+        <span
+          className="bg-clip-text text-transparent"
+          style={{
+            backgroundImage: `linear-gradient(120deg, ${accentColor} 0%, color-mix(in oklab, white 85%, ${accentColor} 15%) 55%, ${accentColor} 100%)`,
+          }}
+        >
+          {title}
+        </span>
+      </h2>
+      {subtitle ? (
+        <p
+          className={cn(
+            "mt-2 leading-7 text-white/65",
+            align === "center" ? "mx-auto max-w-2xl" : "max-w-2xl",
+            compact ? "text-sm" : "text-sm sm:text-base",
+          )}
+        >
+          {subtitle}
+        </p>
+      ) : null}
     </div>
   );
 }

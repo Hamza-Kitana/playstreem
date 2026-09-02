@@ -193,13 +193,13 @@ export default function QuizOverlayStage({
   return (
     <div
       className={cn(
-        "flex flex-col bg-[#070d0c] text-foreground",
+        "flex flex-col bg-[#070613] text-foreground",
         isModal ? "max-h-[92vh]" : "min-h-screen",
       )}
     >
       <div
         className={cn(
-          "flex flex-1 flex-col border border-white/10 bg-gradient-to-b from-[#121c1a] to-[#0a1210]",
+          "flex flex-1 flex-col border border-white/10 bg-gradient-to-b from-[#161029] to-[#0a0817]",
           isModal ? "max-h-[92vh] overflow-y-auto rounded-3xl" : "min-h-screen",
         )}
       >

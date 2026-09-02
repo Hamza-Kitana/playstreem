@@ -1,8 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import RateGame from "@/components/games/RateGame";
+import ConnectBanner from "@/components/ConnectBanner";
 import { Reveal, SectionHeading } from "@/components/Reveal";
 import { useKickChatContext } from "@/contexts/KickChatContext";
-import { Button } from "@/components/ui/button";
+
+const ACCENT = "#facc15";
 
 export const Route = createFileRoute("/rate")({
   head: () => ({
@@ -21,15 +23,9 @@ function RatePage() {
         eyebrow="لعبة تفاعلية"
         title="بطولة تقييم الأشخاص"
         subtitle="أضف المعايير والأسماء، ثم قيّم كل شخص معيارًا معيارًا قبل عرض الترتيب النهائي."
+        accent={ACCENT}
       />
-      {!chatActive ? (
-        <div className="glass mb-6 rounded-2xl p-4 text-center text-sm text-muted-foreground">
-          الشات غير متصل.{" "}
-          <Button asChild variant="link" className="h-auto p-0 text-primary">
-            <Link to="/connect">اربط قناتك</Link>
-          </Button>
-        </div>
-      ) : null}
+      {!chatActive ? <ConnectBanner accent={ACCENT} /> : null}
       <Reveal>
         <RateGame messages={chat.messages} chatActive={chatActive} />
       </Reveal>

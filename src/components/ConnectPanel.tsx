@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useRouterState } from "@tanstack/react-router";
-import { ClipboardPaste, Loader2, PlugZap, Radio } from "lucide-react";
+import { ClipboardPaste, Loader2, PlugZap, Radio, X } from "lucide-react";
 import { resolveKickChannel } from "@/lib/kick.functions";
 import { loadKickSession, loadLegacyKickSlug, saveKickSession } from "@/lib/kick-session";
 import type { ChatStatus } from "@/hooks/useKickChat";
@@ -44,7 +44,6 @@ export default function ConnectPanel({
   const connected = status === "live";
   const busy = loading || status === "connecting";
 
-  // Prefill from URL (?channel=) or last saved channel.
   useEffect(() => {
     if (prefilled) return;
     const params = new URLSearchParams(search);
@@ -109,7 +108,6 @@ export default function ConnectPanel({
     }
   };
 
-  // Auto-connect when opened with /connect?channel=slug (OBS-friendly).
   useEffect(() => {
     if (connected || busy) return;
     const params = new URLSearchParams(search);
@@ -120,99 +118,129 @@ export default function ConnectPanel({
   }, [search]);
 
   return (
-    <div className="glass violet-ring rounded-3xl p-5 sm:p-7">
-      <div className="mb-6 flex items-center gap-3">
-        <span className="grid size-11 place-items-center rounded-2xl bg-primary/15 text-primary">
-          <Radio className="size-5" />
-        </span>
-        <div>
-          <h3 className="text-lg font-extrabold">اربط بث كيك</h3>
-          <p className="text-sm text-muted-foreground">
-            حط رابط قناتك أو اسمها، بعدين اضغط ربط. الربط يرجع تلقائياً بعد التحديث.
-          </p>
-        </div>
-      </div>
+    <div className="glass-strong relative overflow-hidden rounded-3xl p-6 sm:p-8">
+      {/* Ambient glows */}
+      <div
+        className="pointer-events-none absolute -top-24 -right-16 size-72 rounded-full opacity-30 blur-3xl"
+        style={{ background: "var(--neon)" }}
+      />
+      <div
+        className="pointer-events-none absolute -bottom-24 -left-16 size-64 rounded-full opacity-25 blur-3xl"
+        style={{ background: "var(--neon-2)" }}
+      />
 
-      {connected ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="inline-flex items-center gap-2 rounded-2xl bg-primary/15 px-4 py-2 text-sm font-bold text-primary">
-            <span className="size-2 animate-pulse rounded-full bg-primary" />
-            متصل بـ {channel}
+      <div className="relative">
+        <div className="mb-6 flex items-center gap-3.5">
+          <span
+            className="grid size-12 place-items-center rounded-2xl text-white shadow-[0_20px_50px_-20px_var(--neon)]"
+            style={{
+              background:
+                "linear-gradient(135deg, color-mix(in oklab, var(--neon) 92%, white 8%), color-mix(in oklab, var(--neon-3) 92%, white 8%))",
+            }}
+          >
+            <Radio className="size-5" />
           </span>
-          <Button variant="secondary" onClick={onStop}>
-            قطع الاتصال
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {status === "connecting" ? (
-            <p className="flex items-center gap-2 text-sm font-bold text-primary">
-              <Loader2 className="size-4 animate-spin" />
-              جاري استعادة الربط…
+          <div>
+            <h3 className="font-brand text-xl font-bold">اربط بث كيك</h3>
+            <p className="mt-0.5 text-sm text-white/60">
+              رابط قناتك أو اسمها فقط — الربط يرجع لحاله بعد التحديث.
             </p>
-          ) : null}
-
-          <form onSubmit={onSubmit} className="space-y-3">
-            <label className="block space-y-2">
-              <span className="text-sm font-bold text-foreground">رابط البث أو اسم القناة</span>
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="kick.com/اسمك أو اسم القناة"
-                dir="ltr"
-                className="h-12 rounded-2xl text-base font-semibold placeholder:font-normal placeholder:text-muted-foreground"
-                autoComplete="off"
-                spellCheck={false}
-                disabled={busy}
-              />
-            </label>
-
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button
-                type="submit"
-                disabled={busy || !input.trim()}
-                className="h-12 flex-1 text-base font-extrabold shadow-[0_0_40px_-8px_var(--neon)]"
-              >
-                {busy ? (
-                  <>
-                    <Loader2 className="size-5 animate-spin" />
-                    جاري الربط…
-                  </>
-                ) : (
-                  <>
-                    <PlugZap className="size-5" />
-                    ربط القناة
-                  </>
-                )}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={busy}
-                onClick={() => void pasteFromClipboard()}
-                className="h-12 font-bold sm:w-auto"
-              >
-                <ClipboardPaste className="size-4" />
-                لصق وربط
-              </Button>
-            </div>
-          </form>
-
-          <p className="text-xs leading-6 text-muted-foreground">
-            مثال:{" "}
-            <span className="font-brand text-primary" dir="ltr">
-              https://kick.com/salahat8
-            </span>{" "}
-            أو الاسم فقط. للبث المستمر من OBS استخدم{" "}
-            <span className="font-brand text-primary" dir="ltr">
-              /connect?channel=اسمك
-            </span>
-          </p>
-
-          {hint ? <p className="text-sm font-semibold text-primary">{hint}</p> : null}
-          {err ? <p className="text-sm font-semibold text-destructive">{err}</p> : null}
+          </div>
         </div>
-      )}
+
+        {connected ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-primary/30 bg-primary/10 p-4">
+            <span className="inline-flex items-center gap-2.5 rounded-2xl bg-primary/20 px-4 py-2.5 text-sm font-extrabold text-primary">
+              <span className="size-2 animate-pulse rounded-full bg-primary shadow-[0_0_12px_var(--primary)]" />
+              متصل بـ <span dir="ltr">{channel}</span>
+            </span>
+            <Button
+              variant="secondary"
+              onClick={onStop}
+              className="h-11 gap-1.5 rounded-2xl bg-white/8 font-extrabold hover:bg-white/15"
+            >
+              <X className="size-4" />
+              قطع الاتصال
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {status === "connecting" ? (
+              <p className="flex items-center gap-2 rounded-2xl border border-primary/25 bg-primary/10 px-4 py-2 text-sm font-bold text-primary">
+                <Loader2 className="size-4 animate-spin" />
+                جاري استعادة الربط…
+              </p>
+            ) : null}
+
+            <form onSubmit={onSubmit} className="space-y-3.5">
+              <label className="block space-y-2">
+                <span className="text-sm font-extrabold text-white/85">
+                  رابط البث أو اسم القناة
+                </span>
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="kick.com/اسمك أو اسم القناة"
+                  dir="ltr"
+                  className="h-[3.25rem] rounded-2xl border-white/12 bg-black/30 text-base font-semibold shadow-inner placeholder:font-normal placeholder:text-white/30"
+                  autoComplete="off"
+                  spellCheck={false}
+                  disabled={busy}
+                />
+              </label>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="submit"
+                  disabled={busy || !input.trim()}
+                  className="h-[3.25rem] flex-1 rounded-2xl bg-gradient-to-l from-[color:var(--neon)] to-[color:var(--neon-3)] text-base font-extrabold shadow-[0_20px_50px_-14px_var(--neon)] hover:brightness-110"
+                >
+                  {busy ? (
+                    <>
+                      <Loader2 className="size-5 animate-spin" />
+                      جاري الربط…
+                    </>
+                  ) : (
+                    <>
+                      <PlugZap className="size-5" />
+                      ربط القناة
+                    </>
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => void pasteFromClipboard()}
+                  className="h-[3.25rem] rounded-2xl border-white/15 bg-white/[0.03] px-5 font-bold hover:bg-white/[0.08] sm:w-auto"
+                >
+                  <ClipboardPaste className="size-4" />
+                  لصق وربط
+                </Button>
+              </div>
+            </form>
+
+            <p className="text-xs leading-6 text-white/50">
+              مثال:{" "}
+              <span className="font-brand rounded-md bg-black/40 px-1.5 py-0.5 text-primary" dir="ltr">
+                https://kick.com/salahat8
+              </span>{" "}
+              أو الاسم فقط.
+            </p>
+
+            {hint ? (
+              <p className="rounded-2xl border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-extrabold text-primary">
+                {hint}
+              </p>
+            ) : null}
+            {err ? (
+              <p className="rounded-2xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm font-extrabold text-destructive">
+                {err}
+              </p>
+            ) : null}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

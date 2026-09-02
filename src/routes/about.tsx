@@ -199,7 +199,7 @@ function AboutPage() {
             <Reveal key={item.title} delay={i * 60}>
               <Link
                 to={item.to}
-                className="group block h-full rounded-3xl border border-white/10 bg-[#121c1a] p-6 transition hover:border-primary/50"
+                className="glass group block h-full rounded-3xl p-6 transition hover:border-primary/50"
               >
                 <span className="grid size-12 place-items-center rounded-2xl bg-primary/12 text-primary transition group-hover:bg-primary/20">
                   <item.icon className="size-6" />

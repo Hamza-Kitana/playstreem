@@ -16,81 +16,103 @@ export type GameLink = {
   title: string;
   desc: string;
   icon: LucideIcon;
+  /** Solid brand hex for badges + rings */
   accent: string;
+  /** Secondary color for gradient (from accent → glow) */
+  glow: string;
+  /** Short tagline shown on card */
+  tag: string;
   image: string;
 };
 
+/** Ordered from the "far right" of the RTL grid so cards line up right→left visually. */
 export const GAMES: GameLink[] = [
   {
     to: "/quiz",
     label: "أسئلة",
     title: "أسئلة وأجوبة",
-    desc: "أول جواب صحيح من الشات يفوز بالنقطة.",
+    desc: "أول جواب صحيح من الشات يفوز بالنقطة. أسئلة سهلة وصعبة بمكتبة كاملة.",
     icon: Brain,
-    accent: "#3dff9a",
+    accent: "#8b5cf6",
+    glow: "#c084fc",
+    tag: "ذكاء",
     image: "/games/quiz.png",
   },
   {
     to: "/seat",
     label: "كراسي",
-    title: "الكراسي",
-    desc: "دخول، لفّ، رقم على الكرسي — واحد يطلع كل جولة.",
+    title: "الكراسي الموسيقية",
+    desc: "لفّ ودخول ورقم على الكرسي — واحد يطلع بكل جولة والفائز يوصل للنهاية.",
     icon: Armchair,
-    accent: "#5eead4",
+    accent: "#22d3ee",
+    glow: "#7dd3fc",
+    tag: "أكشن",
     image: "/games/chairs.png",
   },
   {
     to: "/vote",
     label: "التصويت",
-    title: "التصويت",
-    desc: "نتائج تتحرك لحظياً مع كل صوت من الشات.",
+    title: "التصويت المباشر",
+    desc: "خيارات على الشاشة، الشات يصوّت، والنتائج تتحرّك لحظياً بأشرطة أنيقة.",
     icon: BarChart3,
-    accent: "#7dd3fc",
+    accent: "#38bdf8",
+    glow: "#60a5fa",
+    tag: "تصويت",
     image: "/games/vote.png",
   },
   {
     to: "/rate",
     label: "تقييم",
     title: "تقييم شخص",
-    desc: "الجمهور يقيّم من ٠ إلى ١٠ والمتوسط يظهر فوراً.",
+    desc: "الجمهور يقيّم من ٠ إلى ١٠ والمتوسط يظهر فوراً بلوحة ذهبية.",
     icon: Star,
-    accent: "#fbbf24",
+    accent: "#facc15",
+    glow: "#fde047",
+    tag: "ترفيه",
     image: "/games/rate.png",
   },
   {
     to: "/phrase",
     label: "الجملة",
-    title: "الجملة",
-    desc: "كلمة سرية يخمنها الجمهور في الشات.",
+    title: "الجملة السرّية",
+    desc: "كلمة مخفية يخمنها الجمهور — كل تخمين قريب بيقرّبك للفوز.",
     icon: MessageSquareQuote,
-    accent: "#c4b5fd",
+    accent: "#a78bfa",
+    glow: "#d8b4fe",
+    tag: "ألغاز",
     image: "/games/phrase.png",
   },
   {
     to: "/flag",
     label: "اعرف العلم",
     title: "اعرف العلم",
-    desc: "يطلع العلم — وأول واحد يكتب الدولة يفوز.",
+    desc: "علم يطلع — وأول واحد يكتب اسم الدولة في الشات يفوز بالجولة.",
     icon: Flag,
-    accent: "#fb7185",
+    accent: "#f472b6",
+    glow: "#f9a8d4",
+    tag: "معرفة",
     image: "/games/flag.png",
   },
   {
     to: "/riddle",
     label: "ألغاز",
-    title: "الألغاز",
-    desc: "ألغاز صعبة تحتاج تفكير — أول حل صحيح من الشات يفوز.",
+    title: "ألغاز صعبة",
+    desc: "ألغاز تحتاج تفكير — أول حل صحيح من الشات يقطف النقطة.",
     icon: Puzzle,
-    accent: "#fbbf24",
+    accent: "#fb923c",
+    glow: "#fdba74",
+    tag: "تحدّي",
     image: "/games/riddle.png",
   },
   {
     to: "/zombie",
     label: "زومبي",
     title: "شوتر الزومبي",
-    desc: "اكتب زومبي — ينزل وحش. الستريمر يطلق النار في ماب مغلقة.",
+    desc: "اكتب زومبي بالشات — ينزل وحش. الستريمر يطلق النار في ماب مغلقة.",
     icon: Skull,
-    accent: "#fb7185",
+    accent: "#f43f5e",
+    glow: "#fb7185",
+    tag: "أكشن",
     image: "/games/zombie.svg",
   },
 ];

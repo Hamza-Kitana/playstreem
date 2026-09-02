@@ -1,8 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import PhraseGame from "@/components/games/PhraseGame";
+import ConnectBanner from "@/components/ConnectBanner";
 import { Reveal, SectionHeading } from "@/components/Reveal";
 import { useKickChatContext } from "@/contexts/KickChatContext";
-import { Button } from "@/components/ui/button";
+
+const ACCENT = "#a78bfa";
 
 export const Route = createFileRoute("/phrase")({
   head: () => ({
@@ -19,17 +21,11 @@ function PhrasePage() {
     <section>
       <SectionHeading
         eyebrow="لعبة تفاعلية"
-        title="الجملة"
+        title="الجملة السرّية"
         subtitle="الستريمر يكتب كلمة سرية ما بتطلع على الشاشة — الجمهور يخمنها في الشات واللي يصيب يطلع اسمه."
+        accent={ACCENT}
       />
-      {!chatActive ? (
-        <div className="glass mb-6 rounded-2xl p-4 text-center text-sm text-muted-foreground">
-          الشات غير متصل.{" "}
-          <Button asChild variant="link" className="h-auto p-0 text-primary">
-            <Link to="/connect">اربط قناتك</Link>
-          </Button>
-        </div>
-      ) : null}
+      {!chatActive ? <ConnectBanner accent={ACCENT} /> : null}
       <Reveal>
         <PhraseGame messages={chat.messages} chatActive={chatActive} />
       </Reveal>

@@ -1,14 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import {
-  BadgeCheck,
-  ExternalLink,
-  Loader2,
-  PlugZap,
-  Radio,
-  Users,
-} from "lucide-react";
+import { BadgeCheck, Loader2, PlugZap, Radio, Users } from "lucide-react";
 import { useKickChatContext } from "@/contexts/KickChatContext";
 import { checkKickLiveStatuses, resolveKickChannel } from "@/lib/kick.functions";
 import { saveKickSession } from "@/lib/kick-session";
@@ -97,37 +90,51 @@ export default function HomeVerifiedSidebar() {
   };
 
   return (
-    <aside className="flex min-h-0 shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#101a18] lg:w-[22rem]">
-      <div className="border-b border-white/8 p-5 sm:p-6">
-        <div className="flex items-start justify-between gap-3">
+    <aside className="glass-strong flex min-h-0 shrink-0 flex-col overflow-hidden rounded-3xl lg:w-[21rem] xl:w-[22rem]">
+      {/* Header */}
+      <div className="relative overflow-hidden border-b border-white/10 p-5">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-70"
+          style={{
+            background:
+              "radial-gradient(120% 100% at 100% 0%, color-mix(in oklab, var(--neon) 22%, transparent), transparent 55%)",
+          }}
+        />
+        <div className="relative flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="inline-flex items-center gap-1.5 text-[11px] font-extrabold tracking-[0.22em] text-primary uppercase">
-              <BadgeCheck className="size-3.5" />
+            <span className="chip !text-[10px] !tracking-[0.22em]">
+              <BadgeCheck className="size-3" />
               Verified
-            </p>
-            <h2 className="mt-1 text-xl font-extrabold leading-tight">الستريمر الموثقين</h2>
-            <p className="mt-1 text-xs leading-5 text-white/60">اربط بكبسة وابدأ اللعب</p>
+            </span>
+            <h2 className="mt-1.5 text-lg font-extrabold leading-tight text-white">الستريمر الموثقين</h2>
+            <p className="mt-0.5 text-[11px] leading-5 text-white/60">اربط بكبسة وابدأ اللعب</p>
           </div>
-          <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/12 text-primary">
+          <span
+            className="grid size-11 shrink-0 place-items-center rounded-2xl text-white shadow-[0_10px_30px_-10px_var(--neon)]"
+            style={{
+              background:
+                "linear-gradient(135deg, color-mix(in oklab, var(--neon) 90%, white 10%), color-mix(in oklab, var(--neon-3) 90%, white 10%))",
+            }}
+          >
             <Users className="size-4" />
           </span>
         </div>
 
         <div
           className={cn(
-            "mt-4 flex items-center gap-2 rounded-2xl border px-3 py-2.5",
-            live ? "border-primary/35 bg-primary/10" : "border-white/10 bg-white/5",
+            "mt-4 flex items-center gap-2 rounded-2xl border px-3 py-2.5 backdrop-blur",
+            live ? "border-primary/40 bg-primary/12" : "border-white/12 bg-white/[0.03]",
           )}
         >
           <span
             className={cn(
               "size-2 shrink-0 rounded-full",
-              live ? "animate-pulse bg-primary" : "bg-white/35",
+              live ? "animate-live-dot bg-primary" : "bg-white/35",
             )}
           />
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold text-white/50">حالة الربط</p>
-            <p className="truncate text-xs font-extrabold" dir="ltr">
+            <p className="text-[10px] font-bold tracking-wider text-white/50 uppercase">حالة الربط</p>
+            <p className="truncate text-xs font-extrabold text-white" dir="ltr">
               {live ? chat.channel : "غير متصل"}
             </p>
           </div>
@@ -145,8 +152,9 @@ export default function HomeVerifiedSidebar() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
-        <ul className="space-y-2">
+      {/* Streamers list */}
+      <div className="min-h-0 flex-1 overflow-y-auto p-2.5 sm:p-3">
+        <ul className="space-y-1.5">
           {VERIFIED_STREAMERS.map((s) => {
             const isLive = liveMap[s.slug];
             const isConnected = connectedSlug === s.slug;
@@ -156,29 +164,30 @@ export default function HomeVerifiedSidebar() {
               <li key={s.slug}>
                 <div
                   className={cn(
-                    "group rounded-2xl border p-3 transition-colors",
+                    "group relative overflow-hidden rounded-2xl border p-2.5 transition",
                     isConnected
-                      ? "border-primary/45 bg-primary/10"
-                      : "border-white/8 bg-white/[0.03] hover:border-primary/25 hover:bg-white/[0.05]",
+                      ? "border-primary/50 bg-primary/10 shadow-[0_10px_30px_-15px_var(--neon)]"
+                      : "border-white/8 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]",
                   )}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2.5">
                     <span
-                      className="grid size-10 shrink-0 place-items-center rounded-xl text-sm font-extrabold uppercase text-white shadow-inner"
+                      className="grid size-9 shrink-0 place-items-center rounded-xl text-xs font-extrabold uppercase text-white shadow-inner"
                       style={{
-                        background: `linear-gradient(145deg, oklch(0.42 0.1 ${s.hue ?? 155}), oklch(0.28 0.06 ${s.hue ?? 155}))`,
+                        background: `linear-gradient(145deg, oklch(0.5 0.15 ${s.hue ?? 305}), oklch(0.28 0.09 ${s.hue ?? 305}))`,
+                        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.18), 0 4px 12px -6px oklch(0.5 0.2 ${s.hue ?? 305} / 0.6)`,
                       }}
                     >
                       {s.name.slice(0, 2)}
                     </span>
 
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-extrabold">{s.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate text-sm font-extrabold text-white">{s.name}</p>
                         <span
                           className={cn(
-                            "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-extrabold tracking-wide",
-                            isLive === true && "bg-destructive/90 text-white",
+                            "inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-extrabold tracking-wider",
+                            isLive === true && "bg-destructive text-white shadow-[0_0_10px_-2px_var(--destructive)]",
                             isLive === false && "bg-white/8 text-white/45",
                             isLive == null && "bg-white/8 text-white/40",
                           )}
@@ -194,44 +203,34 @@ export default function HomeVerifiedSidebar() {
                           {isLive === true ? "LIVE" : isLive === false ? "OFF" : "…"}
                         </span>
                       </div>
-                      <p className="truncate text-[11px] text-white/45" dir="ltr">
+                      <p className="truncate text-[10px] text-white/45" dir="ltr">
                         kick.com/{s.slug}
                       </p>
                     </div>
-                  </div>
 
-                  <div className="mt-2.5 flex gap-2">
                     <Button
                       type="button"
                       size="sm"
                       disabled={busy || isConnected}
-                      className="h-9 flex-1 rounded-xl text-xs font-extrabold"
+                      className={cn(
+                        "h-9 shrink-0 rounded-xl px-3 text-[11px] font-extrabold",
+                        isConnected && "bg-primary/25 text-primary hover:bg-primary/30",
+                      )}
                       onClick={() => void connectSlug(s.slug)}
                     >
                       {isConnecting ? (
                         <Loader2 className="size-3.5 animate-spin" />
                       ) : isConnected ? (
                         <>
-                          <Radio className="size-3.5" />
+                          <Radio className="size-3" />
                           متصل
                         </>
                       ) : (
                         <>
-                          <PlugZap className="size-3.5" />
+                          <PlugZap className="size-3" />
                           ربط
                         </>
                       )}
-                    </Button>
-                    <Button
-                      asChild
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-9 rounded-xl border-white/12 bg-black/20 px-3"
-                    >
-                      <a href={`https://kick.com/${s.slug}`} target="_blank" rel="noreferrer">
-                        <ExternalLink className="size-3.5" />
-                      </a>
                     </Button>
                   </div>
                 </div>
@@ -241,8 +240,9 @@ export default function HomeVerifiedSidebar() {
         </ul>
       </div>
 
-      <div className="space-y-2 border-t border-white/8 p-4 sm:p-5">
-        <p className="text-[11px] font-bold text-white/55">ربط قناة أخرى</p>
+      {/* Custom connect */}
+      <div className="space-y-2 border-t border-white/10 bg-black/20 p-3.5">
+        <p className="text-[10px] font-bold tracking-wider text-white/55 uppercase">ربط قناة أخرى</p>
         <form
           className="flex gap-2"
           onSubmit={(e) => {
@@ -255,15 +255,19 @@ export default function HomeVerifiedSidebar() {
             onChange={(e) => setCustomInput(e.target.value)}
             placeholder="kick.com/اسمك"
             dir="ltr"
-            className="h-10 flex-1 rounded-xl border-white/10 bg-black/25 text-sm font-semibold"
+            className="h-10 flex-1 rounded-xl border-white/12 bg-black/30 text-sm font-semibold placeholder:text-white/30"
             disabled={busy}
           />
-          <Button type="submit" disabled={busy || !customInput.trim()} className="h-10 shrink-0 px-4 font-extrabold">
+          <Button type="submit" disabled={busy || !customInput.trim()} className="h-10 shrink-0 px-3.5 font-extrabold">
             {busy ? <Loader2 className="size-4 animate-spin" /> : <PlugZap className="size-4" />}
           </Button>
         </form>
         {err ? <p className="text-xs font-semibold text-destructive">{err}</p> : null}
-        <Button asChild variant="ghost" className="h-9 w-full text-xs font-bold text-white/65 hover:text-white">
+        <Button
+          asChild
+          variant="ghost"
+          className="h-8 w-full text-[11px] font-bold text-white/60 hover:text-white"
+        >
           <Link to="/streamers">عرض الكروت الكاملة ←</Link>
         </Button>
       </div>

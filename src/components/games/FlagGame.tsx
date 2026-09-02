@@ -245,7 +245,7 @@ export default function FlagGame({
               </p>
             </div>
 
-            <div className="relative grid place-items-center bg-gradient-to-b from-[#0e1715] to-[#0a1210] px-4 py-8 sm:py-10">
+            <div className="relative grid place-items-center bg-gradient-to-b from-[#161029] to-[#0a0817] px-4 py-8 sm:py-10">
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_30%,color-mix(in_oklab,var(--neon)_14%,transparent),transparent_70%)]" />
               <div
                 className={cn(

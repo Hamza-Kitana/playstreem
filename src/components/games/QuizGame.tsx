@@ -273,12 +273,12 @@ export default function QuizGame({
           </ul>
         }
         play={
-          <div className="w-full">
+          <div className="game-play-shell">
             {streamOpen ? (
               <QuizOverlayStage messages={messages} chatActive={chatActive} variant="page" />
             ) : (
               <div
-                className="mx-auto max-w-3xl rounded-[1.75rem] border px-6 py-14 text-center"
+                className="flex flex-1 items-center justify-center rounded-[1.25rem] border px-6 py-10 text-center"
                 style={{
                   borderColor: `${ACCENT}55`,
                   background: `${ACCENT}0d`,

@@ -708,13 +708,13 @@ export default function ZombieShooterGame({
         </div>
       }
       play={
-        <div className="mx-auto max-w-7xl space-y-4">
+        <div className="game-play-shell">
 
 
       {phase === "playing" ? (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/60 bg-secondary/30 p-3">
-            <span className="text-xs font-bold text-muted-foreground">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+          <div className="game-toolbar flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/60 bg-secondary/30 p-2.5 sm:p-3">
+            <span className="text-sm font-bold text-muted-foreground sm:text-base">
               الوحش القادم بعد <span className="text-fuchsia-300">{nextBossIn}</span> ·{" "}
               <span className="text-fuchsia-300">{hud.bossThreat}</span>
               {hud.bossSegments > 1 ? (
@@ -749,15 +749,15 @@ export default function ZombieShooterGame({
           <div
             ref={stageRef}
             className={cn(
-              "relative overflow-hidden border border-emerald-400/35 bg-black shadow-[0_0_0_1px_rgba(61,255,154,0.12),0_20px_60px_rgba(0,0,0,0.45)]",
+              "relative min-h-0 flex-1 overflow-hidden border border-emerald-400/35 bg-black shadow-[0_0_0_1px_rgba(61,255,154,0.12),0_20px_60px_rgba(0,0,0,0.45)]",
               isFullscreen ? "rounded-none" : "rounded-2xl",
             )}
           >
             <div
               ref={mountRef}
               className={cn(
-                "relative w-full cursor-crosshair bg-black",
-                isFullscreen ? "h-screen min-h-screen" : "h-[min(82vh,900px)] min-h-[560px]",
+                "relative h-full min-h-0 w-full cursor-crosshair bg-black",
+                isFullscreen && "h-screen",
               )}
             />
 
@@ -1072,7 +1072,7 @@ export default function ZombieShooterGame({
           </div>
 
           {!isFullscreen ? (
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid max-h-16 shrink-0 gap-2 overflow-hidden sm:grid-cols-2">
               {feed.map((f) => (
                 <div
                   key={f.id}

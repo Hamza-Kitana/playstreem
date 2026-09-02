@@ -32,7 +32,7 @@ export default function SelectField({
   return (
     <label className="block">
       <span
-        className="mb-2 flex items-center gap-1.5 text-[11px] font-extrabold tracking-wider text-white/60 uppercase"
+        className="mb-2 flex items-center gap-2 text-sm font-extrabold tracking-wider text-white/70 uppercase sm:text-base"
       >
         {icon ? (
           <span className="[&_svg]:size-3.5" style={{ color: accent }}>
@@ -52,7 +52,7 @@ export default function SelectField({
           disabled={disabled}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="h-12 w-full appearance-none rounded-2xl bg-transparent px-4 pe-10 text-base font-extrabold text-white outline-none disabled:cursor-not-allowed disabled:opacity-60"
+          className="h-14 w-full appearance-none rounded-2xl bg-transparent px-4 pe-10 text-lg font-extrabold text-white outline-none disabled:cursor-not-allowed disabled:opacity-60 sm:h-[3.75rem] sm:text-xl"
         >
           {options.map((o) => (
             <option key={o.value} value={o.value} className="bg-[#12102b] text-white">

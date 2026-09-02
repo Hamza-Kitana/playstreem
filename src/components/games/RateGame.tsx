@@ -281,24 +281,24 @@ export default function RateGame({
         </div>
       }
       play={
-        <div className="mx-auto max-w-6xl space-y-5">
+        <div className="game-play-shell">
           {/* Top bar */}
           <div
-            className="glass flex flex-wrap items-center justify-between gap-3 rounded-3xl border p-4"
+            className="game-toolbar glass flex flex-wrap items-center justify-between gap-3 rounded-3xl border p-3 sm:p-4"
             style={{ borderColor: `${ACCENT}44` }}
           >
             <div className="flex items-center gap-3">
               <span
-                className="grid size-10 place-items-center rounded-2xl"
+                className="grid size-11 place-items-center rounded-2xl sm:size-12"
                 style={{ background: `${ACCENT}22`, color: ACCENT }}
               >
-                <Star className="size-5" />
+                <Star className="size-5 sm:size-6" />
               </span>
               <div>
-                <p className="text-sm font-extrabold text-white">
+                <p className="text-base font-extrabold text-white sm:text-lg">
                   {session.running ? `جولة: ${selectedPerson} · ${selectedCriterion}` : "بطولة تقييم"}
                 </p>
-                <p className="text-[11px] text-white/50">
+                <p className="text-sm text-white/55 sm:text-base">
                   التقدم: {progressDone} / {progressTotal || 0} جولة
                 </p>
               </div>
@@ -324,21 +324,22 @@ export default function RateGame({
             </div>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          <div className="game-play-grid lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
             {/* Cards grid */}
             <div
-              className="rounded-[1.75rem] border p-5"
+              className="flex min-h-0 flex-col overflow-hidden rounded-[1.75rem] border p-4 sm:p-5"
               style={{
                 borderColor: `${ACCENT}44`,
                 background: "linear-gradient(180deg, oklch(0.14 0.06 90 / 0.7), oklch(0.09 0.03 285 / 0.9))",
               }}
             >
-              <p className="mb-4 text-sm font-extrabold text-white">اختر شخص وتصنيف لبدء الجولة</p>
+              <p className="mb-3 shrink-0 text-base font-extrabold text-white sm:text-lg">اختر شخص وتصنيف لبدء الجولة</p>
               {people.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-white/12 bg-black/25 px-4 py-8 text-center text-sm text-white/50">
+                <p className="rounded-xl border border-dashed border-white/12 bg-black/25 px-4 py-8 text-center text-base text-white/50">
                   ما في أشخاص — رجعت للإعدادات؟
                 </p>
               ) : (
+                <div className="min-h-0 flex-1 overflow-y-auto">
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {people.map((person) => {
                     const doneForPerson = roundResults.filter((r) => r.person === person).length;
@@ -405,24 +406,25 @@ export default function RateGame({
                     );
                   })}
                 </div>
+                </div>
               )}
             </div>
 
             {/* Live scoreboard */}
             <aside
-              className="rounded-[1.75rem] border p-5"
+              className="flex min-h-0 flex-col overflow-hidden rounded-[1.75rem] border p-4 sm:p-5"
               style={{
                 borderColor: `${ACCENT}44`,
                 background: `radial-gradient(80% 60% at 50% 0%, ${ACCENT}20, transparent 65%), oklch(0.10 0.03 285 / 0.95)`,
               }}
             >
               <p
-                className="text-[11px] font-extrabold tracking-[0.28em] uppercase text-center"
+                className="shrink-0 text-xs font-extrabold tracking-[0.28em] uppercase text-center sm:text-sm"
                 style={{ color: GLOW }}
               >
                 {session.running ? "الجولة الحالية" : "متوسط الجولة"}
               </p>
-              <p className="mt-2 text-center text-sm font-extrabold text-white">
+              <p className="mt-2 shrink-0 text-center text-base font-extrabold text-white sm:text-lg">
                 {selectedPerson && selectedCriterion
                   ? `${selectedPerson} · ${selectedCriterion}`
                   : "—"}
@@ -430,12 +432,12 @@ export default function RateGame({
 
               <div className="mt-4 text-center">
                 <p
-                  className="font-brand text-6xl font-black leading-none tabular-nums"
+                  className="font-brand text-5xl font-black leading-none tabular-nums sm:text-6xl"
                   style={{ color: GLOW }}
                 >
                   {roundAvg.toFixed(1)}
                 </p>
-                <p className="mt-1 text-xs text-white/55">{ratings.length} تقييم</p>
+                <p className="mt-1 text-sm text-white/55">{ratings.length} تقييم</p>
               </div>
 
               <div className="mx-auto mt-4 h-3 max-w-sm overflow-hidden rounded-full bg-white/5">

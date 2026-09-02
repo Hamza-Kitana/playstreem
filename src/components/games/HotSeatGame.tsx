@@ -504,23 +504,23 @@ export default function HotSeatGame({
           </div>
         }
         play={
-          <div className="mx-auto max-w-5xl space-y-5">
+          <div className="game-play-shell">
             <div
-              className="glass flex flex-wrap items-center justify-between gap-3 rounded-3xl border p-4"
+              className="game-toolbar glass flex flex-wrap items-center justify-between gap-3 rounded-3xl border p-3 sm:p-4"
               style={{ borderColor: `${ACCENT}44` }}
             >
               <div className="flex items-center gap-3">
                 <span
-                  className="grid size-10 place-items-center rounded-2xl"
+                  className="grid size-11 place-items-center rounded-2xl sm:size-12"
                   style={{ background: `${ACCENT}22`, color: ACCENT }}
                 >
-                  <Armchair className="size-5" />
+                  <Armchair className="size-5 sm:size-6" />
                 </span>
                 <div>
-                  <p className="text-sm font-extrabold text-white">
+                  <p className="text-base font-extrabold text-white sm:text-lg">
                     الجولة {round} · {players.length} لاعب · {chairsTotal || Math.max(players.length - 1, 0)} كرسي
                   </p>
-                  <p className="text-[11px] text-white/50">
+                  <p className="text-sm text-white/55 sm:text-base">
                     {innerPhase === "claiming"
                       ? `سارعوا! محجوز ${chairsTaken}/${chairsTotal}`
                       : statusLine}
@@ -538,7 +538,7 @@ export default function HotSeatGame({
             </div>
 
             <div
-              className="relative overflow-hidden rounded-[1.75rem] border p-4 sm:p-6"
+              className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.75rem] border p-3 sm:p-5"
               style={{
                 borderColor: `${ACCENT}44`,
                 background: "linear-gradient(180deg, oklch(0.14 0.05 210 / 0.7), oklch(0.09 0.03 285 / 0.9))",
@@ -551,7 +551,7 @@ export default function HotSeatGame({
                 }}
               />
 
-              <div className="relative mx-auto aspect-square w-full max-w-xl">
+              <div className="relative mx-auto aspect-square w-full max-h-full max-w-2xl flex-1">
                 <div
                   className="absolute inset-[6%] rounded-full border border-dashed"
                   style={{ borderColor: `${ACCENT}40` }}
@@ -561,12 +561,12 @@ export default function HotSeatGame({
                 <div className="absolute inset-0 grid place-items-center">
                   <div className="z-0 max-w-[40%] text-center">
                     <p
-                      className="text-[10px] font-bold tracking-[0.25em] uppercase"
+                      className="text-xs font-bold tracking-[0.25em] uppercase sm:text-sm"
                       style={{ color: GLOW }}
                     >
                       الكراسي
                     </p>
-                    <p className="mt-1 text-xs font-bold text-white/60">
+                    <p className="mt-1 text-sm font-bold text-white/65 sm:text-base">
                       {innerPhase === "spinning"
                         ? "يلفّون…"
                         : innerPhase === "claiming"

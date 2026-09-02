@@ -194,13 +194,13 @@ export default function QuizOverlayStage({
     <div
       className={cn(
         "flex flex-col bg-[#070613] text-foreground",
-        isModal ? "max-h-[92vh]" : "min-h-screen",
+        isModal ? "max-h-[92vh]" : "h-full min-h-0",
       )}
     >
       <div
         className={cn(
           "flex flex-1 flex-col border border-white/10 bg-gradient-to-b from-[#161029] to-[#0a0817]",
-          isModal ? "max-h-[92vh] overflow-y-auto rounded-3xl" : "min-h-screen",
+          isModal ? "max-h-[92vh] overflow-y-auto rounded-3xl" : "flex min-h-0 flex-1 flex-col overflow-hidden",
         )}
       >
         <header className="flex items-center gap-3 border-b border-white/10 bg-black/40 px-4 py-3">
@@ -308,9 +308,10 @@ export default function QuizOverlayStage({
           </div>
         ) : (
           <>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div
               className={cn(
-                "border-b border-white/10 px-4 py-6 text-center",
+                "shrink-0 border-b border-white/10 px-4 py-4 text-center sm:py-5",
                 reveal
                   ? "bg-amber-500/10"
                   : session.running
@@ -320,13 +321,13 @@ export default function QuizOverlayStage({
                     : "",
               )}
             >
-              <p className="text-[10px] font-bold tracking-[0.3em] text-muted-foreground uppercase">
+              <p className="text-xs font-bold tracking-[0.3em] text-muted-foreground uppercase sm:text-sm">
                 {reveal ? "انتهى السؤال" : "العداد"}
               </p>
               <p
                 className={cn(
                   "mt-1 font-brand font-bold tabular-nums",
-                  isModal ? "text-6xl sm:text-7xl" : "text-6xl",
+                  isModal ? "text-6xl sm:text-7xl" : "text-5xl sm:text-6xl",
                   reveal
                     ? "text-amber-200"
                     : session.running
@@ -338,7 +339,7 @@ export default function QuizOverlayStage({
               >
                 {reveal ? "—" : clockLabel}
               </p>
-              <p className="mt-1 text-xs font-bold text-muted-foreground">
+              <p className="mt-1 text-sm font-bold text-muted-foreground sm:text-base">
                 {reveal
                   ? reveal.reason === "winner"
                     ? "أول جواب صحيح من الشات"
@@ -353,8 +354,8 @@ export default function QuizOverlayStage({
 
             <div
               className={cn(
-                "relative flex flex-1 flex-col justify-center px-5 text-center",
-                isModal ? "py-8" : "py-10",
+                "relative flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-4 text-center sm:px-5",
+                isModal ? "py-6" : "py-4",
               )}
             >
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_50%_at_50%_20%,color-mix(in_oklab,var(--neon)_14%,transparent),transparent_70%)]" />
@@ -399,10 +400,10 @@ export default function QuizOverlayStage({
                   <p className="relative text-[11px] font-extrabold tracking-[0.28em] text-primary">
                     سؤال {list.length ? index + 1 : 0} / {list.length}
                   </p>
-                  <h1 className="relative mt-5 text-balance text-3xl font-extrabold leading-snug sm:text-4xl">
+                  <h1 className="relative mt-4 text-balance text-3xl font-extrabold leading-snug sm:text-4xl lg:text-5xl">
                     {current?.q ?? "لا يوجد سؤال"}
                   </h1>
-                  <p className="relative mt-5 text-sm text-muted-foreground">الجمهور يكتب الجواب في الشات</p>
+                  <p className="relative mt-4 text-base text-muted-foreground sm:text-lg">الجمهور يكتب الجواب في الشات</p>
                   <Button
                     variant="secondary"
                     size="sm"
@@ -416,17 +417,18 @@ export default function QuizOverlayStage({
               )}
             </div>
 
-            <div className="border-t border-dashed border-white/12 bg-black/30 px-4 py-4 text-center">
-              <p className="text-[10px] font-bold tracking-[0.22em] text-muted-foreground uppercase">التالي</p>
-              <p className="mt-1 text-sm font-extrabold">{upcoming?.q ?? "— آخر سؤال / النتيجة —"}</p>
+            <div className="shrink-0 border-t border-dashed border-white/12 bg-black/30 px-4 py-3 text-center sm:py-4">
+              <p className="text-xs font-bold tracking-[0.22em] text-muted-foreground uppercase">التالي</p>
+              <p className="mt-1 text-base font-extrabold sm:text-lg">{upcoming?.q ?? "— آخر سؤال / النتيجة —"}</p>
+            </div>
             </div>
           </>
         )}
 
-        <div className="border-t border-white/10 bg-black/40 px-3 py-3">
+        <div className="shrink-0 border-t border-white/10 bg-black/40 px-3 py-2.5 sm:py-3">
           <div className="mb-2 flex items-center gap-2">
-            <Trophy className="size-3.5 text-accent" />
-            <span className="text-xs font-extrabold">المتصدرين</span>
+            <Trophy className="size-4 text-accent" />
+            <span className="text-sm font-extrabold sm:text-base">المتصدرين</span>
           </div>
           {top.length === 0 ? (
             <p className="text-center text-[11px] text-muted-foreground">الفائزون يظهرون هنا</p>

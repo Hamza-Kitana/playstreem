@@ -194,23 +194,23 @@ export default function PollGame({
         </div>
       }
       play={
-        <div className="mx-auto max-w-5xl space-y-5">
+          <div className="game-play-shell">
           <div
-            className="glass flex flex-wrap items-center justify-between gap-3 rounded-3xl border p-4"
+            className="game-toolbar glass flex flex-wrap items-center justify-between gap-3 rounded-3xl border p-3 sm:p-4"
             style={{ borderColor: `${ACCENT}44` }}
           >
             <div className="flex items-center gap-3">
               <span
-                className="grid size-10 place-items-center rounded-2xl"
+                className="grid size-11 place-items-center rounded-2xl sm:size-12"
                 style={{ background: `${ACCENT}22`, color: ACCENT }}
               >
-                <BarChart3 className="size-5" />
+                <BarChart3 className="size-5 sm:size-6" />
               </span>
               <div>
-                <p className="text-sm font-extrabold text-white">
+                <p className="text-base font-extrabold text-white sm:text-lg">
                   {session.running ? "تصويت شغّال" : "تصويت متوقّف"}
                 </p>
-                <p className="text-[11px] text-white/50">
+                <p className="text-sm text-white/55 sm:text-base">
                   {session.running
                     ? `${total} صوت · ${clockLabel} متبقّي`
                     : `${total} صوت مسجّل`}
@@ -239,38 +239,38 @@ export default function PollGame({
           </div>
 
           <div
-            className="rounded-[1.75rem] border p-5 sm:p-7"
+            className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.75rem] border p-4 sm:p-6"
             style={{
               borderColor: `${ACCENT}44`,
               background: `linear-gradient(180deg, oklch(0.14 0.05 220 / 0.85), oklch(0.09 0.03 285 / 0.95))`,
             }}
           >
-            <div className="mb-4 text-center">
+            <div className="mb-3 shrink-0 text-center sm:mb-4">
               <p
-                className="text-[11px] font-extrabold tracking-[0.28em] uppercase"
+                className="text-xs font-extrabold tracking-[0.28em] uppercase sm:text-sm"
                 style={{ color: GLOW }}
               >
                 السؤال
               </p>
-              <h3 className="font-brand mt-2 text-2xl font-bold text-white sm:text-3xl">
+              <h3 className="font-brand mt-2 text-2xl font-bold text-white sm:text-4xl">
                 {question}
               </h3>
               <p
-                className="font-brand mt-3 text-4xl font-bold tabular-nums sm:text-5xl"
+                className="font-brand mt-2 text-4xl font-bold tabular-nums sm:text-5xl"
                 style={session.running && !urgent ? { color: GLOW } : session.running && urgent ? { color: "var(--destructive)" } : { color: "rgba(255,255,255,0.55)" }}
               >
                 {clockLabel}
               </p>
             </div>
 
-            <div className="space-y-3">
+            <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto sm:space-y-3">
               {options.map((opt, i) => {
                 const pct = total ? Math.round((votes[i]! / total) * 100) : 0;
                 const isLeader = leader === i && total > 0;
                 return (
                   <div
                     key={`${opt}-${i}`}
-                    className="relative overflow-hidden rounded-2xl border p-4 transition"
+                    className="relative overflow-hidden rounded-2xl border p-3.5 transition sm:p-4"
                     style={{
                       borderColor: isLeader ? `${ACCENT}88` : "rgba(255,255,255,0.10)",
                       background: isLeader ? `${ACCENT}12` : "rgba(0,0,0,0.35)",
@@ -285,9 +285,9 @@ export default function PollGame({
                       }}
                     />
                     <div className="relative flex items-center justify-between gap-3">
-                      <span className="flex min-w-0 items-center gap-3 font-bold text-white">
+                      <span className="flex min-w-0 items-center gap-3 text-base font-bold text-white sm:text-lg">
                         <span
-                          className="grid size-8 shrink-0 place-items-center rounded-lg text-sm font-black"
+                          className="grid size-9 shrink-0 place-items-center rounded-lg text-base font-black sm:size-10"
                           style={{
                             background: isLeader
                               ? `linear-gradient(135deg, ${ACCENT}, ${GLOW})`
@@ -299,9 +299,9 @@ export default function PollGame({
                         </span>
                         <span className="truncate">{opt}</span>
                       </span>
-                      <span className="shrink-0 text-lg font-extrabold tabular-nums text-white">
+                      <span className="shrink-0 text-xl font-extrabold tabular-nums text-white sm:text-2xl">
                         {pct}%
-                        <span className="ms-1 text-xs text-white/50">({votes[i]})</span>
+                        <span className="ms-1 text-sm text-white/50">({votes[i]})</span>
                       </span>
                     </div>
                   </div>

@@ -211,23 +211,23 @@ export default function RiddleGame({
           </div>
         }
         play={
-          <div className="mx-auto max-w-5xl space-y-5">
+          <div className="game-play-shell">
             {/* Top control bar */}
-            <div className="glass flex flex-wrap items-center justify-between gap-3 rounded-3xl border p-4"
+            <div className="game-toolbar glass flex flex-wrap items-center justify-between gap-3 rounded-3xl border p-3 sm:p-4"
               style={{ borderColor: `${ACCENT}44` }}
             >
               <div className="flex items-center gap-3">
                 <span
-                  className="grid size-10 place-items-center rounded-2xl"
+                  className="grid size-11 place-items-center rounded-2xl sm:size-12"
                   style={{ background: `${ACCENT}22`, color: ACCENT }}
                 >
-                  <Puzzle className="size-5" />
+                  <Puzzle className="size-5 sm:size-6" />
                 </span>
                 <div>
-                  <p className="text-sm font-extrabold text-white">
+                  <p className="text-base font-extrabold text-white sm:text-lg">
                     {finished ? "انتهت الجولة" : `لغز ${index + 1} من ${deck.length}`}
                   </p>
-                  <p className="text-[11px] text-white/50">
+                  <p className="text-sm text-white/55 sm:text-base">
                     {finished ? "شوف النتيجة النهائية" : `${current?.category ?? "غير محدد"}`}
                   </p>
                 </div>
@@ -299,9 +299,9 @@ export default function RiddleGame({
                 </div>
               </div>
             ) : (
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+              <div className="game-play-grid lg:grid-cols-[minmax(0,1fr)_17rem]">
                 <div
-                  className="relative overflow-hidden rounded-[1.75rem] border"
+                  className="relative flex min-h-0 flex-col overflow-hidden rounded-[1.75rem] border"
                   style={{
                     borderColor: `${ACCENT}44`,
                     background: `linear-gradient(180deg, oklch(0.14 0.05 40 / 0.75), oklch(0.09 0.03 285 / 0.9))`,
@@ -309,7 +309,7 @@ export default function RiddleGame({
                 >
                   <div
                     className={cn(
-                      "border-b border-white/10 px-4 py-5 text-center",
+                      "shrink-0 border-b border-white/10 px-4 py-3 text-center sm:py-4",
                       session.running ? (urgent ? "bg-destructive/15" : "") : "",
                     )}
                     style={
@@ -318,26 +318,26 @@ export default function RiddleGame({
                         : undefined
                     }
                   >
-                    <p className="text-[10px] font-extrabold tracking-[0.28em] text-white/50 uppercase">
+                    <p className="text-xs font-extrabold tracking-[0.28em] text-white/55 uppercase sm:text-sm">
                       العداد
                     </p>
                     <p
                       className={cn(
-                        "font-brand mt-1 text-6xl font-bold tabular-nums sm:text-7xl",
+                        "font-brand mt-1 text-5xl font-bold tabular-nums sm:text-6xl",
                         session.running ? (urgent ? "text-destructive" : "") : "text-white/60",
                       )}
                       style={session.running && !urgent ? { color: GLOW } : undefined}
                     >
                       {clockLabel}
                     </p>
-                    <p className="mt-1 text-xs font-bold text-white/50">
+                    <p className="mt-1 text-sm font-bold text-white/55 sm:text-base">
                       {session.running
                         ? `تخمينات ${attempts}`
                         : "اضغط استئناف للجولة"}
                     </p>
                   </div>
 
-                  <div className="relative px-4 py-10 sm:px-10 sm:py-14">
+                  <div className="relative flex min-h-0 flex-1 flex-col justify-center px-4 py-4 sm:px-8 sm:py-6">
                     <div
                       className="pointer-events-none absolute inset-0"
                       style={{
@@ -345,14 +345,14 @@ export default function RiddleGame({
                       }}
                     />
                     <div
-                      className="relative mx-auto max-w-2xl rounded-[1.5rem] border p-8 sm:p-12"
+                      className="relative mx-auto w-full max-w-none rounded-[1.5rem] border p-5 sm:p-8"
                       style={{
                         borderColor: session.running ? `${ACCENT}66` : "rgba(255,255,255,0.10)",
                         background: "rgba(0,0,0,0.4)",
                       }}
                     >
                       <p
-                        className="text-center text-[11px] font-extrabold tracking-[0.35em] uppercase"
+                        className="text-center text-xs font-extrabold tracking-[0.35em] uppercase sm:text-sm"
                         style={{ color: GLOW }}
                       >
                         {current?.category}
@@ -367,7 +367,7 @@ export default function RiddleGame({
                         {current?.lines.map((line) => (
                           <p
                             key={line}
-                            className="text-2xl leading-relaxed font-extrabold text-white sm:text-3xl"
+                            className="text-xl leading-relaxed font-extrabold text-white sm:text-3xl lg:text-4xl"
                           >
                             {line}
                           </p>
@@ -437,13 +437,14 @@ export default function RiddleGame({
                 </div>
 
                 {/* Leaderboard sidebar */}
-                <aside className="glass rounded-[1.75rem] border border-white/10 p-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    <Trophy className="size-4" style={{ color: GLOW }} />
-                    <p className="text-sm font-extrabold text-white">المتصدرين</p>
+                <aside className="glass flex min-h-0 flex-col overflow-hidden rounded-[1.75rem] border border-white/10 p-4">
+                  <div className="mb-3 flex shrink-0 items-center gap-2">
+                    <Trophy className="size-5" style={{ color: GLOW }} />
+                    <p className="text-base font-extrabold text-white sm:text-lg">المتصدرين</p>
                   </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto">
                   {top.length === 0 ? (
-                    <p className="rounded-xl bg-white/5 p-3 text-center text-xs text-white/50">
+                    <p className="rounded-xl bg-white/5 p-3 text-center text-sm text-white/55">
                       الفائزون يظهرون هنا
                     </p>
                   ) : (
@@ -451,7 +452,7 @@ export default function RiddleGame({
                       {top.map(([user, pts], i) => (
                         <li
                           key={user}
-                          className="flex items-center justify-between gap-2 rounded-xl bg-white/[0.04] px-3 py-2 text-sm"
+                          className="flex items-center justify-between gap-2 rounded-xl bg-white/[0.04] px-3 py-2.5 text-base"
                         >
                           <span className="flex min-w-0 items-center gap-2 font-bold">
                             <span
@@ -488,6 +489,7 @@ export default function RiddleGame({
                       ))}
                     </ol>
                   )}
+                  </div>
                 </aside>
               </div>
             )}

@@ -188,24 +188,24 @@ export default function FlagGame({
           </div>
         }
         play={
-          <div className="mx-auto max-w-5xl space-y-5">
+          <div className="game-play-shell">
             <div
-              className="glass flex flex-wrap items-center justify-between gap-3 rounded-3xl border p-4"
+              className="game-toolbar glass flex flex-wrap items-center justify-between gap-3 rounded-3xl border p-3 sm:p-4"
               style={{ borderColor: `${ACCENT}44` }}
             >
               <div className="flex items-center gap-3">
                 <span
-                  className="grid size-10 place-items-center rounded-2xl"
+                  className="grid size-11 place-items-center rounded-2xl sm:size-12"
                   style={{ background: `${ACCENT}22`, color: ACCENT }}
                 >
-                  <Globe2 className="size-5" />
+                  <Globe2 className="size-5 sm:size-6" />
                 </span>
                 <div>
-                  <p className="text-sm font-extrabold text-white">
+                  <p className="text-base font-extrabold text-white sm:text-lg">
                     {finished ? "انتهت الجولة" : `علم ${index + 1} من ${deck.length}`}
                     {current?.hard ? " · صعب" : ""}
                   </p>
-                  <p className="text-[11px] text-white/50">
+                  <p className="text-sm text-white/55 sm:text-base">
                     {finished ? "شوف النتيجة النهائية" : "الجمهور يكتب اسم الدولة"}
                   </p>
                 </div>
@@ -281,9 +281,9 @@ export default function FlagGame({
                 </div>
               </div>
             ) : (
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+              <div className="game-play-grid lg:grid-cols-[minmax(0,1fr)_17rem]">
                 <div
-                  className="relative overflow-hidden rounded-[1.75rem] border"
+                  className="relative flex min-h-0 flex-col overflow-hidden rounded-[1.75rem] border"
                   style={{
                     borderColor: `${ACCENT}44`,
                     background: "linear-gradient(180deg, oklch(0.14 0.05 340 / 0.75), oklch(0.09 0.03 285 / 0.9))",
@@ -291,7 +291,7 @@ export default function FlagGame({
                 >
                   <div
                     className={cn(
-                      "border-b border-white/10 px-4 py-5 text-center",
+                      "shrink-0 border-b border-white/10 px-4 py-3 text-center sm:py-4",
                       session.running && urgent ? "bg-destructive/15" : "",
                     )}
                     style={
@@ -300,26 +300,26 @@ export default function FlagGame({
                         : undefined
                     }
                   >
-                    <p className="text-[10px] font-extrabold tracking-[0.28em] text-white/50 uppercase">
+                    <p className="text-xs font-extrabold tracking-[0.28em] text-white/55 uppercase sm:text-sm">
                       العداد
                     </p>
                     <p
                       className={cn(
-                        "font-brand mt-1 text-6xl font-bold tabular-nums sm:text-7xl",
+                        "font-brand mt-1 text-5xl font-bold tabular-nums sm:text-6xl",
                         session.running ? (urgent ? "text-destructive" : "") : "text-white/60",
                       )}
                       style={session.running && !urgent ? { color: GLOW } : undefined}
                     >
                       {clockLabel}
                     </p>
-                    <p className="mt-1 text-xs font-bold text-white/50">
+                    <p className="mt-1 text-sm font-bold text-white/55 sm:text-base">
                       {session.running
                         ? `محاولات ${attempts} · مشاركون ${session.participantCount}`
                         : "اضغط استئناف عشان الجمهور يجيب"}
                     </p>
                   </div>
 
-                  <div className="relative grid place-items-center px-4 py-10 sm:px-8 sm:py-14">
+                  <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-4 sm:px-8 sm:py-6">
                     <div
                       className="pointer-events-none absolute inset-0"
                       style={{
@@ -334,7 +334,7 @@ export default function FlagGame({
                         <img
                           src={flagImageUrl(current.code, 640)}
                           alt="علم الدولة"
-                          className="block h-auto max-h-[min(46vh,340px)] w-[min(92vw,38rem)] object-cover"
+                          className="block h-auto max-h-full w-full max-w-[min(100%,38rem)] object-contain"
                           onError={() => setImgOk(false)}
                           loading="eager"
                           decoding="async"
@@ -345,11 +345,11 @@ export default function FlagGame({
                         </div>
                       )}
                     </div>
-                    <p className="relative mt-6 text-sm font-bold text-white/60">
+                    <p className="relative mt-4 text-base font-bold text-white/65 sm:text-lg">
                       اكتبوا اسم الدولة في الشات
                     </p>
                     {!session.running ? (
-                      <p className="relative mt-2 text-[11px] text-white/45">
+                      <p className="relative mt-2 text-sm text-white/50">
                         الإجابة الصحيحة مخفية عن الشاشة — بس الشات يقدر يخمّن
                       </p>
                     ) : null}
@@ -370,13 +370,14 @@ export default function FlagGame({
                   </div>
                 </div>
 
-                <aside className="glass rounded-[1.75rem] border border-white/10 p-4">
-                  <div className="mb-3 flex items-center gap-2">
-                    <Trophy className="size-4" style={{ color: GLOW }} />
-                    <p className="text-sm font-extrabold text-white">المتصدرين</p>
+                <aside className="glass flex min-h-0 flex-col overflow-hidden rounded-[1.75rem] border border-white/10 p-4">
+                  <div className="mb-3 flex shrink-0 items-center gap-2">
+                    <Trophy className="size-5" style={{ color: GLOW }} />
+                    <p className="text-base font-extrabold text-white sm:text-lg">المتصدرين</p>
                   </div>
+                  <div className="min-h-0 flex-1 overflow-y-auto">
                   {top.length === 0 ? (
-                    <p className="rounded-xl bg-white/5 p-3 text-center text-xs text-white/50">
+                    <p className="rounded-xl bg-white/5 p-3 text-center text-sm text-white/55">
                       الفائزون يظهرون هنا
                     </p>
                   ) : (
@@ -384,7 +385,7 @@ export default function FlagGame({
                       {top.map(([user, pts], i) => (
                         <li
                           key={user}
-                          className="flex items-center justify-between gap-2 rounded-xl bg-white/[0.04] px-3 py-2 text-sm"
+                          className="flex items-center justify-between gap-2 rounded-xl bg-white/[0.04] px-3 py-2.5 text-base"
                         >
                           <span className="flex min-w-0 items-center gap-2 font-bold">
                             <span
@@ -415,6 +416,7 @@ export default function FlagGame({
                       ))}
                     </ol>
                   )}
+                  </div>
                 </aside>
               </div>
             )}

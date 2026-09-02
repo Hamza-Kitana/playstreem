@@ -158,23 +158,23 @@ export default function PhraseGame({
         </div>
       }
       play={
-        <div className="mx-auto max-w-5xl space-y-5">
+          <div className="game-play-shell">
           <div
-            className="glass flex flex-wrap items-center justify-between gap-3 rounded-3xl border p-4"
+            className="game-toolbar glass flex flex-wrap items-center justify-between gap-3 rounded-3xl border p-3 sm:p-4"
             style={{ borderColor: `${ACCENT}44` }}
           >
             <div className="flex items-center gap-3">
               <span
-                className="grid size-10 place-items-center rounded-2xl"
+                className="grid size-11 place-items-center rounded-2xl sm:size-12"
                 style={{ background: `${ACCENT}22`, color: ACCENT }}
               >
-                <MessageSquareQuote className="size-5" />
+                <MessageSquareQuote className="size-5 sm:size-6" />
               </span>
               <div>
-                <p className="text-sm font-extrabold text-white">
+                <p className="text-base font-extrabold text-white sm:text-lg">
                   {session.running ? "جلسة شغّالة" : "جلسة متوقفة"}
                 </p>
-                <p className="text-[11px] text-white/50">
+                <p className="text-sm text-white/55 sm:text-base">
                   {session.running
                     ? `${hits.length} خمّن · ${clockLabel} متبقّي`
                     : "اضغط استئناف عشان يبدأ الجمهور يخمّن"}
@@ -202,9 +202,10 @@ export default function PhraseGame({
             )}
           </div>
 
+          <div className="game-play-grid lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           {/* Timer + spotlight */}
           <div
-            className="relative overflow-hidden rounded-[1.75rem] border p-8 text-center sm:p-14"
+            className="relative flex min-h-0 flex-col justify-center overflow-hidden rounded-[1.75rem] border p-5 text-center sm:p-8"
             style={{
               borderColor: `${ACCENT}55`,
               background: `
@@ -221,25 +222,25 @@ export default function PhraseGame({
 
             <div className="relative">
               <p
-                className="text-[11px] font-extrabold tracking-[0.28em] uppercase"
+                className="text-xs font-extrabold tracking-[0.28em] uppercase sm:text-sm"
                 style={{ color: GLOW }}
               >
                 خمّنوا في الشات
               </p>
               <p
-                className="font-brand mt-3 text-6xl font-bold leading-none tabular-nums sm:text-7xl"
+                className="font-brand mt-2 text-5xl font-bold leading-none tabular-nums sm:text-6xl"
                 style={session.running && !urgent ? { color: GLOW } : session.running && urgent ? { color: "var(--destructive)" } : { color: "rgba(255,255,255,0.55)" }}
               >
                 {clockLabel}
               </p>
-              <p className="mt-5 font-brand text-3xl font-bold leading-snug text-white/50 sm:text-5xl">
+              <p className="mt-3 font-brand text-2xl font-bold leading-snug text-white/50 sm:text-4xl">
                 ؟ ؟ ؟
               </p>
-              <p className="mt-3 text-sm text-white/50">
+              <p className="mt-2 text-base text-white/55 sm:text-lg">
                 الكلمة مخفية — اللي يعرفها يكتبها في الشات
               </p>
 
-              <div className="mx-auto mt-10 min-h-[7rem]">
+              <div className="mx-auto mt-6 min-h-[5rem]">
                 {latest ? (
                   <div key={latest.id} className="animate-pop-in">
                     <p
@@ -276,11 +277,11 @@ export default function PhraseGame({
           </div>
 
           {/* Name wall */}
-          <div className="glass rounded-3xl border border-white/10 p-5">
-            <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="glass flex min-h-0 flex-col overflow-hidden rounded-3xl border border-white/10 p-4 sm:p-5">
+            <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Users className="size-4" style={{ color: GLOW }} />
-                <h5 className="text-sm font-extrabold text-white">
+                <Users className="size-5" style={{ color: GLOW }} />
+                <h5 className="text-base font-extrabold text-white sm:text-lg">
                   الأسماء اللي خمّنت صح ({hits.length})
                 </h5>
               </div>
@@ -297,10 +298,11 @@ export default function PhraseGame({
             </div>
 
             {hits.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-white/12 bg-black/25 px-4 py-8 text-center text-sm text-white/45">
+              <p className="rounded-2xl border border-dashed border-white/12 bg-black/25 px-4 py-8 text-center text-base text-white/50">
                 لما أحد يخمن الكلمة، اسمه يطلع هنا بهالة نيون.
               </p>
             ) : (
+              <div className="min-h-0 flex-1 overflow-y-auto">
               <div className="flex flex-wrap gap-2.5">
                 {hits.map((h, i) => (
                   <span
@@ -320,7 +322,9 @@ export default function PhraseGame({
                   </span>
                 ))}
               </div>
+              </div>
             )}
+          </div>
           </div>
         </div>
       }

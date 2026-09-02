@@ -204,12 +204,12 @@ function SetupStage({
           </div>
         </div>
 
-        <div className="relative mt-3 flex shrink-0 flex-col-reverse items-stretch gap-3 border-t border-white/10 pt-3 sm:flex-row sm:items-center sm:justify-between lg:mt-4">
+        <div className="relative mt-3 flex shrink-0 flex-col-reverse items-stretch gap-3 border-t border-white/10 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 lg:mt-4">
           {!chatActive ? (
             <Button
               asChild
               variant="ghost"
-              className="h-12 gap-2 rounded-2xl border border-destructive/40 bg-destructive/10 px-5 text-base font-extrabold text-destructive hover:bg-destructive/15"
+              className="h-12 gap-2 rounded-2xl border border-destructive/40 bg-destructive/10 px-5 text-base font-extrabold text-destructive hover:bg-destructive/15 sm:max-w-[50%]"
             >
               <Link to="/connect">
                 <PlugZap className="size-5" />
@@ -228,7 +228,7 @@ function SetupStage({
             disabled={disabled}
             onClick={onGoReady}
             className={cn(
-              "h-14 min-w-[14rem] gap-2 rounded-2xl px-8 text-xl font-extrabold text-white transition hover:brightness-110 sm:min-w-[18rem]",
+              "h-14 w-full gap-2 rounded-2xl px-8 text-xl font-extrabold text-white transition hover:brightness-110 sm:ms-auto sm:w-auto sm:min-w-[18rem]",
               "disabled:cursor-not-allowed disabled:opacity-50",
             )}
             style={{

@@ -90,7 +90,7 @@ export default function HomeVerifiedSidebar() {
   };
 
   return (
-    <aside className="glass-strong flex min-h-0 shrink-0 flex-col overflow-hidden rounded-3xl lg:w-[21rem] xl:w-[22rem]">
+    <aside className="glass-strong flex h-full min-h-0 shrink-0 flex-col overflow-hidden rounded-3xl lg:w-[21rem] xl:w-[22rem]">
       {/* Header */}
       <div className="relative overflow-hidden border-b border-white/10 p-5">
         <div

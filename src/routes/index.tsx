@@ -27,7 +27,7 @@ function Index() {
       {/* Games column first in DOM → rightmost in RTL, from "far right to far left" */}
       <div className="flex min-h-0 flex-1 flex-col gap-3 lg:gap-4">
         {/* Hero strip — compact but striking */}
-        <div className="glass-strong relative overflow-hidden rounded-3xl px-5 py-3.5 sm:px-7 sm:py-4">
+        <div className="glass-strong relative shrink-0 overflow-hidden rounded-3xl px-5 py-3.5 sm:px-7 sm:py-4">
           <div
             className="pointer-events-none absolute inset-0"
             style={{
@@ -80,7 +80,7 @@ function Index() {
 
         {/* Games grid — 4 cols x 2 rows on desktop, fills remaining height */}
         <section
-          className="grid min-h-0 flex-1 grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 xl:grid-cols-4"
+          className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 xl:grid-cols-4"
           aria-label="الألعاب"
         >
           {GAMES.map((game, i) => {
@@ -89,7 +89,7 @@ function Index() {
               <Link
                 key={game.to}
                 to={game.to}
-                className="game-card group relative flex min-h-[9rem] flex-col overflow-hidden rounded-3xl border border-white/10 transition duration-500 hover:-translate-y-1 hover:border-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 sm:min-h-0"
+                className="game-card group relative flex h-full min-h-[8.5rem] flex-col overflow-hidden rounded-3xl border border-white/10 transition duration-500 hover:-translate-y-1 hover:border-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 sm:min-h-0"
                 style={
                   {
                     ["--accent" as string]: game.accent,

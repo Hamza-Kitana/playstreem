@@ -77,15 +77,18 @@ export default function AppShell({ children }: { children: ReactNode }) {
         className={cn(
           "route-fade",
           isHome
-            ? "h-dvh w-full max-w-none px-3 pt-[4.75rem] pb-3 sm:px-5 sm:pt-[5.25rem]"
+            ? "flex h-dvh max-w-none flex-col overflow-hidden px-3 pt-[4.75rem] pb-2 sm:px-5 sm:pt-[5.25rem] sm:pb-3"
             : isGame
-              ? "flex h-dvh max-w-none flex-col overflow-hidden px-1.5 pt-[4rem] pb-1.5 sm:px-3 sm:pt-[4.5rem] lg:px-4"
+              ? cn(
+                  "flex h-dvh max-w-none flex-col overflow-hidden px-1.5 pt-[4rem] pb-3 sm:px-3 sm:pt-[4.5rem] lg:px-4",
+                  chatActive && "xl:pb-5",
+                )
               : fullBleed
                 ? "w-full max-w-none px-0 pt-24 pb-16"
                 : "mx-auto w-full max-w-7xl px-4 pt-24 pb-16 sm:px-6 sm:pt-28",
         )}
       >
-        <div className={cn(isGame && "flex min-h-0 flex-1 flex-col")}>{children}</div>
+        <div className={cn((isHome || isGame) && "flex min-h-0 flex-1 flex-col")}>{children}</div>
       </main>
       {!isHome && !isGame ? (
         <footer className="border-t border-white/10 bg-black/40 py-8 backdrop-blur">
@@ -104,7 +107,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
       ) : null}
 
       {chatActive && !onChatPage && !isHome ? (
-        <div className="fixed bottom-5 left-5 z-30 hidden flex-col items-start gap-2 xl:flex">
+        <div
+          className={cn(
+            "fixed bottom-5 z-30 hidden flex-col gap-2 xl:flex",
+            isGame ? "right-5 items-end" : "left-5 items-start",
+          )}
+        >
           <Button
             type="button"
             size="sm"

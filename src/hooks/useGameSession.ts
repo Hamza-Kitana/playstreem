@@ -1,31 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export const DURATION_OPTIONS = [
-  { value: 30, label: "٣٠ ثانية" },
-  { value: 60, label: "دقيقة" },
-  { value: 90, label: "دقيقة ونص" },
-  { value: 120, label: "دقيقتان" },
-  { value: 180, label: "٣ دقائق" },
-  { value: 300, label: "٥ دقائق" },
-  { value: 0, label: "بدون حد" },
-] as const;
-
-/** Zombie FPS — longer rounds up to one hour. */
-export const ZOMBIE_DURATION_OPTIONS = [
-  { value: 180, label: "٣ دقائق" },
-  { value: 300, label: "٥ دقائق" },
-  { value: 600, label: "١٠ دقائق" },
-  { value: 900, label: "١٥ دقيقة" },
-  { value: 1200, label: "٢٠ دقيقة" },
-  { value: 1500, label: "٢٥ دقيقة" },
-  { value: 1800, label: "٣٠ دقيقة" },
-  { value: 2400, label: "٤٠ دقيقة" },
-  { value: 2700, label: "٤٥ دقيقة" },
-  { value: 3000, label: "٥٠ دقيقة" },
-  { value: 3300, label: "٥٥ دقيقة" },
-  { value: 3600, label: "ساعة" },
-  { value: 0, label: "بدون حد" },
-] as const;
+export { DURATION_OPTIONS, ZOMBIE_DURATION_OPTIONS } from "@/lib/duration-options";
 
 function normalizeUser(user: string) {
   return user.trim().toLowerCase();

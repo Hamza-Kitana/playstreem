@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Clock,
   Eye,
@@ -10,9 +10,13 @@ import {
   Square,
   Trophy,
 } from "lucide-react";
+import { useT } from "@/contexts/LocaleContext";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
-import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
+import { formatClock, useGameSession } from "@/hooks/useGameSession";
+import { useDurationOptions } from "@/hooks/useDurationOptions";
+import { useGameMoments } from "@/hooks/useGameMoments";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
+import { recordGameWin } from "@/lib/record-game-win";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,9 +26,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { pickRiddleRound, riddleMatches, RIDDLE_BANK, RIDDLE_COUNTS, type Riddle } from "@/lib/riddles";
+import { pickRiddleRound, riddleMatches, RIDDLE_COUNTS, type Riddle } from "@/lib/riddles";
+import { getRiddleBank } from "@/lib/locale-banks";
 import type { GameMoment } from "@/lib/game-moments";
-import { loseMoment, stoppedMoment, winMoment } from "@/lib/game-moments";
 import { cn } from "@/lib/utils";
 import GameStage, { type Phase } from "@/components/games/GameStage";
 import SelectField from "@/components/games/SelectField";
@@ -35,15 +39,22 @@ const GLOW = "#fdba74";
 type Winner = { user: string; answer: string; color: string };
 
 export default function RiddleGame({
-  messages,
+  messages: chatMessages,
   chatActive,
 }: {
   messages: ChatMessage[];
   chatActive: boolean;
 }) {
+  const { messages, locale, dir } = useT();
+  const { options: durationOptions } = useDurationOptions();
+  const { loseMoment, stoppedMoment, winMoment } = useGameMoments();
+  const g = messages.games.riddle;
+  const c = messages.common;
+  const riddleBank = useMemo(() => getRiddleBank(locale), [locale]);
+
   const [phase, setPhase] = useState<Phase>("setup");
   const [roundCount, setRoundCount] = useState<(typeof RIDDLE_COUNTS)[number]>(10);
-  const [deck, setDeck] = useState<Riddle[]>(() => pickRiddleRound(RIDDLE_BANK, 10));
+  const [deck, setDeck] = useState<Riddle[]>(() => pickRiddleRound(getRiddleBank(locale), 10));
   const [index, setIndex] = useState(0);
   const [scores, setScores] = useState<Record<string, number>>({});
   const [scoreColors, setScoreColors] = useState<Record<string, string>>({});
@@ -66,11 +77,11 @@ export default function RiddleGame({
   useEffect(() => {
     session.setOnExpire(() => {
       if (!settled.current) {
-        setMoment(loseMoment("انتهى الوقت بدون ما أحد يفك اللغز."));
+        setMoment(loseMoment(g.timeoutSub));
       }
     });
     return () => session.setOnExpire(null);
-  }, [session.setOnExpire]);
+  }, [session.setOnExpire, loseMoment, g.timeoutSub]);
 
   useEffect(() => {
     setHintOn(false);
@@ -81,7 +92,7 @@ export default function RiddleGame({
     if (session.running) settled.current = false;
   }, [session.running]);
 
-  useNewMessages(messages, session.running && !finished, (m) => {
+  useNewMessages(chatMessages, session.running && !finished, (m) => {
     if (!current || settled.current) return;
     const text = normalizeAr(m.text);
     if (!text) return;
@@ -91,12 +102,13 @@ export default function RiddleGame({
     if (!who) return;
     settled.current = true;
     setWinner({ user: m.user, answer: m.text, color: m.color });
+    recordGameWin({ user: m.user, userKey: who, color: m.color, game: messages.gameMeta.riddle.label });
     setScores((s) => ({ ...s, [m.user]: (s[m.user] ?? 0) + 1 }));
     setScoreColors((c) => ({ ...c, [m.user]: m.color }));
     session.stop();
     setMoment({
       ...winMoment(m.user, m.color, `الحل: ${current.answer}`),
-      actionLabel: hasNextRef.current ? "اللغز التالي" : "النتيجة النهائية",
+      actionLabel: hasNextRef.current ? c.nextRiddle : c.finalResult,
       onAction: () => goNext(true),
     });
   });
@@ -137,7 +149,7 @@ export default function RiddleGame({
 
   const restartAll = () => {
     session.stop();
-    setDeck(pickRiddleRound(RIDDLE_BANK, roundCount));
+    setDeck(pickRiddleRound(riddleBank, roundCount));
     setIndex(0);
     setScores({});
     setScoreColors({});
@@ -167,12 +179,12 @@ export default function RiddleGame({
         accent={ACCENT}
         glow={GLOW}
         icon={<Puzzle />}
-        title="ألغاز صعبة"
-        description="ألغاز تحتاج تفكير — الحل ما يظهر على الشاشة. الجمهور يخمن بالشات وأول جواب صحيح يفوز بالنقطة."
+        title={g.title}
+        description={g.desc}
         chatActive={chatActive}
         canStart={Boolean(current)}
-        setupCtaLabel="التالي · جهّز اللعبة"
-        startLabel="ابدأ الجولة"
+        setupCtaLabel={g.setupCta}
+        startLabel={g.start}
         onGoReady={() => setPhase("ready")}
         onStart={start}
         onBackToSetup={() => {
@@ -186,14 +198,14 @@ export default function RiddleGame({
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <SelectField
-                label="عدد الألغاز"
+                label={c.riddleCount}
                 icon={<ListChecks className="size-4" />}
                 accent={ACCENT}
                 value={String(roundCount)}
                 onChange={(v) => {
                   const n = Number(v) as (typeof RIDDLE_COUNTS)[number];
                   setRoundCount(n);
-                  setDeck(pickRiddleRound(RIDDLE_BANK, n));
+                  setDeck(pickRiddleRound(riddleBank, n));
                   setIndex(0);
                   setScores({});
                   setScoreColors({});
@@ -203,25 +215,25 @@ export default function RiddleGame({
                   setFinalOpen(false);
                   settled.current = false;
                 }}
-                options={RIDDLE_COUNTS.map((n) => ({ value: String(n), label: `${n} لغز` }))}
+                options={RIDDLE_COUNTS.map((n) => ({ value: String(n), label: `${n}` }))}
               />
               <SelectField
-                label="مدة اللغز"
+                label={c.riddleDuration}
                 icon={<Clock className="size-4" />}
                 accent={ACCENT}
                 value={String(session.durationSec)}
                 onChange={(v) => session.setDurationSec(Number(v))}
-                options={DURATION_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+                options={durationOptions.map((o) => ({ value: String(o.value), label: o.label }))}
               />
             </div>
             <div className="grid grid-cols-3 gap-2.5">
-              <StatBadge label="مكتبة" value={String(RIDDLE_BANK.length)} accent={ACCENT} glow={GLOW} />
-              <StatBadge label="الجولة" value={String(roundCount)} accent={ACCENT} glow={GLOW} />
+              <StatBadge label={c.library} value={String(riddleBank.length)} accent={ACCENT} glow={GLOW} />
+              <StatBadge label={c.round} value={String(roundCount)} accent={ACCENT} glow={GLOW} />
               <StatBadge
-                label="المدة"
+                label={c.timer}
                 value={
-                  DURATION_OPTIONS.find((o) => o.value === session.durationSec)?.label ??
-                  `${session.durationSec} ث`
+                  durationOptions.find((o) => o.value === session.durationSec)?.label ??
+                  `${session.durationSec}s`
                 }
                 accent={ACCENT}
                 glow={GLOW}
@@ -244,10 +256,10 @@ export default function RiddleGame({
                 </span>
                 <div>
                   <p className="text-base font-extrabold text-white sm:text-lg">
-                    {finished ? "انتهت الجولة" : `لغز ${index + 1} من ${deck.length}`}
+                    {finished ? c.seeFinalResult : `${c.riddleN} ${index + 1} ${c.of} ${deck.length}`}
                   </p>
                   <p className="text-sm text-white/55 sm:text-base">
-                    {finished ? "شوف النتيجة النهائية" : `${current?.category ?? "غير محدد"}`}
+                    {finished ? c.seeFinalResult : `${current?.category ?? c.category}`}
                   </p>
                 </div>
               </div>
@@ -266,10 +278,10 @@ export default function RiddleGame({
                   className="h-11 gap-1.5 rounded-2xl font-extrabold"
                   onClick={() => {
                     session.stop();
-                    setMoment(stoppedMoment("أوقفت الجولة يدوياً."));
+                    setMoment(stoppedMoment(c.stoppedManual));
                   }}
                 >
-                  <Square className="size-4" /> إيقاف
+                  <Square className="size-4" /> {c.stop}
                 </Button>
               ) : (
                 <Button
@@ -278,7 +290,7 @@ export default function RiddleGame({
                   disabled={!chatActive || !current}
                   onClick={start}
                 >
-                  <RotateCcw className="size-4" /> استئناف
+                  <RotateCcw className="size-4" /> {c.resume}
                 </Button>
               )}
             </div>
@@ -292,7 +304,7 @@ export default function RiddleGame({
                 }}
               >
                 <Trophy className="mx-auto size-16" style={{ color: GLOW }} />
-                <h2 className="font-brand mt-4 text-4xl font-bold text-white sm:text-5xl">انتهت الجولة</h2>
+                <h2 className="font-brand mt-4 text-4xl font-bold text-white sm:text-5xl">{c.roundEnded}</h2>
                 <p className="mt-2 text-sm text-white/60">خلّصنا الـ {deck.length} ألغاز</p>
                 {champion ? (
                   <p
@@ -313,7 +325,7 @@ export default function RiddleGame({
                     style={{ background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})` }}
                     onClick={() => setFinalOpen(true)}
                   >
-                    <Trophy className="size-4" /> النتيجة الكاملة
+                    <Trophy className="size-4" /> {c.finalResult}
                   </Button>
                   <Button variant="outline" className="h-12 rounded-2xl border-white/15 bg-white/[0.03] px-5 font-bold" onClick={restartAll}>
                     من جديد
@@ -341,7 +353,7 @@ export default function RiddleGame({
                     }
                   >
                     <p className="text-xs font-extrabold tracking-[0.28em] text-white/55 uppercase sm:text-sm">
-                      العداد
+                      {c.timer}
                     </p>
                     <p
                       className={cn(
@@ -355,7 +367,7 @@ export default function RiddleGame({
                     <p className="mt-1 text-sm font-bold text-white/55 sm:text-base">
                       {session.running
                         ? `تخمينات ${attempts}`
-                        : "اضغط استئناف للجولة"}
+                        : g.pressResume}
                     </p>
                   </div>
 
@@ -428,7 +440,7 @@ export default function RiddleGame({
                         disabled={!current}
                       >
                         <Lightbulb className="size-3.5" />
-                        {hintOn ? "إخفاء التلميح" : "تلميح"}
+                        {hintOn ? c.hideHint : c.showHint}
                       </Button>
                       <Button
                         variant="outline"
@@ -438,7 +450,7 @@ export default function RiddleGame({
                         disabled={!current}
                       >
                         {peekAnswer ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                        {peekAnswer ? "خبّئ الحل" : "الحل (ستريمر)"}
+                        {peekAnswer ? c.hideAnswer : c.showAnswer}
                       </Button>
                       <Button
                         variant="secondary"
@@ -450,9 +462,9 @@ export default function RiddleGame({
                         <RotateCcw className="size-3.5" />
                         {hasNext
                           ? session.running
-                            ? "التالي (إعادة العداد)"
-                            : "التالي"
-                          : "إنهاء"}
+                            ? c.nextResetTimer
+                            : c.nextRound
+                          : c.finish}
                       </Button>
                     </div>
                   </div>
@@ -520,7 +532,7 @@ export default function RiddleGame({
       />
 
       <Dialog open={finalOpen} onOpenChange={setFinalOpen}>
-        <DialogContent className="max-w-md border-white/12 bg-[#0d0a1e] sm:rounded-2xl" dir="rtl">
+        <DialogContent className="max-w-md border-white/12 bg-[#0d0a1e] sm:rounded-2xl" dir={dir}>
           <DialogHeader className="text-center sm:text-center">
             <div
               className="mx-auto grid size-14 place-items-center rounded-2xl"
@@ -528,7 +540,7 @@ export default function RiddleGame({
             >
               <Trophy className="size-7" />
             </div>
-            <DialogTitle className="text-xl font-extrabold">النتيجة النهائية</DialogTitle>
+            <DialogTitle className="text-xl font-extrabold">{c.finalResult}</DialogTitle>
             <DialogDescription>بعد {deck.length} ألغاز</DialogDescription>
           </DialogHeader>
           {champion ? (

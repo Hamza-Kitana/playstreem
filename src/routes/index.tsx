@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, PlugZap, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, PlugZap, Sparkles } from "lucide-react";
 import HomeVerifiedSidebar from "@/components/HomeVerifiedSidebar";
-import { GAMES } from "@/lib/games";
+import { useT } from "@/contexts/LocaleContext";
 import { useKickChatContext } from "@/contexts/KickChatContext";
+import { useGames } from "@/hooks/useGames";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -20,13 +22,14 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const chat = useKickChatContext();
+  const { messages, dir } = useT();
+  const games = useGames();
   const live = chat.status === "live";
+  const PlayArrow = dir === "rtl" ? ArrowLeft : ArrowRight;
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 lg:flex-row lg:items-stretch lg:gap-5">
-      {/* Games column first in DOM → rightmost in RTL, from "far right to far left" */}
       <div className="flex min-h-0 flex-1 flex-col gap-3 lg:gap-4">
-        {/* Hero strip — compact but striking */}
         <div className="glass-strong relative shrink-0 overflow-hidden rounded-3xl px-5 py-3.5 sm:px-7 sm:py-4">
           <div
             className="pointer-events-none absolute inset-0"
@@ -43,11 +46,11 @@ function Index() {
                 Al-Daboor
               </span>
               <h1 className="font-brand mt-1.5 text-xl leading-none font-bold sm:text-2xl">
-                <span className="shimmer-text">ألعاب تفاعلية</span>{" "}
-                <span className="text-white/85">للبث على كيك</span>
+                <span className="shimmer-text">{messages.home.title}</span>{" "}
+                <span className="text-white/85">{messages.home.titleAccent}</span>
               </h1>
               <p className="mt-1 text-[11px] font-medium text-white/60 sm:text-xs">
-                ٨ ألعاب يقودها شات كيك — اختر لعبة وابدأ بثانية.
+                {messages.home.subtitle}
               </p>
             </div>
 
@@ -64,7 +67,7 @@ function Index() {
                     live ? "animate-live-dot bg-primary" : "bg-white/45"
                   }`}
                 />
-                {live ? "متصل" : "غير متصل"}
+                {live ? messages.common.connected : messages.common.disconnected}
               </span>
 
               <Link
@@ -72,18 +75,17 @@ function Index() {
                 className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-l from-[color:var(--neon)] to-[color:var(--neon-3)] px-3.5 py-1.5 text-xs font-extrabold text-[color:var(--primary-foreground)] shadow-[0_0_28px_-6px_var(--neon)] transition hover:scale-[1.03]"
               >
                 <PlugZap className="size-3.5" />
-                {live ? "إعادة الربط" : "اربط الآن"}
+                {live ? messages.home.reconnect : messages.home.connectNow}
               </Link>
             </div>
           </div>
         </div>
 
-        {/* Games grid — 4 cols x 2 rows on desktop, fills remaining height */}
         <section
           className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 xl:grid-cols-4"
-          aria-label="الألعاب"
+          aria-label={messages.nav.games}
         >
-          {GAMES.map((game, i) => {
+          {games.map((game, i) => {
             const Icon = game.icon;
             return (
               <Link
@@ -98,7 +100,6 @@ function Index() {
                   } as React.CSSProperties
                 }
               >
-                {/* Base image */}
                 <img
                   src={game.image}
                   alt=""
@@ -106,7 +107,6 @@ function Index() {
                   className="absolute inset-0 h-full w-full object-cover opacity-70 transition duration-700 group-hover:scale-110 group-hover:opacity-90"
                 />
 
-                {/* Coloured overlay per game */}
                 <div
                   className="absolute inset-0 opacity-90 transition duration-500 group-hover:opacity-95"
                   style={{
@@ -114,16 +114,13 @@ function Index() {
                   }}
                 />
 
-                {/* Vignette bottom */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
 
-                {/* Corner glow */}
                 <div
                   className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full opacity-40 blur-3xl transition duration-500 group-hover:opacity-70"
                   style={{ background: game.glow }}
                 />
 
-                {/* Inner ring accent */}
                 <div
                   className="pointer-events-none absolute inset-0 rounded-3xl opacity-0 transition duration-500 group-hover:opacity-100"
                   style={{
@@ -131,7 +128,6 @@ function Index() {
                   }}
                 />
 
-                {/* Content */}
                 <div className="relative flex h-full min-h-0 flex-col justify-between p-3.5 sm:p-4">
                   <div className="flex items-start justify-between gap-2">
                     <span
@@ -153,17 +149,25 @@ function Index() {
                   </div>
 
                   <div>
-                    <h2
-                      className="font-brand text-base leading-tight font-bold text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)] sm:text-lg lg:text-xl"
-                    >
+                    <h2 className="font-brand text-base leading-tight font-bold text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)] sm:text-lg lg:text-xl">
                       {game.title}
                     </h2>
                     <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-white/80 sm:text-xs sm:leading-5">
                       {game.desc}
                     </p>
-                    <div className="mt-2 flex items-center gap-1.5 text-[11px] font-extrabold" style={{ color: game.glow }}>
-                      <span>ابدأ اللعب</span>
-                      <ArrowLeft className="size-3 transition group-hover:-translate-x-1" />
+                    <div
+                      className="mt-2 flex items-center gap-1.5 text-[11px] font-extrabold"
+                      style={{ color: game.glow }}
+                    >
+                      <span>{messages.home.play}</span>
+                      <PlayArrow
+                        className={cn(
+                          "size-3 transition",
+                          dir === "rtl"
+                            ? "group-hover:-translate-x-1"
+                            : "group-hover:translate-x-1",
+                        )}
+                      />
                     </div>
                   </div>
                 </div>

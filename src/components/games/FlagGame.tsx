@@ -1,8 +1,12 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Clock, Flag, Globe2, RotateCcw, Square, Trophy } from "lucide-react";
+import { useT } from "@/contexts/LocaleContext";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
-import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
+import { formatClock, useGameSession } from "@/hooks/useGameSession";
+import { useDurationOptions } from "@/hooks/useDurationOptions";
+import { useGameMoments } from "@/hooks/useGameMoments";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
+import { recordGameWin } from "@/lib/record-game-win";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,9 +16,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FLAG_BANK, flagImageUrl, shuffleFlags, type FlagItem } from "@/lib/flags";
+import { flagImageUrl, shuffleFlags, type FlagItem } from "@/lib/flags";
+import { getFlagBank } from "@/lib/locale-banks";
 import type { GameMoment } from "@/lib/game-moments";
-import { loseMoment, stoppedMoment, winMoment } from "@/lib/game-moments";
 import { cn } from "@/lib/utils";
 import GameStage, { type Phase } from "@/components/games/GameStage";
 import SelectField from "@/components/games/SelectField";
@@ -37,14 +41,21 @@ function answersMatch(guess: string, flag: FlagItem) {
 }
 
 export default function FlagGame({
-  messages,
+  messages: chatMessages,
   chatActive,
 }: {
   messages: ChatMessage[];
   chatActive: boolean;
 }) {
+  const { messages, locale, dir } = useT();
+  const { options: durationOptions } = useDurationOptions();
+  const { loseMoment, stoppedMoment, winMoment } = useGameMoments();
+  const g = messages.games.flag;
+  const c = messages.common;
+  const flagBank = useMemo(() => getFlagBank(locale), [locale]);
+
   const [phase, setPhase] = useState<Phase>("setup");
-  const [deck, setDeck] = useState<FlagItem[]>(() => shuffleFlags(FLAG_BANK));
+  const [deck, setDeck] = useState<FlagItem[]>(() => shuffleFlags(getFlagBank(locale)));
   const [index, setIndex] = useState(0);
   const [scores, setScores] = useState<Record<string, number>>({});
   const [scoreColors, setScoreColors] = useState<Record<string, string>>({});
@@ -66,11 +77,11 @@ export default function FlagGame({
   useEffect(() => {
     session.setOnExpire(() => {
       if (!settled.current) {
-        setMoment(loseMoment("انتهى الوقت بدون إجابة صحيحة."));
+        setMoment(loseMoment(c.timeoutNoAnswer));
       }
     });
     return () => session.setOnExpire(null);
-  }, [session.setOnExpire]);
+  }, [session.setOnExpire, loseMoment, c.timeoutNoAnswer]);
 
   useEffect(() => {
     setImgOk(true);
@@ -80,7 +91,7 @@ export default function FlagGame({
     if (session.running) settled.current = false;
   }, [session.running]);
 
-  useNewMessages(messages, session.running && !finished, (m) => {
+  useNewMessages(chatMessages, session.running && !finished, (m) => {
     const who = participantKey(m);
     if (!current || settled.current || !who) return;
     if (session.hasParticipated(who)) return;
@@ -91,12 +102,13 @@ export default function FlagGame({
     if (!answersMatch(text, current)) return;
     settled.current = true;
     setWinner({ user: m.user, answer: m.text, color: m.color });
+    recordGameWin({ user: m.user, userKey: who, color: m.color, game: messages.gameMeta.flag.label });
     setScores((s) => ({ ...s, [m.user]: (s[m.user] ?? 0) + 1 }));
     setScoreColors((c) => ({ ...c, [m.user]: m.color }));
     session.stop();
     setMoment({
       ...winMoment(m.user, m.color, `الدولة: ${current.name}`),
-      actionLabel: hasNextRef.current ? "العلم التالي" : "النتيجة النهائية",
+      actionLabel: hasNextRef.current ? c.nextFlag : c.finalResult,
       onAction: () => goNext(true),
     });
   });
@@ -137,7 +149,7 @@ export default function FlagGame({
 
   const restartAll = () => {
     session.stop();
-    setDeck(shuffleFlags(FLAG_BANK));
+    setDeck(shuffleFlags(flagBank));
     setIndex(0);
     setScores({});
     setScoreColors({});
@@ -167,12 +179,12 @@ export default function FlagGame({
         accent={ACCENT}
         glow={GLOW}
         icon={<Flag />}
-        title="اعرف العلم"
-        description={`شاشة تعرض العلم — الجمهور يكتب اسم الدولة في الشات. أول جواب صحيح يفوز. فيه ${FLAG_BANK.length} علم بدون تكرار.`}
+        title={g.title}
+        description={g.desc}
         chatActive={chatActive}
         canStart={Boolean(current)}
-        setupCtaLabel="التالي · جهّز اللعبة"
-        startLabel="ابدأ الجولة"
+        setupCtaLabel={g.setupCta}
+        startLabel={g.start}
         onGoReady={() => setPhase("ready")}
         onStart={start}
         onBackToSetup={() => {
@@ -185,25 +197,25 @@ export default function FlagGame({
         settings={
           <div className="space-y-4">
             <SelectField
-              label="مدة الجولة"
+              label={c.roundDuration}
               icon={<Clock className="size-4" />}
               accent={ACCENT}
               value={String(session.durationSec)}
               onChange={(v) => session.setDurationSec(Number(v))}
-              options={DURATION_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+              options={durationOptions.map((o) => ({ value: String(o.value), label: o.label }))}
             />
             <div className="grid grid-cols-3 gap-2.5">
-              <MiniStat label="أعلام" value={String(FLAG_BANK.length)} accent={ACCENT} glow={GLOW} />
+              <MiniStat label={c.flags} value={String(flagBank.length)} accent={ACCENT} glow={GLOW} />
               <MiniStat
-                label="المدة"
+                label={c.timer}
                 value={
-                  DURATION_OPTIONS.find((o) => o.value === session.durationSec)?.label ??
-                  `${session.durationSec} ث`
+                  durationOptions.find((o) => o.value === session.durationSec)?.label ??
+                  `${session.durationSec}s`
                 }
                 accent={ACCENT}
                 glow={GLOW}
               />
-              <MiniStat label="نمط" value="بلا تكرار" accent={ACCENT} glow={GLOW} />
+              <MiniStat label={c.pattern} value={c.noRepeat} accent={ACCENT} glow={GLOW} />
             </div>
           </div>
         }
@@ -222,11 +234,11 @@ export default function FlagGame({
                 </span>
                 <div>
                   <p className="text-base font-extrabold text-white sm:text-lg">
-                    {finished ? "انتهت الجولة" : `علم ${index + 1} من ${deck.length}`}
+                    {finished ? c.roundEnded : `${c.flagN} ${index + 1} ${c.of} ${deck.length}`}
                     {current?.hard ? " · صعب" : ""}
                   </p>
                   <p className="text-sm text-white/55 sm:text-base">
-                    {finished ? "شوف النتيجة النهائية" : "الجمهور يكتب اسم الدولة"}
+                    {finished ? c.seeFinalResult : c.audienceWritesCountry}
                   </p>
                 </div>
               </div>
@@ -245,10 +257,10 @@ export default function FlagGame({
                   className="h-11 gap-1.5 rounded-2xl font-extrabold"
                   onClick={() => {
                     session.stop();
-                    setMoment(stoppedMoment("أوقفت الجولة يدوياً."));
+                    setMoment(stoppedMoment(c.stoppedManual));
                   }}
                 >
-                  <Square className="size-4" /> إيقاف
+                  <Square className="size-4" /> {c.stop}
                 </Button>
               ) : (
                 <Button
@@ -257,7 +269,7 @@ export default function FlagGame({
                   disabled={!chatActive || !current}
                   onClick={start}
                 >
-                  <RotateCcw className="size-4" /> استئناف
+                  <RotateCcw className="size-4" /> {c.resume}
                 </Button>
               )}
             </div>
@@ -271,7 +283,7 @@ export default function FlagGame({
                 }}
               >
                 <Trophy className="mx-auto size-16" style={{ color: GLOW }} />
-                <h2 className="font-brand mt-4 text-4xl font-bold text-white sm:text-5xl">انتهت الجولة</h2>
+                <h2 className="font-brand mt-4 text-4xl font-bold text-white sm:text-5xl">{c.roundEnded}</h2>
                 <p className="mt-2 text-sm text-white/60">خلّصنا الـ {deck.length} علم</p>
                 {champion ? (
                   <p
@@ -292,7 +304,7 @@ export default function FlagGame({
                     style={{ background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})` }}
                     onClick={() => setFinalOpen(true)}
                   >
-                    <Trophy className="size-4" /> النتيجة الكاملة
+                    <Trophy className="size-4" /> {c.finalResult}
                   </Button>
                   <Button
                     variant="outline"
@@ -324,7 +336,7 @@ export default function FlagGame({
                     }
                   >
                     <p className="text-xs font-extrabold tracking-[0.28em] text-white/55 uppercase sm:text-sm">
-                      العداد
+                      {c.timer}
                     </p>
                     <p
                       className={cn(
@@ -337,8 +349,8 @@ export default function FlagGame({
                     </p>
                     <p className="mt-1 text-sm font-bold text-white/55 sm:text-base">
                       {session.running
-                        ? `محاولات ${attempts} · مشاركون ${session.participantCount}`
-                        : "اضغط استئناف عشان الجمهور يجيب"}
+                        ? `${attempts} · ${session.participantCount}`
+                        : c.pressResume}
                     </p>
                   </div>
 
@@ -386,9 +398,9 @@ export default function FlagGame({
                       <RotateCcw className="size-3.5" />
                       {hasNext
                         ? session.running
-                          ? "العلم التالي (إعادة العداد)"
-                          : "العلم التالي"
-                        : "إنهاء وإظهار النتيجة"}
+                          ? c.nextResetTimer
+                          : c.nextFlag
+                        : c.finishShowResult}
                     </Button>
                   </div>
                 </div>
@@ -448,7 +460,7 @@ export default function FlagGame({
       />
 
       <Dialog open={finalOpen} onOpenChange={setFinalOpen}>
-        <DialogContent className="max-w-md border-white/12 bg-[#0d0a1e] sm:rounded-2xl" dir="rtl">
+        <DialogContent className="max-w-md border-white/12 bg-[#0d0a1e] sm:rounded-2xl" dir={dir}>
           <DialogHeader className="text-center sm:text-center">
             <div
               className="mx-auto grid size-14 place-items-center rounded-2xl"
@@ -456,7 +468,7 @@ export default function FlagGame({
             >
               <Trophy className="size-7" />
             </div>
-            <DialogTitle className="text-xl font-extrabold">النتيجة النهائية</DialogTitle>
+            <DialogTitle className="text-xl font-extrabold">{c.finalResult}</DialogTitle>
             <DialogDescription>بعد {deck.length} علم</DialogDescription>
           </DialogHeader>
           {champion ? (

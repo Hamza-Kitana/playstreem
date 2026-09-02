@@ -5,6 +5,7 @@ import { ClipboardPaste, Loader2, PlugZap, Radio, X } from "lucide-react";
 import { resolveKickChannel } from "@/lib/kick.functions";
 import { loadKickSession, loadLegacyKickSlug, saveKickSession } from "@/lib/kick-session";
 import type { ChatStatus } from "@/hooks/useKickChat";
+import { useT } from "@/contexts/LocaleContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -33,6 +34,7 @@ export default function ConnectPanel({
   onConnect: (chatroomId: number, label: string, slug?: string, channelId?: number) => void;
   onStop: () => void;
 }) {
+  const { messages } = useT();
   const resolve = useServerFn(resolveKickChannel);
   const search = useRouterState({ select: (s) => s.location.searchStr });
   const [input, setInput] = useState("");
@@ -70,7 +72,7 @@ export default function ConnectPanel({
 
     const slug = cleanSlug(raw);
     if (!looksLikeSlug(slug)) {
-      setErr("حط رابط البث أو اسم القناة، مثل kick.com/اسمك أو اسمك فقط.");
+      setErr(messages.connect.invalidSlug);
       return;
     }
 
@@ -82,7 +84,7 @@ export default function ConnectPanel({
       setHint(`تم الربط عبر ${source}`);
       onConnect(info.chatroomId, `kick.com/${info.slug}`, info.slug, info.channelId);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "تعذّر الاتصال بالقناة.");
+      setErr(e instanceof Error ? e.message : messages.connect.connectFailed);
     } finally {
       setLoading(false);
     }
@@ -98,13 +100,13 @@ export default function ConnectPanel({
     try {
       const text = await navigator.clipboard.readText();
       if (!text?.trim()) {
-        setErr("الحافظة فاضية. انسخ رابط البث من كيك أول.");
+        setErr(messages.connect.emptyClipboard);
         return;
       }
       setInput(text.trim());
       await connectWith(text, "الحافظة");
     } catch {
-      setErr("ما قدرنا نقرأ الحافظة. الصق الرابط يدويًا في الحقل.");
+      setErr(messages.connect.clipboardFailed);
     }
   };
 
@@ -141,10 +143,8 @@ export default function ConnectPanel({
             <Radio className="size-5" />
           </span>
           <div>
-            <h3 className="font-brand text-xl font-bold">اربط بث كيك</h3>
-            <p className="mt-0.5 text-sm text-white/60">
-              رابط قناتك أو اسمها فقط — الربط يرجع لحاله بعد التحديث.
-            </p>
+            <h3 className="font-brand text-xl font-bold">{messages.connect.panelTitle}</h3>
+            <p className="mt-0.5 text-sm text-white/60">{messages.connect.panelSubtitle}</p>
           </div>
         </div>
 
@@ -152,7 +152,7 @@ export default function ConnectPanel({
           <div className="flex flex-wrap items-center gap-3 rounded-3xl border border-primary/30 bg-primary/10 p-4">
             <span className="inline-flex items-center gap-2.5 rounded-2xl bg-primary/20 px-4 py-2.5 text-sm font-extrabold text-primary">
               <span className="size-2 animate-pulse rounded-full bg-primary shadow-[0_0_12px_var(--primary)]" />
-              متصل بـ <span dir="ltr">{channel}</span>
+              {messages.connect.connectedTo} <span dir="ltr">{channel}</span>
             </span>
             <Button
               variant="secondary"
@@ -160,7 +160,7 @@ export default function ConnectPanel({
               className="h-11 gap-1.5 rounded-2xl bg-white/8 font-extrabold hover:bg-white/15"
             >
               <X className="size-4" />
-              قطع الاتصال
+              {messages.connect.disconnect}
             </Button>
           </div>
         ) : (
@@ -168,19 +168,19 @@ export default function ConnectPanel({
             {status === "connecting" ? (
               <p className="flex items-center gap-2 rounded-2xl border border-primary/25 bg-primary/10 px-4 py-2 text-sm font-bold text-primary">
                 <Loader2 className="size-4 animate-spin" />
-                جاري استعادة الربط…
+                {messages.connect.restoring}
               </p>
             ) : null}
 
             <form onSubmit={onSubmit} className="space-y-3.5">
               <label className="block space-y-2">
                 <span className="text-sm font-extrabold text-white/85">
-                  رابط البث أو اسم القناة
+                  {messages.connect.inputLabel}
                 </span>
                 <Input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="kick.com/اسمك أو اسم القناة"
+                  placeholder={messages.connect.inputPlaceholder}
                   dir="ltr"
                   className="h-[3.25rem] rounded-2xl border-white/12 bg-black/30 text-base font-semibold shadow-inner placeholder:font-normal placeholder:text-white/30"
                   autoComplete="off"
@@ -198,12 +198,12 @@ export default function ConnectPanel({
                   {busy ? (
                     <>
                       <Loader2 className="size-5 animate-spin" />
-                      جاري الربط…
+                      {messages.connect.connecting}
                     </>
                   ) : (
                     <>
                       <PlugZap className="size-5" />
-                      ربط القناة
+                      {messages.connect.connectChannel}
                     </>
                   )}
                 </Button>
@@ -215,13 +215,13 @@ export default function ConnectPanel({
                   className="h-[3.25rem] rounded-2xl border-white/15 bg-white/[0.03] px-5 font-bold hover:bg-white/[0.08] sm:w-auto"
                 >
                   <ClipboardPaste className="size-4" />
-                  لصق وربط
+                  {messages.connect.pasteConnect}
                 </Button>
               </div>
             </form>
 
             <p className="text-xs leading-6 text-white/50">
-              مثال:{" "}
+              {messages.connect.example}{" "}
               <span className="font-brand rounded-md bg-black/40 px-1.5 py-0.5 text-primary" dir="ltr">
                 https://kick.com/salahat8
               </span>{" "}

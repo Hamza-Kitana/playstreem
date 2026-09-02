@@ -1,9 +1,11 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { ChevronDown, CircleHelp, PlugZap } from "lucide-react";
 import BrandLogo from "@/components/BrandLogo";
+import LanguageToggle from "@/components/LanguageToggle";
 import { useKickChatContext } from "@/contexts/KickChatContext";
 import { useGuide } from "@/contexts/GuideContext";
-import { GAMES } from "@/lib/games";
+import { useT } from "@/contexts/LocaleContext";
+import { useGames } from "@/hooks/useGames";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,14 +14,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-
-const LINKS = [
-  { to: "/" as const, label: "الرئيسية" },
-  { to: "/chat" as const, label: "شات" },
-  { to: "/about" as const, label: "من نحن" },
-  { to: "/contact" as const, label: "تواصل معنا" },
-  { to: "/streamers" as const, label: "الستريمر الموثقين" },
-];
 
 function linkClass(active: boolean, compact = false) {
   return cn(
@@ -36,9 +30,19 @@ function linkClass(active: boolean, compact = false) {
 export default function AppHeader() {
   const { status } = useKickChatContext();
   const { openGuide } = useGuide();
+  const { messages } = useT();
+  const games = useGames();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const chatActive = status === "live";
-  const gamesActive = GAMES.some((s) => pathname === s.to);
+  const gamesActive = games.some((s) => pathname === s.to);
+
+  const LINKS = [
+    { to: "/" as const, label: messages.nav.home },
+    { to: "/chat" as const, label: messages.nav.chat },
+    { to: "/about" as const, label: messages.nav.about },
+    { to: "/contact" as const, label: messages.nav.contact },
+    { to: "/streamers" as const, label: messages.nav.streamers },
+  ];
 
   return (
     <header className="fixed inset-x-0 top-0 z-40">
@@ -67,14 +71,14 @@ export default function AppHeader() {
                   : "text-white/70 hover:bg-white/10 hover:text-white",
               )}
             >
-              الألعاب
+              {messages.nav.games}
               <ChevronDown className="size-3.5 opacity-70" />
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
               className="min-w-48 border-white/12 bg-[oklch(0.14_0.04_290/0.95)] backdrop-blur-xl"
             >
-              {GAMES.map((item) => (
+              {games.map((item) => (
                 <DropdownMenuItem key={item.to} asChild className="cursor-pointer font-bold">
                   <Link to={item.to} className="flex items-center justify-between gap-3">
                     <span>{item.label}</span>
@@ -105,14 +109,14 @@ export default function AppHeader() {
                     : "text-white/70",
                 )}
               >
-                الألعاب
+                {messages.nav.games}
                 <ChevronDown className="size-3 opacity-70" />
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
                 className="min-w-40 border-white/12 bg-[oklch(0.14_0.04_290/0.95)] backdrop-blur-xl"
               >
-                {GAMES.map((item) => (
+                {games.map((item) => (
                   <DropdownMenuItem key={item.to} asChild className="cursor-pointer font-bold">
                     <Link to={item.to}>{item.label}</Link>
                   </DropdownMenuItem>
@@ -121,6 +125,8 @@ export default function AppHeader() {
             </DropdownMenu>
           </div>
 
+          <LanguageToggle />
+
           <Button
             asChild
             size="sm"
@@ -128,7 +134,7 @@ export default function AppHeader() {
           >
             <Link to="/connect">
               <PlugZap className="size-3.5" />
-              <span className="hidden sm:inline">الربط</span>
+              <span className="hidden sm:inline">{messages.nav.connect}</span>
             </Link>
           </Button>
 
@@ -138,8 +144,8 @@ export default function AppHeader() {
             size="icon"
             className="size-9 shrink-0 rounded-xl text-white/60 hover:bg-white/10 hover:text-white"
             onClick={openGuide}
-            aria-label="إرشادات الموقع"
-            title="إرشادات الموقع"
+            aria-label={messages.nav.guide}
+            title={messages.nav.guide}
           >
             <CircleHelp className="size-5" />
           </Button>
@@ -158,7 +164,7 @@ export default function AppHeader() {
                 chatActive ? "animate-live-dot bg-primary" : "bg-white/40",
               )}
             />
-            {chatActive ? "مباشر" : "غير متصل"}
+            {chatActive ? messages.nav.live : messages.nav.offline}
           </span>
         </div>
       </div>

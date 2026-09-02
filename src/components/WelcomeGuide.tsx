@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useGuide } from "@/contexts/GuideContext";
+import { useT } from "@/contexts/LocaleContext";
 import { Link } from "@tanstack/react-router";
 
 const STEPS = [
@@ -81,12 +82,72 @@ const STEPS = [
   },
 ];
 
+const STEPS_EN = [
+  {
+    icon: Sparkles,
+    title: "Welcome to Al-Daboor",
+    body: "Interactive games for Kick streams. Chat reads viewer messages and runs games in real time — you control everything from the browser (great for a second screen).",
+  },
+  {
+    icon: Plug,
+    title: "First: connect your channel",
+    body: "On the Connect page, paste your Kick stream link (or channel name) and hit Connect. You can paste from clipboard or open /connect?channel=yourname.",
+  },
+  {
+    icon: Gamepad2,
+    title: "Second: pick a game",
+    body: "Open Games from the top bar or choose a card on the home page: Quiz, Chairs, Poll, Rate, Secret Word, Flags, Riddles, or Zombie Shooter.",
+  },
+  {
+    icon: Brain,
+    title: "Quiz & Answers",
+    body: "Start a round and viewers type answers in chat. The first correct answer wins the point and appears on the leaderboard.",
+  },
+  {
+    icon: Armchair,
+    title: "Musical Chairs",
+    body: "Viewers type «join» to enter. Players spin around chairs — when it stops, random numbers appear and the first to type their number claims a seat. One leaves each round until a winner remains.",
+  },
+  {
+    icon: BarChart3,
+    title: "Live Poll",
+    body: "Viewers vote by typing the option text (yes, no…) or its number (1, 2, 3…) in chat. Results update live — one vote per user.",
+  },
+  {
+    icon: Star,
+    title: "Rate a Person",
+    body: "Enter a person's name and viewers send a number from 0 to 10 in chat. The site calculates the average and distribution automatically.",
+  },
+  {
+    icon: MessageSquareQuote,
+    title: "Secret Word",
+    body: "The streamer types a secret word that stays hidden on screen. The audience guesses in chat — correct guesses get highlighted.",
+  },
+  {
+    icon: Flag,
+    title: "Name the Flag",
+    body: "A country flag appears on screen. Chat guesses the country name — first correct answer wins. 20 flags, no repeats until the round ends.",
+  },
+  {
+    icon: Puzzle,
+    title: "Riddles",
+    body: "A brain teaser appears — the answer stays hidden. Chat guesses; you can reveal a hint or the answer (streamer only). First correct guess wins.",
+  },
+  {
+    icon: Skull,
+    title: "Zombie Shooter",
+    body: "A closed map for the streamer. Viewers type «zombie» to spawn enemies; every N messages spawns a big boss. Kick gifts (50/100) spawn extra monsters. If the streamer dies, chat heroes are shown.",
+  },
+];
+
 export default function WelcomeGuide() {
   const { open, closeGuide } = useGuide();
+  const { messages, locale } = useT();
+  const steps = locale === "en" ? STEPS_EN : STEPS;
   const [step, setStep] = useState(0);
-  const current = STEPS[step]!;
+  const current = steps[step]!;
   const Icon = current.icon;
-  const last = step === STEPS.length - 1;
+  const last = step === steps.length - 1;
 
   useEffect(() => {
     if (open) setStep(0);
@@ -120,11 +181,11 @@ export default function WelcomeGuide() {
           </DialogHeader>
 
           <div className="relative mt-6 flex justify-center gap-1.5">
-            {STEPS.map((_, i) => (
+            {steps.map((_, i) => (
               <button
                 key={i}
                 type="button"
-                aria-label={`خطوة ${i + 1}`}
+                aria-label={`${messages.guide.stepAria} ${i + 1}`}
                 onClick={() => setStep(i)}
                 className={`h-1.5 rounded-full transition-all ${
                   i === step ? "w-7 bg-primary" : "w-1.5 bg-secondary hover:bg-muted-foreground/40"
@@ -134,7 +195,7 @@ export default function WelcomeGuide() {
           </div>
 
           <p className="relative mt-3 text-center text-xs font-bold text-muted-foreground">
-            {step + 1} / {STEPS.length}
+            {step + 1} / {steps.length}
           </p>
 
           <div className="relative mt-6 flex flex-wrap items-center justify-between gap-2">
@@ -144,20 +205,20 @@ export default function WelcomeGuide() {
               className="text-muted-foreground"
               onClick={finish}
             >
-              تخطّي
+              {messages.guide.skip}
             </Button>
 
             <div className="flex gap-2">
               {step > 0 ? (
                 <Button type="button" variant="outline" onClick={() => setStep((s) => s - 1)}>
-                  السابق
+                  {messages.guide.prev}
                 </Button>
               ) : null}
 
               {last ? (
                 <Button asChild className="font-extrabold">
                   <Link to="/connect" onClick={finish}>
-                    ابدأ الربط
+                    {messages.guide.startConnect}
                   </Link>
                 </Button>
               ) : (
@@ -166,7 +227,7 @@ export default function WelcomeGuide() {
                   className="font-extrabold"
                   onClick={() => setStep((s) => s + 1)}
                 >
-                  التالي
+                  {messages.guide.next}
                 </Button>
               )}
             </div>

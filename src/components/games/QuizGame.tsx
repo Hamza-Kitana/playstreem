@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Brain, Clock, ListChecks, Plus, Sparkles, Trash2 } from "lucide-react";
+import { useT } from "@/contexts/LocaleContext";
 import type { ChatMessage } from "@/hooks/useKickChat";
-import { DURATION_OPTIONS } from "@/hooks/useGameSession";
+import { useDurationOptions } from "@/hooks/useDurationOptions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,7 +15,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  QUIZ_BANK,
   QUESTION_COUNT_OPTIONS,
   clampQuestionCount,
   loadQuizPack,
@@ -22,6 +22,7 @@ import {
   saveQuizPack,
   type QuizQuestion,
 } from "@/lib/quiz-pack";
+import { getQuizBank } from "@/lib/locale-banks";
 import QuizOverlayStage from "@/components/games/QuizOverlayStage";
 import GameStage, { type Phase } from "@/components/games/GameStage";
 import SelectField from "@/components/games/SelectField";
@@ -30,12 +31,18 @@ const ACCENT = "#8b5cf6";
 const GLOW = "#c084fc";
 
 export default function QuizGame({
-  messages,
+  messages: chatMessages,
   chatActive,
 }: {
   messages: ChatMessage[];
   chatActive: boolean;
 }) {
+  const { messages, locale } = useT();
+  const { options: durationOptions } = useDurationOptions();
+  const g = messages.games.quiz;
+  const c = messages.common;
+  const quizBank = useMemo(() => getQuizBank(locale), [locale]);
+
   const pack = loadQuizPack();
   const [phase, setPhase] = useState<Phase>("setup");
   const [customs, setCustoms] = useState<QuizQuestion[]>([]);
@@ -56,8 +63,8 @@ export default function QuizGame({
     });
   }, [durationSec, questionCount]);
 
-  const bankPlusCustom = [...QUIZ_BANK, ...customs];
-  const totalLibrary = QUIZ_BANK.length + customs.length;
+  const bankPlusCustom = [...quizBank, ...customs];
+  const totalLibrary = quizBank.length + customs.length;
 
   const addQuestion = () => {
     if (!draftQ.trim() || !draftA.trim()) return;
@@ -88,7 +95,7 @@ export default function QuizGame({
   };
 
   const durationLabel =
-    DURATION_OPTIONS.find((o) => o.value === durationSec)?.label ?? `${durationSec} ث`;
+    durationOptions.find((o) => o.value === durationSec)?.label ?? `${durationSec}s`;
 
   return (
     <>
@@ -97,12 +104,12 @@ export default function QuizGame({
         accent={ACCENT}
         glow={GLOW}
         icon={<Brain />}
-        title="أسئلة وأجوبة"
-        description={`مكتبة ${QUIZ_BANK.length} سؤال. اختر عدد الأسئلة والمدة، وبعد آخر سؤال تطلع النتيجة النهائية بدون تكرار.`}
+        title={g.title}
+        description={g.desc}
         chatActive={chatActive}
         canStart={questionCount >= 10}
-        setupCtaLabel={questionCount >= 10 ? "التالي · جهّز الجلسة" : "اختر 10 أسئلة على الأقل"}
-        startLabel={`ابدأ الجلسة (${questionCount} سؤال)`}
+        setupCtaLabel={questionCount >= 10 ? g.setupCta : g.questionCount}
+        startLabel={g.start}
         onGoReady={() => {
           if (questionCount >= 10) setPhase("ready");
         }}
@@ -112,23 +119,23 @@ export default function QuizGame({
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <SelectField
-                label="عدد الأسئلة"
+                label={g.questionCount}
                 icon={<ListChecks className="size-4" />}
                 accent={ACCENT}
                 value={String(questionCount)}
                 onChange={(v) => setQuestionCount(clampQuestionCount(Number(v)))}
                 options={QUESTION_COUNT_OPTIONS.map((n) => ({
                   value: String(n),
-                  label: `${n} سؤال`,
+                  label: String(n),
                 }))}
               />
               <SelectField
-                label="مدة كل سؤال"
+                label={g.questionDuration}
                 icon={<Clock className="size-4" />}
                 accent={ACCENT}
                 value={String(durationSec)}
                 onChange={(v) => setDurationSec(Number(v))}
-                options={DURATION_OPTIONS.map((o) => ({
+                options={durationOptions.map((o) => ({
                   value: String(o.value),
                   label: o.label,
                 }))}
@@ -138,21 +145,21 @@ export default function QuizGame({
             <div className="grid grid-cols-3 gap-2.5">
               <StatBadge
                 icon={<ListChecks className="size-4" />}
-                label="الجلسة"
+                label={c.round}
                 value={String(questionCount)}
                 accent={ACCENT}
                 glow={GLOW}
               />
               <StatBadge
                 icon={<Clock className="size-4" />}
-                label="لكل سؤال"
+                label={g.questionDuration}
                 value={durationLabel}
                 accent={ACCENT}
                 glow={GLOW}
               />
               <StatBadge
                 icon={<Sparkles className="size-4" />}
-                label="بالمكتبة"
+                label={c.library}
                 value={String(totalLibrary)}
                 accent={ACCENT}
                 glow={GLOW}
@@ -185,8 +192,7 @@ export default function QuizGame({
                     <DialogHeader className="text-right">
                       <DialogTitle className="text-xl font-extrabold">أسئلة من عندك</DialogTitle>
                       <DialogDescription className="text-right">
-                        المكتبة الجاهزة {QUIZ_BANK.length} سؤال. أي سؤال تضيفه هنا ينضاف للمكتبة
-                        قبل السحب.
+                        المكتبة {quizBank.length}. {c.library}
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3 py-2">
@@ -275,7 +281,7 @@ export default function QuizGame({
         play={
           <div className="game-play-shell">
             {streamOpen ? (
-              <QuizOverlayStage messages={messages} chatActive={chatActive} variant="page" />
+              <QuizOverlayStage messages={chatMessages} chatActive={chatActive} variant="page" />
             ) : (
               <div
                 className="flex flex-1 items-center justify-center rounded-[1.25rem] border px-6 py-10 text-center"
@@ -284,14 +290,14 @@ export default function QuizGame({
                   background: `${ACCENT}0d`,
                 }}
               >
-                <p className="text-sm text-white/60">الجلسة متوقفة.</p>
+                <p className="text-sm text-white/60">{c.sessionStopped}</p>
                 <Button
                   className="mt-4 h-12 rounded-2xl px-6 font-extrabold text-white hover:brightness-110"
                   style={{ background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})` }}
                   onClick={startQuiz}
                   disabled={!chatActive}
                 >
-                  استئناف الجلسة
+                  {c.resume}
                 </Button>
               </div>
             )}

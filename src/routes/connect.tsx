@@ -4,6 +4,7 @@ import ChatFeed from "@/components/ChatFeed";
 import ConnectPanel from "@/components/ConnectPanel";
 import { Reveal, SectionHeading } from "@/components/Reveal";
 import { useKickChatContext } from "@/contexts/KickChatContext";
+import { useT } from "@/contexts/LocaleContext";
 
 type ConnectSearch = {
   channel?: string;
@@ -23,13 +24,14 @@ export const Route = createFileRoute("/connect")({
 
 function ConnectPage() {
   const chat = useKickChatContext();
+  const { messages } = useT();
 
   return (
     <section>
       <SectionHeading
-        eyebrow="الخطوة الأولى"
-        title="اربط كيك"
-        subtitle="حط رابط بثك أو اسم القناة، اربط، وبعدين روح لأي لعبة من الشريط فوق."
+        eyebrow={messages.connect.pageEyebrow}
+        title={messages.connect.pageTitle}
+        subtitle={messages.connect.pageSubtitle}
       />
 
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
@@ -59,20 +61,20 @@ function ConnectPage() {
       <div className="mt-8 grid gap-3 sm:grid-cols-3">
         <PerkCard
           icon={<Zap className="size-5" />}
-          title="ربط سريع"
-          desc="ثانية وأنت فوق. اسم القناة أو الرابط، والباقي علينا."
+          title={messages.connect.perkFast}
+          desc={messages.connect.perkFastDesc}
           accent="var(--neon)"
         />
         <PerkCard
           icon={<ShieldCheck className="size-5" />}
-          title="آمن ومستقر"
-          desc="جلستك محفوظة — لو حدثت الصفحة يرجع الربط لحالو."
+          title={messages.connect.perkSafe}
+          desc={messages.connect.perkSafeDesc}
           accent="var(--neon-2)"
         />
         <PerkCard
           icon={<Radio className="size-5" />}
-          title="بث مباشر"
-          desc="الشات يصلك لحظياً — كل رسالة تتحرك مع الألعاب."
+          title={messages.connect.perkLive}
+          desc={messages.connect.perkLiveDesc}
           accent="var(--neon-3)"
         />
       </div>
@@ -80,7 +82,7 @@ function ConnectPage() {
       <div className="mt-6 flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-center text-xs text-white/60">
         <Sparkles className="size-3.5 text-primary" />
         <span>
-          للبث المستمر من OBS استخدم{" "}
+          {messages.connect.obsHint}{" "}
           <span className="font-brand mx-1 rounded-md bg-black/40 px-2 py-0.5 text-[11px] font-bold text-primary" dir="ltr">
             /connect?channel=اسمك
           </span>

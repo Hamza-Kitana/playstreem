@@ -9,8 +9,11 @@ import {
   Square,
   Users,
 } from "lucide-react";
+import { useT } from "@/contexts/LocaleContext";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
-import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
+import { formatClock, useGameSession } from "@/hooks/useGameSession";
+import { useDurationOptions } from "@/hooks/useDurationOptions";
+import { useGameMoments } from "@/hooks/useGameMoments";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +28,6 @@ import {
 import GameStage, { type Phase } from "@/components/games/GameStage";
 import SelectField from "@/components/games/SelectField";
 import type { GameMoment } from "@/lib/game-moments";
-import { loseMoment, stoppedMoment, successMoment } from "@/lib/game-moments";
 
 const ACCENT = "#a78bfa";
 const GLOW = "#d8b4fe";
@@ -40,12 +42,18 @@ type Hit = {
 let hitSeq = 0;
 
 export default function PhraseGame({
-  messages,
+  messages: chatMessages,
   chatActive,
 }: {
   messages: ChatMessage[];
   chatActive: boolean;
 }) {
+  const { messages, dir } = useT();
+  const { options: durationOptions } = useDurationOptions();
+  const { loseMoment, stoppedMoment, successMoment } = useGameMoments();
+  const g = messages.games.phrase;
+  const c = messages.common;
+
   const [phase, setPhase] = useState<Phase>("setup");
   const [phrase, setPhrase] = useState("");
   const [hits, setHits] = useState<Hit[]>([]);
@@ -61,18 +69,18 @@ export default function PhraseGame({
       const count = hitsRef.current.length;
       setMoment(
         count > 0
-          ? successMoment("انتهت الجلسة!", `${count} من الشات خمّنوا الكلمة الصحيحة.`)
-          : loseMoment("انتهى الوقت وما أحد خمّن الكلمة."),
+          ? successMoment(g.sessionEnded, `${count} ${g.guessedCorrect}`)
+          : loseMoment(g.timeoutNoGuess),
       );
     });
     return () => session.setOnExpire(null);
-  }, [session.setOnExpire]);
+  }, [session.setOnExpire, successMoment, loseMoment, g.sessionEnded, g.guessedCorrect, g.timeoutNoGuess]);
 
   const target = useMemo(() => normalizeAr(phrase), [phrase]);
   const latest = hits[0] ?? null;
   const urgent = session.left != null && session.left <= 10;
 
-  useNewMessages(messages, session.running, (m) => {
+  useNewMessages(chatMessages, session.running, (m) => {
     const who = participantKey(m);
     if (!target) return;
     if (!who || session.hasParticipated(who)) return;
@@ -112,12 +120,12 @@ export default function PhraseGame({
       accent={ACCENT}
       glow={GLOW}
       icon={<MessageSquareQuote />}
-      title="الجملة السرّية"
-      description="اكتب كلمة سرية في نافذة خاصة — الجمهور يخمنها بالشات. أول من يصيب اسمه يطلع بهالة."
+      title={g.title}
+      description={g.desc}
       chatActive={chatActive}
       canStart={Boolean(target)}
-      setupCtaLabel={target ? "التالي · جهّز اللعبة" : "اكتب الكلمة أولاً"}
-      startLabel="ابدأ الجلسة"
+      setupCtaLabel={target ? g.setupCta : g.setupCtaNeed}
+      startLabel={g.start}
       onGoReady={() => {
         if (target) setPhase("ready");
       }}
@@ -128,12 +136,12 @@ export default function PhraseGame({
       settings={
         <div className="space-y-4">
           <SelectField
-            label="مدة الجلسة"
+            label={c.duration}
             icon={<Clock className="size-4" />}
             accent={ACCENT}
             value={String(session.durationSec)}
             onChange={(v) => session.setDurationSec(Number(v))}
-            options={DURATION_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+            options={durationOptions.map((o) => ({ value: String(o.value), label: o.label }))}
           />
 
           <button
@@ -159,12 +167,10 @@ export default function PhraseGame({
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-lg font-extrabold text-white sm:text-xl">
-                {target ? "الكلمة السرية جاهزة" : "اضغط هنا واكتب الكلمة السرية"}
+                {target ? c.secretWordReady : c.secretWordPrompt}
               </span>
               <span className="mt-1 block text-xs text-white/60 sm:text-sm">
-                {target
-                  ? "مخفية عن الشاشة — اضغط للتعديل"
-                  : "نافذة للستريمر فقط، الجمهور ما يشوف الكلمة"}
+                {target ? c.secretHidden : c.streamerOnly}
               </span>
             </span>
             {target ? (
@@ -193,12 +199,12 @@ export default function PhraseGame({
               </span>
               <div>
                 <p className="text-base font-extrabold text-white sm:text-lg">
-                  {session.running ? "جلسة شغّالة" : "جلسة متوقفة"}
+                  {session.running ? c.sessionRunning2 : c.sessionStopped}
                 </p>
                 <p className="text-sm text-white/55 sm:text-base">
                   {session.running
-                    ? `${hits.length} خمّن · ${clockLabel} متبقّي`
-                    : "اضغط استئناف عشان يبدأ الجمهور يخمّن"}
+                    ? `${hits.length} · ${clockLabel}`
+                    : c.pressResumeGuess}
                 </p>
               </div>
             </div>
@@ -209,10 +215,10 @@ export default function PhraseGame({
                 className="h-11 gap-1.5 rounded-2xl font-extrabold"
                 onClick={() => {
                   session.stop();
-                  setMoment(stoppedMoment("أوقفت الجلسة يدوياً."));
+                  setMoment(stoppedMoment(g.stoppedSession));
                 }}
               >
-                <Square className="size-4" /> إيقاف
+                <Square className="size-4" /> {c.stop}
               </Button>
             ) : (
               <Button
@@ -221,7 +227,7 @@ export default function PhraseGame({
                 onClick={start}
                 disabled={!target || !chatActive}
               >
-                استئناف
+                {c.resume}
               </Button>
             )}
           </div>
@@ -292,7 +298,7 @@ export default function PhraseGame({
                   <div className="flex flex-col items-center gap-2 py-6 text-white/50">
                     <Users className="size-8 opacity-50" />
                     <p className="text-sm font-bold">
-                      {session.running ? "بانتظار أول واحد يخمّن…" : "ابدأ الجلسة عشان تظهر الأسماء"}
+                      {session.running ? c.waitingFirstGuess : c.startToShowNames}
                     </p>
                   </div>
                 )}
@@ -361,7 +367,7 @@ export default function PhraseGame({
         if (!open) setShowWord(false);
       }}
     >
-      <DialogContent className="max-w-md border-white/12 bg-[#0d0a1e] sm:rounded-3xl" dir="rtl">
+      <DialogContent className="max-w-md border-white/12 bg-[#0d0a1e] sm:rounded-3xl" dir={dir}>
         <DialogHeader className="text-right">
           <div
             className="mx-auto mb-2 grid size-14 place-items-center rounded-2xl text-white"
@@ -383,7 +389,7 @@ export default function PhraseGame({
             autoComplete="off"
             value={phrase}
             onChange={(e) => setPhrase(e.target.value)}
-            placeholder="مثال: بيتزا"
+            placeholder={c.wordPh}
             className="h-14 border-white/15 bg-black/40 pe-12 text-center text-xl font-extrabold"
             disabled={session.running}
             onKeyDown={(e) => {
@@ -397,7 +403,7 @@ export default function PhraseGame({
             type="button"
             className="absolute top-1/2 left-3 -translate-y-1/2 rounded-lg p-1.5 text-white/60 hover:text-white"
             onClick={() => setShowWord((v) => !v)}
-            aria-label={showWord ? "إخفاء الكلمة" : "إظهار الكلمة"}
+            aria-label={showWord ? c.hideWord : c.showWord}
           >
             {showWord ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
           </button>

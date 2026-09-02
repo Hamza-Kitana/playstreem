@@ -11,28 +11,30 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+import { ChatAnalyticsProvider } from "@/contexts/ChatAnalyticsContext";
 import { KickChatProvider } from "@/contexts/KickChatContext";
 import { GuideProvider, useGuide } from "@/contexts/GuideContext";
+import { LocaleProvider, useT } from "@/contexts/LocaleContext";
 import AppShell from "@/components/AppShell";
 import BootSplash from "@/components/BootSplash";
+import LocaleHtmlSync from "@/components/LocaleHtmlSync";
 import LoadingScreen from "@/components/LoadingScreen";
 import WelcomeGuide from "@/components/WelcomeGuide";
 
 function NotFoundComponent() {
+  const { messages } = useT();
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">الصفحة غير موجودة</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          الصفحة اللي تبحث عنها غير موجودة أو تم نقلها.
-        </p>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">{messages.errors.notFoundTitle}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{messages.errors.notFoundBody}</p>
         <div className="mt-6">
           <Link
             to="/"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            العودة للرئيسية
+            {messages.errors.backHome}
           </Link>
         </div>
       </div>
@@ -43,17 +45,16 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+  const { messages } = useT();
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="glass max-w-md rounded-3xl border border-primary/20 px-8 py-10 text-center">
         <p className="font-brand text-lg font-bold text-primary">Al-Daboor</p>
         <h1 className="mt-3 text-xl font-semibold tracking-tight text-foreground">
-          الصفحة ما تحملتش
+          {messages.errors.errorTitle}
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          صار خطأ من جهتنا. جرّب التحديث أو ارجع للرئيسية.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">{messages.errors.errorBody}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
@@ -62,13 +63,13 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             }}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            حاول مرة ثانية
+            {messages.errors.retry}
           </button>
           <a
             href="/"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            العودة للرئيسية
+            {messages.errors.backHome}
           </a>
         </div>
       </div>
@@ -110,7 +111,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   }),
   shellComponent: RootShell,
   component: RootComponent,
-  pendingComponent: () => <LoadingScreen fullscreen={false} label="تحميل الصفحة…" />,
+  pendingComponent: PendingRoute,
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
 });
@@ -129,6 +130,11 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function PendingRoute() {
+  const { messages } = useT();
+  return <LoadingScreen fullscreen={false} label={messages.errors.loadingPage} />;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -136,16 +142,21 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <KickChatProvider>
-        <GuideProvider>
-          <BootWithGuide>
-            <AppShell>
-              <Outlet />
-            </AppShell>
-          </BootWithGuide>
-          {!isOverlay ? <WelcomeGuide /> : null}
-        </GuideProvider>
-      </KickChatProvider>
+      <LocaleProvider>
+        <LocaleHtmlSync />
+        <KickChatProvider>
+          <ChatAnalyticsProvider>
+            <GuideProvider>
+              <BootWithGuide>
+                <AppShell>
+                  <Outlet />
+                </AppShell>
+              </BootWithGuide>
+              {!isOverlay ? <WelcomeGuide /> : null}
+            </GuideProvider>
+          </ChatAnalyticsProvider>
+        </KickChatProvider>
+      </LocaleProvider>
     </QueryClientProvider>
   );
 }

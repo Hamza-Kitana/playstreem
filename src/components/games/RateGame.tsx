@@ -9,27 +9,35 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
+import { useT } from "@/contexts/LocaleContext";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
-import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
+import { formatClock, useGameSession } from "@/hooks/useGameSession";
+import { useDurationOptions } from "@/hooks/useDurationOptions";
+import { useGameMoments } from "@/hooks/useGameMoments";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import GameStage, { type Phase } from "@/components/games/GameStage";
 import SelectField from "@/components/games/SelectField";
 import type { GameMoment } from "@/lib/game-moments";
-import { stoppedMoment, successMoment } from "@/lib/game-moments";
 
 const RATE_SETUP_STORAGE_KEY = "rate-game-setup-v1";
 const ACCENT = "#facc15";
 const GLOW = "#fde047";
 
 export default function RateGame({
-  messages,
+  messages: chatMessages,
   chatActive,
 }: {
   messages: ChatMessage[];
   chatActive: boolean;
 }) {
+  const { messages } = useT();
+  const { options: durationOptions } = useDurationOptions();
+  const { stoppedMoment, successMoment } = useGameMoments();
+  const g = messages.games.rate;
+  const c = messages.common;
+
   const [phase, setPhase] = useState<Phase>("setup");
   const [criterionInput, setCriterionInput] = useState("");
   const [personInput, setPersonInput] = useState("");
@@ -151,15 +159,15 @@ export default function RateGame({
       const { person, criterion } = selectionRef.current;
       setMoment(
         successMoment(
-          "انتهت الجولة!",
-          person && criterion ? `${person} · ${criterion} — تم اعتماد التقييم.` : "تم اعتماد تقييمات الجولة.",
+          g.roundEnded,
+          person && criterion ? `${person} · ${criterion}` : g.roundEndedSub,
         ),
       );
     });
     return () => session.setOnExpire(null);
-  }, [commitRound, session.setOnExpire]);
+  }, [commitRound, session.setOnExpire, successMoment, g.roundEnded, g.roundEndedSub]);
 
-  useNewMessages(messages, session.running, (m) => {
+  useNewMessages(chatMessages, session.running, (m) => {
     const who = participantKey(m);
     if (!who) return;
     if (session.hasParticipated(who)) return;
@@ -190,7 +198,7 @@ export default function RateGame({
   const stopRound = () => {
     commitRound();
     session.stop();
-    setMoment(stoppedMoment("أوقفت الجولة واعتمدت التقييمات الحالية."));
+    setMoment(stoppedMoment(g.stoppedSub));
   };
 
   const startTournament = () => {
@@ -247,12 +255,12 @@ export default function RateGame({
       accent={ACCENT}
       glow={GLOW}
       icon={<Star />}
-      title="بطولة التقييم"
-      description="ضيف الأشخاص والتصنيفات — الجمهور يعطي رقم من 0-10 من الشات، ويتحدد الفائز بالمتوسط."
+      title={g.title}
+      description={g.desc}
       chatActive={chatActive}
       canStart={canStart}
-      setupCtaLabel={canStart ? "التالي · جهّز البطولة" : "ضيف تصنيف وشخص أولاً"}
-      startLabel="ابدأ البطولة"
+      setupCtaLabel={canStart ? g.setupCta : g.setupCtaNeed}
+      startLabel={g.start}
       onGoReady={() => {
         if (canStart) setPhase("ready");
       }}
@@ -263,7 +271,7 @@ export default function RateGame({
       settings={
         <div className="grid gap-4 md:grid-cols-2">
           <ListEditor
-            title="التصنيفات"
+            title={c.criteria}
             icon={<Target className="size-4" />}
             accent={ACCENT}
             glow={GLOW}
@@ -272,10 +280,10 @@ export default function RateGame({
             onInput={setCriterionInput}
             onAdd={addCriterion}
             onRemove={(v) => setCriteria((prev) => prev.filter((x) => x !== v))}
-            placeholder="مثال: القوة"
+            placeholder={c.criteriaPh}
           />
           <ListEditor
-            title="الأشخاص"
+            title={c.people}
             icon={<Users className="size-4" />}
             accent={ACCENT}
             glow={GLOW}
@@ -284,16 +292,16 @@ export default function RateGame({
             onInput={setPersonInput}
             onAdd={addPerson}
             onRemove={(v) => setPeople((prev) => prev.filter((x) => x !== v))}
-            placeholder="مثال: محمد"
+            placeholder={c.peoplePh}
           />
           <div className="md:col-span-2">
             <SelectField
-              label="مدة الجولة"
+              label={c.roundDuration}
               icon={<Clock className="size-4" />}
               accent={ACCENT}
               value={String(session.durationSec)}
               onChange={(v) => session.setDurationSec(Number(v))}
-              options={DURATION_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+              options={durationOptions.map((o) => ({ value: String(o.value), label: o.label }))}
             />
           </div>
         </div>
@@ -314,10 +322,10 @@ export default function RateGame({
               </span>
               <div>
                 <p className="text-base font-extrabold text-white sm:text-lg">
-                  {session.running ? `جولة: ${selectedPerson} · ${selectedCriterion}` : "بطولة تقييم"}
+                  {session.running ? `${c.roundLabel}: ${selectedPerson} · ${selectedCriterion}` : c.championship}
                 </p>
                 <p className="text-sm text-white/55 sm:text-base">
-                  التقدم: {progressDone} / {progressTotal || 0} جولة
+                  {progressDone} / {progressTotal || 0} {c.roundLabel}
                 </p>
               </div>
             </div>
@@ -337,7 +345,7 @@ export default function RateGame({
                 disabled={roundResults.length === 0}
                 onClick={() => setShowFinalResults((v) => !v)}
               >
-                <Medal className="size-4" /> النتيجة النهائية
+                <Medal className="size-4" /> {c.finalResult}
               </Button>
             </div>
           </div>
@@ -440,7 +448,7 @@ export default function RateGame({
                 className="shrink-0 text-xs font-extrabold tracking-[0.28em] uppercase text-center sm:text-sm"
                 style={{ color: GLOW }}
               >
-                {session.running ? "الجولة الحالية" : "متوسط الجولة"}
+                {session.running ? c.currentRound : c.roundAverage}
               </p>
               <p className="mt-2 shrink-0 text-center text-base font-extrabold text-white sm:text-lg">
                 {selectedPerson && selectedCriterion
@@ -485,7 +493,7 @@ export default function RateGame({
 
               <div className="mt-4 flex flex-wrap justify-between gap-2 text-xs">
                 <span className="text-white/55">
-                  {session.running ? `متبقّي ${clockLabel}` : "بانتظار جولة"}
+                  {session.running ? clockLabel : c.waitingRound}
                 </span>
                 {session.running ? (
                   <Button
@@ -494,7 +502,7 @@ export default function RateGame({
                     className="rounded-lg font-extrabold"
                     onClick={stopRound}
                   >
-                    <Square className="size-3.5" /> إيقاف واعتماد
+                    <Square className="size-3.5" /> {c.stop}
                   </Button>
                 ) : null}
               </div>
@@ -506,7 +514,7 @@ export default function RateGame({
               className="rounded-3xl border p-6"
               style={{ borderColor: `${ACCENT}44`, background: `${ACCENT}0d` }}
             >
-              <h4 className="mb-4 text-lg font-extrabold text-white">النتائج النهائية</h4>
+              <h4 className="mb-4 text-lg font-extrabold text-white">{c.finalResult}</h4>
               {ranking.length === 0 ? (
                 <p className="text-sm text-white/55">لا توجد نتائج كافية للعرض.</p>
               ) : (

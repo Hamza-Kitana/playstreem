@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { BarChart3, Clock, Plus, Square, Trash2 } from "lucide-react";
+import { useT } from "@/contexts/LocaleContext";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
-import { DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
+import { formatClock, useGameSession } from "@/hooks/useGameSession";
+import { useDurationOptions } from "@/hooks/useDurationOptions";
+import { useGameMoments } from "@/hooks/useGameMoments";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
 import type { GameMoment } from "@/lib/game-moments";
-import { stoppedMoment, timeoutMoment } from "@/lib/game-moments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import GameStage, { type Phase } from "@/components/games/GameStage";
@@ -42,35 +44,41 @@ function resolveVoteIndex(raw: string, options: string[]): number {
 }
 
 export default function PollGame({
-  messages,
+  messages: chatMessages,
   chatActive,
 }: {
   messages: ChatMessage[];
   chatActive: boolean;
 }) {
+  const { messages } = useT();
+  const { options: durationOptions } = useDurationOptions();
+  const { timeoutMoment, stoppedMoment } = useGameMoments();
+  const g = messages.games.poll;
+  const c = messages.common;
+
   const [phase, setPhase] = useState<Phase>("setup");
-  const [options, setOptions] = useState<string[]>(["نعم", "لا", "ما بعرف"]);
+  const [options, setOptions] = useState<string[]>([c.yes, c.no, c.dontKnow]);
   const [draft, setDraft] = useState("");
-  const [question, setQuestion] = useState("هل نكمل التحدي؟");
+  const [question, setQuestion] = useState(c.defaultPollQ);
   const [votes, setVotes] = useState<number[]>([0, 0, 0]);
   const [moment, setMoment] = useState<GameMoment | null>(null);
   const session = useGameSession(60);
 
   useEffect(() => {
     session.setOnExpire(() => {
-      setMoment(timeoutMoment("انتهى وقت التصويت — النتائج ظاهرة على الشاشة."));
+      setMoment(timeoutMoment(c.voteTimeout));
     });
     return () => session.setOnExpire(null);
-  }, [session.setOnExpire]);
+  }, [session.setOnExpire, timeoutMoment, c.voteTimeout]);
 
-  useNewMessages(messages, session.running, (m) => {
+  useNewMessages(chatMessages, session.running, (m) => {
     const who = participantKey(m);
     if (!who) return;
     if (session.hasParticipated(who)) return;
     const idx = resolveVoteIndex(m.text, options);
     if (idx < 0) return;
     if (!session.tryClaim(who)) return;
-    setVotes((v) => v.map((c, i) => (i === idx ? c + 1 : c)));
+    setVotes((v) => v.map((count, i) => (i === idx ? count + 1 : count)));
   });
 
   const total = votes.reduce((a, b) => a + b, 0);
@@ -102,12 +110,12 @@ export default function PollGame({
       accent={ACCENT}
       glow={GLOW}
       icon={<BarChart3 />}
-      title="التصويت"
-      description="اطرح سؤال وخيارات — الجمهور يصوّت من الشات بالرقم أو نص الخيار. صوت واحد لكل مشاهد."
+      title={g.title}
+      description={g.desc}
       chatActive={chatActive}
       canStart={options.length >= 2 && question.trim().length > 0}
-      setupCtaLabel="التالي · جهّز اللعبة"
-      startLabel="ابدأ التصويت"
+      setupCtaLabel={g.setupCta}
+      startLabel={g.start}
       onGoReady={() => setPhase("ready")}
       onStart={start}
       onBackToSetup={backToSetup}
@@ -117,30 +125,30 @@ export default function PollGame({
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <SelectField
-              label="مدة التصويت"
+              label={c.voteDuration}
               icon={<Clock className="size-4" />}
               accent={ACCENT}
               value={String(session.durationSec)}
               onChange={(v) => session.setDurationSec(Number(v))}
-              options={DURATION_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+              options={durationOptions.map((o) => ({ value: String(o.value), label: o.label }))}
             />
             <label className="block">
               <span className="mb-2 flex items-center gap-1.5 text-[11px] font-extrabold tracking-wider text-white/60 uppercase">
                 <BarChart3 className="size-3.5" style={{ color: ACCENT }} />
-                السؤال
+                {c.voteQuestion}
               </span>
               <Input
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 className="h-12 rounded-2xl border-white/12 bg-black/30 text-base font-bold"
-                placeholder="سؤال التصويت"
+                placeholder={c.voteQuestion}
               />
             </label>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
             <p className="mb-3 text-[11px] font-extrabold tracking-wider text-white/60 uppercase">
-              الخيارات ({options.length})
+              {c.voteQuestion} ({options.length})
             </p>
             <ul className="space-y-2">
               {options.map((opt, i) => (
@@ -181,7 +189,7 @@ export default function PollGame({
               <Input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder="أضف خياراً جديداً…"
+                placeholder={c.addOption}
                 className="h-10 flex-1 rounded-xl border-white/10 bg-black/25"
                 onKeyDown={(e) => {
                   if (e.key !== "Enter" || !draft.trim()) return;
@@ -201,7 +209,7 @@ export default function PollGame({
                   setDraft("");
                 }}
               >
-                <Plus className="size-4" /> إضافة
+                <Plus className="size-4" />
               </Button>
             </div>
           </div>
@@ -222,12 +230,12 @@ export default function PollGame({
               </span>
               <div>
                 <p className="text-base font-extrabold text-white sm:text-lg">
-                  {session.running ? "تصويت شغّال" : "تصويت متوقّف"}
+                  {session.running ? c.voteRunning : c.voteStopped}
                 </p>
                 <p className="text-sm text-white/55 sm:text-base">
                   {session.running
-                    ? `${total} صوت · ${clockLabel} متبقّي`
-                    : `${total} صوت مسجّل`}
+                    ? `${total} · ${clockLabel}`
+                    : `${total}`}
                 </p>
               </div>
             </div>
@@ -238,10 +246,10 @@ export default function PollGame({
                 className="h-11 gap-1.5 rounded-2xl font-extrabold"
                 onClick={() => {
                   session.stop();
-                  setMoment(stoppedMoment("أوقفت التصويت — النتائج محفوظة."));
+                  setMoment(stoppedMoment(c.voteStoppedMsg));
                 }}
               >
-                <Square className="size-4" /> إيقاف
+                <Square className="size-4" /> {c.stop}
               </Button>
             ) : (
               <Button
@@ -250,7 +258,7 @@ export default function PollGame({
                 onClick={start}
                 disabled={!chatActive}
               >
-                استئناف
+                {c.resume}
               </Button>
             )}
           </div>
@@ -267,7 +275,7 @@ export default function PollGame({
                 className="text-xs font-extrabold tracking-[0.28em] uppercase sm:text-sm"
                 style={{ color: GLOW }}
               >
-                السؤال
+                {c.voteQuestion}
               </p>
               <h3 className="font-brand mt-2 text-2xl font-bold text-white sm:text-4xl">
                 {question}
@@ -327,9 +335,7 @@ export default function PollGame({
             </div>
 
             <p className="mt-4 text-center text-sm font-bold text-white/60">
-              المشاهد يكتب <span className="text-white">نص الخيار</span> أو{" "}
-              <span className="text-white">رقمه</span> في الشات · مجموع الأصوات:{" "}
-              <span className="tabular-nums text-white">{total}</span>
+              {c.oneVoteHint}
             </p>
           </div>
         </div>

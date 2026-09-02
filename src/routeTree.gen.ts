@@ -14,11 +14,15 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as ConnectRouteImport } from './routes/connect'
 import { Route as ContactRouteImport } from './routes/contact'
+import { Route as DrawRouteImport } from './routes/draw'
 import { Route as FlagRouteImport } from './routes/flag'
+import { Route as FootballRouteImport } from './routes/football'
+import { Route as MovieRouteImport } from './routes/movie'
 import { Route as PhraseRouteImport } from './routes/phrase'
 import { Route as QuizRouteImport } from './routes/quiz'
 import { Route as RateRouteImport } from './routes/rate'
 import { Route as RiddleRouteImport } from './routes/riddle'
+import { Route as RouletteRouteImport } from './routes/roulette'
 import { Route as SeatRouteImport } from './routes/seat'
 import { Route as StreamersRouteImport } from './routes/streamers'
 import { Route as VoteRouteImport } from './routes/vote'
@@ -50,9 +54,24 @@ const ContactRoute = ContactRouteImport.update({
   path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DrawRoute = DrawRouteImport.update({
+  id: '/draw',
+  path: '/draw',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FlagRoute = FlagRouteImport.update({
   id: '/flag',
   path: '/flag',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FootballRoute = FootballRouteImport.update({
+  id: '/football',
+  path: '/football',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MovieRoute = MovieRouteImport.update({
+  id: '/movie',
+  path: '/movie',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PhraseRoute = PhraseRouteImport.update({
@@ -73,6 +92,11 @@ const RateRoute = RateRouteImport.update({
 const RiddleRoute = RiddleRouteImport.update({
   id: '/riddle',
   path: '/riddle',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RouletteRoute = RouletteRouteImport.update({
+  id: '/roulette',
+  path: '/roulette',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SeatRoute = SeatRouteImport.update({
@@ -107,11 +131,15 @@ export interface FileRoutesByFullPath {
   '/chat': typeof ChatRoute
   '/connect': typeof ConnectRoute
   '/contact': typeof ContactRoute
+  '/draw': typeof DrawRoute
   '/flag': typeof FlagRoute
+  '/football': typeof FootballRoute
+  '/movie': typeof MovieRoute
   '/phrase': typeof PhraseRoute
   '/quiz': typeof QuizRouteWithChildren
   '/rate': typeof RateRoute
   '/riddle': typeof RiddleRoute
+  '/roulette': typeof RouletteRoute
   '/seat': typeof SeatRoute
   '/streamers': typeof StreamersRoute
   '/vote': typeof VoteRoute
@@ -124,11 +152,15 @@ export interface FileRoutesByTo {
   '/chat': typeof ChatRoute
   '/connect': typeof ConnectRoute
   '/contact': typeof ContactRoute
+  '/draw': typeof DrawRoute
   '/flag': typeof FlagRoute
+  '/football': typeof FootballRoute
+  '/movie': typeof MovieRoute
   '/phrase': typeof PhraseRoute
   '/quiz': typeof QuizRouteWithChildren
   '/rate': typeof RateRoute
   '/riddle': typeof RiddleRoute
+  '/roulette': typeof RouletteRoute
   '/seat': typeof SeatRoute
   '/streamers': typeof StreamersRoute
   '/vote': typeof VoteRoute
@@ -142,11 +174,15 @@ export interface FileRoutesById {
   '/chat': typeof ChatRoute
   '/connect': typeof ConnectRoute
   '/contact': typeof ContactRoute
+  '/draw': typeof DrawRoute
   '/flag': typeof FlagRoute
+  '/football': typeof FootballRoute
+  '/movie': typeof MovieRoute
   '/phrase': typeof PhraseRoute
   '/quiz': typeof QuizRouteWithChildren
   '/rate': typeof RateRoute
   '/riddle': typeof RiddleRoute
+  '/roulette': typeof RouletteRoute
   '/seat': typeof SeatRoute
   '/streamers': typeof StreamersRoute
   '/vote': typeof VoteRoute
@@ -161,11 +197,15 @@ export interface FileRouteTypes {
     | '/chat'
     | '/connect'
     | '/contact'
+    | '/draw'
     | '/flag'
+    | '/football'
+    | '/movie'
     | '/phrase'
     | '/quiz'
     | '/rate'
     | '/riddle'
+    | '/roulette'
     | '/seat'
     | '/streamers'
     | '/vote'
@@ -178,11 +218,15 @@ export interface FileRouteTypes {
     | '/chat'
     | '/connect'
     | '/contact'
+    | '/draw'
     | '/flag'
+    | '/football'
+    | '/movie'
     | '/phrase'
     | '/quiz'
     | '/rate'
     | '/riddle'
+    | '/roulette'
     | '/seat'
     | '/streamers'
     | '/vote'
@@ -195,11 +239,15 @@ export interface FileRouteTypes {
     | '/chat'
     | '/connect'
     | '/contact'
+    | '/draw'
     | '/flag'
+    | '/football'
+    | '/movie'
     | '/phrase'
     | '/quiz'
     | '/rate'
     | '/riddle'
+    | '/roulette'
     | '/seat'
     | '/streamers'
     | '/vote'
@@ -213,11 +261,15 @@ export interface RootRouteChildren {
   ChatRoute: typeof ChatRoute
   ConnectRoute: typeof ConnectRoute
   ContactRoute: typeof ContactRoute
+  DrawRoute: typeof DrawRoute
   FlagRoute: typeof FlagRoute
+  FootballRoute: typeof FootballRoute
+  MovieRoute: typeof MovieRoute
   PhraseRoute: typeof PhraseRoute
   QuizRoute: typeof QuizRouteWithChildren
   RateRoute: typeof RateRoute
   RiddleRoute: typeof RiddleRoute
+  RouletteRoute: typeof RouletteRoute
   SeatRoute: typeof SeatRoute
   StreamersRoute: typeof StreamersRoute
   VoteRoute: typeof VoteRoute
@@ -261,11 +313,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/draw': {
+      id: '/draw'
+      path: '/draw'
+      fullPath: '/draw'
+      preLoaderRoute: typeof DrawRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/flag': {
       id: '/flag'
       path: '/flag'
       fullPath: '/flag'
       preLoaderRoute: typeof FlagRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/football': {
+      id: '/football'
+      path: '/football'
+      fullPath: '/football'
+      preLoaderRoute: typeof FootballRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/movie': {
+      id: '/movie'
+      path: '/movie'
+      fullPath: '/movie'
+      preLoaderRoute: typeof MovieRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/phrase': {
@@ -294,6 +367,13 @@ declare module '@tanstack/react-router' {
       path: '/riddle'
       fullPath: '/riddle'
       preLoaderRoute: typeof RiddleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/roulette': {
+      id: '/roulette'
+      path: '/roulette'
+      fullPath: '/roulette'
+      preLoaderRoute: typeof RouletteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/seat': {
@@ -350,11 +430,15 @@ const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRoute,
   ConnectRoute: ConnectRoute,
   ContactRoute: ContactRoute,
+  DrawRoute: DrawRoute,
   FlagRoute: FlagRoute,
+  FootballRoute: FootballRoute,
+  MovieRoute: MovieRoute,
   PhraseRoute: PhraseRoute,
   QuizRoute: QuizRouteWithChildren,
   RateRoute: RateRoute,
   RiddleRoute: RiddleRoute,
+  RouletteRoute: RouletteRoute,
   SeatRoute: SeatRoute,
   StreamersRoute: StreamersRoute,
   VoteRoute: VoteRoute,

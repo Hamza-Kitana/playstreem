@@ -5,11 +5,12 @@ import Background3D from "@/components/Background3D";
 import AppHeader from "@/components/AppHeader";
 import ChatFeed from "@/components/ChatFeed";
 import { useKickChatContext } from "@/contexts/KickChatContext";
+import { useT } from "@/contexts/LocaleContext";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const FULL_BLEED = new Set(["/about", "/contact", "/streamers", "/chat"]);
-const GAME_ROUTES = new Set(["/quiz", "/seat", "/vote", "/rate", "/phrase", "/flag", "/riddle", "/zombie"]);
+const GAME_ROUTES = new Set(["/quiz", "/seat", "/vote", "/rate", "/phrase", "/flag", "/riddle", "/zombie", "/roulette", "/football", "/draw", "/movie"]);
 const CHAT_OPEN_KEY = "al-daboor-side-chat-open";
 
 function loadChatOpenPreference() {
@@ -31,6 +32,7 @@ function saveChatOpenPreference(open: boolean) {
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const chat = useKickChatContext();
+  const { messages } = useT();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const chatActive = chat.status === "live";
   const isHome = pathname === "/";
@@ -101,7 +103,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <p className="font-brand text-lg font-bold">
               <span className="shimmer-text">Al-Daboor</span>
             </p>
-            <p className="text-sm text-white/55">ألعاب يقودها الشات على كيك</p>
+            <p className="text-sm text-white/55">{messages.footer.tagline}</p>
           </div>
         </footer>
       ) : null}
@@ -125,12 +127,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
             {chatOpen ? (
               <>
                 <ChevronDown className="size-3.5" />
-                إخفاء الشات
+                {messages.common.hideChat}
               </>
             ) : (
               <>
                 <MessageSquareText className="size-3.5" />
-                إظهار الشات
+                {messages.common.showChat}
               </>
             )}
           </Button>

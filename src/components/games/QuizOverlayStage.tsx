@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Crown, Play, RotateCcw, Square, Trophy } from "lucide-react";
+import { useT } from "@/contexts/LocaleContext";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
 import { formatClock, useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
@@ -32,7 +33,7 @@ function answersMatch(guess: string, answerKey: string) {
 }
 
 export default function QuizOverlayStage({
-  messages,
+  messages: chatMessages,
   chatActive,
   variant = "page",
 }: {
@@ -40,6 +41,8 @@ export default function QuizOverlayStage({
   chatActive: boolean;
   variant?: "page" | "modal";
 }) {
+  const { messages, dir } = useT();
+  const c = messages.common;
   const isModal = variant === "modal";
   const initial = loadQuizPack();
   const [list, setList] = useState<QuizQuestion[]>(initial.questions);
@@ -111,7 +114,7 @@ export default function QuizOverlayStage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.setOnExpire, finished, index]);
 
-  useNewMessages(messages, session.running && !finished && !reveal, (m) => {
+  useNewMessages(chatMessages, session.running && !finished && !reveal, (m) => {
     const who = participantKey(m);
     if (!answerKey || settled.current || !who) return;
     if (session.hasParticipated(who)) return;
@@ -234,7 +237,7 @@ export default function QuizOverlayStage({
               className="h-14 w-full text-base font-extrabold shadow-[0_0_36px_-10px_var(--neon)]"
               onClick={() => setFinalOpen(true)}
             >
-              <Trophy className="size-5" /> عرض النتيجة النهائية
+              <Trophy className="size-5" /> {c.finalResult}
             </Button>
           ) : reveal ? (
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -248,11 +251,11 @@ export default function QuizOverlayStage({
                   nextAndStart();
                 }}
               >
-                {hasNext ? "السؤال التالي وابدأ" : "النتيجة النهائية"}
+                {hasNext ? c.questionNextStart : c.finalResult}
               </Button>
               {hasNext ? (
                 <Button variant="outline" className="h-14 font-bold" onClick={next}>
-                  التالي فقط
+                  {c.next}
                 </Button>
               ) : null}
             </div>
@@ -262,7 +265,7 @@ export default function QuizOverlayStage({
               className="h-14 w-full text-base font-extrabold"
               onClick={() => endRound("stopped")}
             >
-              <Square className="size-5" /> إيقاف وإظهار الجواب
+              <Square className="size-5" /> {c.stop}
             </Button>
           ) : (
             <Button
@@ -270,20 +273,20 @@ export default function QuizOverlayStage({
               disabled={!chatActive || !current}
               onClick={start}
             >
-              <Play className="size-6 fill-current" /> بدء
+              <Play className="size-6 fill-current" /> {c.startBtn}
             </Button>
           )}
           <p className="mt-2 text-center text-[11px] text-muted-foreground">
             المدة تتحدد من برّا النافذة · حالياً{" "}
             <span className="font-bold text-foreground">
-              {durationSec > 0 ? formatClock(durationSec) : "بدون حد"}
+              {durationSec > 0 ? formatClock(durationSec) : c.unlimited}
             </span>
           </p>
         </div>
 
         {!chatActive ? (
           <p className="bg-destructive/15 px-3 py-2 text-center text-xs font-bold text-destructive">
-            اربط كيك عشان الشات يشتغل داخل النافذة.
+            {c.connectKick}
           </p>
         ) : null}
 
@@ -322,7 +325,7 @@ export default function QuizOverlayStage({
               )}
             >
               <p className="text-xs font-bold tracking-[0.3em] text-muted-foreground uppercase sm:text-sm">
-                {reveal ? "انتهى السؤال" : "العداد"}
+                {reveal ? c.questionEnded : c.timer}
               </p>
               <p
                 className={cn(
@@ -342,13 +345,13 @@ export default function QuizOverlayStage({
               <p className="mt-1 text-sm font-bold text-muted-foreground sm:text-base">
                 {reveal
                   ? reveal.reason === "winner"
-                    ? "أول جواب صحيح من الشات"
+                    ? c.firstCorrect
                     : reveal.reason === "timeout"
-                      ? "خلص الوقت بدون جواب صحيح"
-                      : "تم إيقاف السؤال يدوياً"
+                      ? c.timeoutNoCorrect
+                      : c.stoppedManualQ
                   : session.running
-                    ? `محاولات ${attempts} · مشاركون ${session.participantCount}`
-                    : "نافذة البث جاهزة"}
+                    ? `${attempts} · ${session.participantCount}`
+                    : c.broadcastReady}
               </p>
             </div>
 
@@ -378,7 +381,7 @@ export default function QuizOverlayStage({
                     </div>
                   ) : (
                     <p className="text-lg font-extrabold text-amber-200/90">
-                      {reveal.reason === "timeout" ? "انتهى الوقت" : "ما في جواب صحيح"}
+                      {reveal.reason === "timeout" ? c.timeUp : c.noCorrectAnswer}
                     </p>
                   )}
 
@@ -401,7 +404,7 @@ export default function QuizOverlayStage({
                     سؤال {list.length ? index + 1 : 0} / {list.length}
                   </p>
                   <h1 className="relative mt-4 text-balance text-3xl font-extrabold leading-snug sm:text-4xl lg:text-5xl">
-                    {current?.q ?? "لا يوجد سؤال"}
+                    {current?.q ?? c.noQuestion}
                   </h1>
                   <p className="relative mt-4 text-base text-muted-foreground sm:text-lg">الجمهور يكتب الجواب في الشات</p>
                   <Button
@@ -411,7 +414,7 @@ export default function QuizOverlayStage({
                     onClick={next}
                     disabled={list.length < 1}
                   >
-                    <RotateCcw className="size-3.5" /> {hasNext ? "السؤال التالي" : "إنهاء وإظهار النتيجة"}
+                    <RotateCcw className="size-3.5" /> {hasNext ? c.questionNext : c.finishShowResult}
                   </Button>
                 </>
               )}
@@ -450,12 +453,12 @@ export default function QuizOverlayStage({
       </div>
 
       <Dialog open={finalOpen} onOpenChange={setFinalOpen}>
-        <DialogContent className="max-w-md border-primary/40 bg-[#0c1513] sm:rounded-2xl" dir="rtl">
+        <DialogContent className="max-w-md border-primary/40 bg-[#0c1513] sm:rounded-2xl" dir={dir}>
           <DialogHeader className="text-center sm:text-center">
             <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-primary/15 text-primary">
               <Trophy className="size-7" />
             </div>
-            <DialogTitle className="text-xl font-extrabold">النتيجة النهائية</DialogTitle>
+            <DialogTitle className="text-xl font-extrabold">{c.finalResult}</DialogTitle>
             <DialogDescription>
               بعد {list.length} سؤال — بدون إعادة للأسئلة
             </DialogDescription>
@@ -491,7 +494,7 @@ export default function QuizOverlayStage({
           ) : null}
           <DialogFooter>
             <Button className="w-full font-extrabold" onClick={() => setFinalOpen(false)}>
-              إغلاق
+              {c.ok}
             </Button>
           </DialogFooter>
         </DialogContent>

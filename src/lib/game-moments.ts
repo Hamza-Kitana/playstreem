@@ -1,3 +1,6 @@
+import { getMessages } from "@/i18n";
+import type { Locale } from "@/i18n/types";
+
 export type GameMomentKind = "timeout" | "win" | "lose" | "stopped" | "success";
 
 export type GameMoment = {
@@ -12,49 +15,68 @@ export type GameMoment = {
   onSecondary?: () => void;
 };
 
-export function timeoutMoment(subtitle?: string): GameMoment {
+export function createGameMoments(locale: Locale) {
+  const m = getMessages(locale);
+
   return {
-    kind: "timeout",
-    title: "انتهى الوقت!",
-    subtitle: subtitle ?? "خلص العداد — هذي نتيجة الجولة.",
-    actionLabel: "متابعة",
+    timeoutMoment(subtitle?: string) {
+      return {
+        kind: "timeout" as const,
+        title: m.moments.timeoutTitle,
+        subtitle: subtitle ?? m.moments.timeoutSub,
+        actionLabel: m.common.continue,
+      };
+    },
+    winMoment(name: string, color?: string, subtitle?: string) {
+      return {
+        kind: "win" as const,
+        title: m.moments.winTitle,
+        subtitle: subtitle ?? m.moments.winSub,
+        highlight: name,
+        highlightColor: color,
+        actionLabel: m.moments.next,
+      };
+    },
+    loseMoment(subtitle?: string) {
+      return {
+        kind: "lose" as const,
+        title: m.moments.loseTitle,
+        subtitle: subtitle ?? m.moments.loseSub,
+        actionLabel: m.common.continue,
+      };
+    },
+    stoppedMoment(subtitle?: string) {
+      return {
+        kind: "stopped" as const,
+        title: m.moments.stoppedTitle,
+        subtitle: subtitle ?? m.moments.stoppedSub,
+        actionLabel: m.common.ok,
+      };
+    },
+    successMoment(title: string, subtitle?: string) {
+      return {
+        kind: "success" as const,
+        title,
+        subtitle,
+        actionLabel: m.common.continue,
+      };
+    },
   };
 }
 
-export function winMoment(name: string, color?: string, subtitle?: string): GameMoment {
-  return {
-    kind: "win",
-    title: "فاز!",
-    subtitle: subtitle ?? "أول إجابة صحيحة من الشات",
-    highlight: name,
-    highlightColor: color,
-    actionLabel: "التالي",
-  };
+/** @deprecated Use createGameMoments(locale) from useGameMoments() */
+export function timeoutMoment(subtitle?: string) {
+  return createGameMoments("ar").timeoutMoment(subtitle);
 }
-
-export function loseMoment(subtitle?: string): GameMoment {
-  return {
-    kind: "lose",
-    title: "ما حد فاز",
-    subtitle: subtitle ?? "انتهت الجولة بدون فائز.",
-    actionLabel: "متابعة",
-  };
+export function winMoment(name: string, color?: string, subtitle?: string) {
+  return createGameMoments("ar").winMoment(name, color, subtitle);
 }
-
-export function stoppedMoment(subtitle?: string): GameMoment {
-  return {
-    kind: "stopped",
-    title: "تم الإيقاف",
-    subtitle: subtitle ?? "أوقفت الجولة يدوياً.",
-    actionLabel: "حسناً",
-  };
+export function loseMoment(subtitle?: string) {
+  return createGameMoments("ar").loseMoment(subtitle);
 }
-
-export function successMoment(title: string, subtitle?: string): GameMoment {
-  return {
-    kind: "success",
-    title,
-    subtitle,
-    actionLabel: "متابعة",
-  };
+export function stoppedMoment(subtitle?: string) {
+  return createGameMoments("ar").stoppedMoment(subtitle);
+}
+export function successMoment(title: string, subtitle?: string) {
+  return createGameMoments("ar").successMoment(title, subtitle);
 }

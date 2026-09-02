@@ -1,3 +1,4 @@
+import { useT } from "@/contexts/LocaleContext";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -7,13 +8,16 @@ type Props = {
 };
 
 export default function GameCountdownOverlay({ value, accent, glow }: Props) {
+  const { messages } = useT();
   const isGo = value === 0;
 
   return (
     <div
       className="absolute inset-0 z-50 flex items-center justify-center bg-black/72 backdrop-blur-md"
       aria-live="assertive"
-      aria-label={isGo ? "ابدأ اللعبة" : `العد التنازلي ${value}`}
+      aria-label={
+        isGo ? messages.countdown.ariaGo : `${messages.countdown.ariaCount} ${value}`
+      }
     >
       <div
         className="pointer-events-none absolute inset-0 opacity-60"
@@ -27,7 +31,7 @@ export default function GameCountdownOverlay({ value, accent, glow }: Props) {
           className="font-display text-sm font-extrabold tracking-[0.22em] text-white/80 sm:text-base"
           style={{ color: glow }}
         >
-          استعدوا
+          {messages.countdown.getReady}
         </p>
 
         <div
@@ -54,7 +58,7 @@ export default function GameCountdownOverlay({ value, accent, glow }: Props) {
                 textShadow: `0 0 32px ${accent}`,
               }}
             >
-              ابدأ!
+              {messages.countdown.go}
             </span>
           ) : (
             <span
@@ -67,7 +71,7 @@ export default function GameCountdownOverlay({ value, accent, glow }: Props) {
         </div>
 
         <p className="font-display mt-6 max-w-xs text-base font-bold text-white/70 sm:text-lg">
-          {isGo ? "يلّا نبدأ اللعبة!" : "الجولة بتبدأ بعد لحظات…"}
+          {isGo ? messages.countdown.letsGo : messages.countdown.startingSoon}
         </p>
       </div>
     </div>

@@ -1,7 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
-import { MessageSquareText, PlugZap, Radio } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  BarChart3,
+  Gift,
+  MessageSquareText,
+  PlugZap,
+  Radio,
+  ShieldAlert,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import { useKickChatContext } from "@/contexts/KickChatContext";
+import { useChatAnalytics } from "@/contexts/ChatAnalyticsContext";
+import { useT } from "@/contexts/LocaleContext";
+import ChatStatsDialog from "@/components/ChatStatsDialog";
+import ProfanityAlertBanner from "@/components/ProfanityAlertBanner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -17,9 +30,13 @@ export const Route = createFileRoute("/chat")({
 
 function ChatPage() {
   const chat = useKickChatContext();
+  const analytics = useChatAnalytics();
+  const { messages: t, locale } = useT();
+  const p = t.pages.chat;
+  const nav = t.nav;
   const live = chat.status === "live";
   const boxRef = useRef<HTMLDivElement | null>(null);
-  // Newest comments first (top of the feed).
+  const [statsOpen, setStatsOpen] = useState(false);
   const latest = [...chat.messages].slice(-120).reverse();
 
   useEffect(() => {
@@ -27,20 +44,26 @@ function ChatPage() {
     if (el) el.scrollTop = 0;
   }, [chat.messages]);
 
+  const timeFmt = new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
   return (
-    <div className="flex w-full flex-col gap-4 px-3 pb-4 sm:px-5 lg:px-8">
+    <div className="relative flex w-full flex-col gap-4 px-3 pb-4 sm:px-5 lg:px-8">
+      <ProfanityAlertBanner />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="inline-flex items-center gap-1.5 text-xs font-bold tracking-[0.2em] text-primary uppercase">
             <MessageSquareText className="size-3.5" />
-            Kick Chat
+            {p.title}
           </p>
           <h1 className="mt-1 text-2xl font-extrabold sm:text-3xl">
-            <span className="shimmer-text">الشات مباشر</span>
+            <span className="shimmer-text">{p.liveTitle}</span>
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            بعرض كامل — التعليق الجديد يطلع فوق.
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{p.liveSubtitle}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -52,31 +75,72 @@ function ChatPage() {
                 : "bg-secondary text-muted-foreground",
             )}
           >
-            <span className={cn("size-2 rounded-full", live ? "animate-pulse bg-primary" : "bg-muted-foreground/50")} />
-            {live ? "مباشر" : chat.status === "connecting" ? "جاري الاتصال…" : "غير متصل"}
+            <span
+              className={cn("size-2 rounded-full", live ? "animate-pulse bg-primary" : "bg-muted-foreground/50")}
+            />
+            {live ? nav.live : chat.status === "connecting" ? t.common.loading : nav.offline}
           </span>
           {chat.channel ? (
-            <span className="inline-flex items-center gap-1.5 rounded-2xl bg-black/30 px-3 py-2 text-xs font-bold text-muted-foreground" dir="ltr">
+            <span
+              className="inline-flex items-center gap-1.5 rounded-2xl bg-black/30 px-3 py-2 text-xs font-bold text-muted-foreground"
+              dir="ltr"
+            >
               <Radio className="size-3.5 text-primary" />
               {chat.channel}
             </span>
           ) : null}
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-9 gap-1.5 font-extrabold"
+            onClick={() => setStatsOpen(true)}
+          >
+            <BarChart3 className="size-3.5" />
+            {p.statsBtn}
+          </Button>
           {!live ? (
             <Button asChild size="sm" className="h-9 font-extrabold">
               <Link to="/connect">
                 <PlugZap className="size-3.5" />
-                اربط القناة
+                {p.connectChannel}
               </Link>
             </Button>
           ) : null}
         </div>
       </div>
 
+      {live ? (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
+            <p className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground uppercase">
+              <MessageSquareText className="size-3.5 text-primary" />
+              {p.comments}
+            </p>
+            <p className="mt-1 text-2xl font-extrabold tabular-nums">{analytics.totalMessages}</p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
+            <p className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground uppercase">
+              <Users className="size-3.5 text-primary" />
+              {p.chattersCount}
+            </p>
+            <p className="mt-1 text-2xl font-extrabold tabular-nums">{analytics.uniqueChatters}</p>
+          </div>
+          <div className="col-span-2 rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 sm:col-span-1">
+            <p className="flex items-center gap-1.5 text-[11px] font-bold text-amber-200/80 uppercase">
+              <Sparkles className="size-3.5 text-amber-400" />
+              {p.winners}
+            </p>
+            <p className="mt-1 text-2xl font-extrabold tabular-nums text-amber-300">{analytics.wins.length}</p>
+          </div>
+        </div>
+      ) : null}
+
       <div className="glass flex min-h-[calc(100vh-9.5rem)] flex-1 flex-col overflow-hidden rounded-3xl border border-primary/20 shadow-[0_0_60px_-28px_var(--neon)]">
-        <div className="flex items-center justify-between border-b border-white/10 bg-black/25 px-4 py-3 sm:px-6">
-          <p className="text-sm font-extrabold">التعليقات</p>
+        <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-black/40 via-primary/5 to-black/40 px-4 py-3 sm:px-6">
+          <p className="text-sm font-extrabold">{p.comments}</p>
           <p className="text-xs font-bold text-muted-foreground tabular-nums">
-            {latest.length} رسالة ظاهرة
+            {latest.length} {p.visibleCount}
           </p>
         </div>
 
@@ -88,54 +152,81 @@ function ChatPage() {
             <div className="grid min-h-[50vh] place-items-center px-4 text-center">
               <div>
                 <MessageSquareText className="mx-auto size-10 text-primary/70" />
-                <p className="mt-4 text-lg font-extrabold">الشات فاضي لحد ما تربط</p>
-                <p className="mt-2 text-sm text-muted-foreground">اربط قناة كيك عشان التعليقات تطلع هنا بعرض كامل.</p>
+                <p className="mt-4 text-lg font-extrabold">{p.emptyTitle}</p>
+                <p className="mt-2 text-sm text-muted-foreground">{p.emptyDesc}</p>
                 <Button asChild className="mt-5 font-extrabold">
                   <Link to="/connect">
                     <PlugZap className="size-4" />
-                    صفحة الربط
+                    {p.connectPage}
                   </Link>
                 </Button>
               </div>
             </div>
           ) : latest.length === 0 ? (
-            <div className="grid min-h-[50vh] place-items-center text-sm text-muted-foreground">
-              بانتظار أول تعليق من البث…
-            </div>
+            <div className="grid min-h-[50vh] place-items-center text-sm text-muted-foreground">{p.waiting}</div>
           ) : (
-            latest.map((m) => (
-              <div
-                key={m.key}
-                className="animate-chat-in flex w-full items-start gap-3 rounded-2xl border border-white/5 bg-black/25 px-4 py-3 sm:gap-4 sm:px-5 sm:py-3.5"
-              >
-                <span
-                  className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full text-sm font-extrabold sm:size-10 sm:text-base"
-                  style={{
-                    color: m.color,
-                    background: `color-mix(in oklab, ${m.color} 22%, transparent)`,
-                    boxShadow: `0 0 20px -8px ${m.color}`,
-                  }}
+            latest.map((m) => {
+              const flagged = analytics.flaggedMessageKeys.has(m.key);
+              const isGift = m.kind === "gift";
+              return (
+                <div
+                  key={m.key}
+                  className={cn(
+                    "animate-chat-in flex w-full items-start gap-3 rounded-2xl border px-4 py-3 transition-colors sm:gap-4 sm:px-5 sm:py-3.5",
+                    flagged
+                      ? "border-rose-500/40 bg-rose-950/30"
+                      : isGift
+                        ? "border-amber-500/25 bg-amber-500/10"
+                        : "border-white/5 bg-black/25 hover:border-primary/15 hover:bg-black/35",
+                  )}
                 >
-                  {m.user.slice(0, 1)}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                    <span className="text-sm font-extrabold sm:text-base" style={{ color: m.color }}>
-                      {m.user}
-                    </span>
-                    <span className="text-[11px] text-muted-foreground tabular-nums">
-                      {new Date(m.at).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                    </span>
+                  <span
+                    className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full text-sm font-extrabold sm:size-10 sm:text-base"
+                    style={{
+                      color: m.color,
+                      background: `color-mix(in oklab, ${m.color} 22%, transparent)`,
+                      boxShadow: `0 0 20px -8px ${m.color}`,
+                    }}
+                  >
+                    {isGift ? <Gift className="size-4" /> : m.user.slice(0, 1)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <span className="text-sm font-extrabold sm:text-base" style={{ color: m.color }}>
+                        {m.user}
+                      </span>
+                      {isGift ? (
+                        <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-extrabold text-amber-300">
+                          {p.gift}
+                        </span>
+                      ) : null}
+                      {flagged ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-extrabold text-rose-300">
+                          <ShieldAlert className="size-3" />
+                          {p.flagged}
+                        </span>
+                      ) : null}
+                      <span className="text-[11px] text-muted-foreground tabular-nums">
+                        {timeFmt.format(m.at)}
+                      </span>
+                    </div>
+                    <p
+                      className={cn(
+                        "mt-1 text-base leading-7 break-words sm:text-lg sm:leading-8",
+                        flagged ? "text-rose-100" : isGift ? "font-bold text-amber-100" : "text-foreground",
+                      )}
+                    >
+                      {m.text}
+                    </p>
                   </div>
-                  <p className="mt-1 text-base leading-7 break-words text-foreground sm:text-lg sm:leading-8">
-                    {m.text}
-                  </p>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
+
+      <ChatStatsDialog open={statsOpen} onOpenChange={setStatsOpen} />
     </div>
   );
 }

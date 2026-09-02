@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Armchair, Crown, RotateCcw } from "lucide-react";
+import { useT } from "@/contexts/LocaleContext";
 import type { ChatMessage } from "@/hooks/useKickChat";
 import { useGameSession } from "@/hooks/useGameSession";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
@@ -13,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { recordGameWin } from "@/lib/record-game-win";
 import GameStage, { type Phase as StagePhase } from "@/components/games/GameStage";
 
 const ACCENT = "#22d3ee";
@@ -143,12 +145,16 @@ function polar(percentRadius: number, angleDeg: number) {
 }
 
 export default function HotSeatGame({
-  messages,
+  messages: chatMessages,
   chatActive,
 }: {
   messages: ChatMessage[];
   chatActive: boolean;
 }) {
+  const { messages, dir } = useT();
+  const g = messages.games.seat;
+  const c = messages.common;
+
   const [stagePhase, setStagePhase] = useState<StagePhase>("setup");
   const [innerPhase, setInnerPhase] = useState<InnerPhase>("spinning");
   const [players, setPlayers] = useState<Player[]>([]);
@@ -169,6 +175,19 @@ export default function HotSeatGame({
   const seatMovesRef = useRef(seatMoves);
   innerPhaseRef.current = innerPhase;
   chairsRef.current = chairs;
+
+  const declareWinner = useCallback((champ: Player | null) => {
+    setWinner(champ);
+    setWinnerOpen(Boolean(champ));
+    if (champ) {
+      recordGameWin({
+        user: champ.name,
+        userKey: champ.name.toLowerCase(),
+        color: champ.color,
+        game: messages.gameMeta.seat.label,
+      });
+    }
+  }, [messages.gameMeta.seat.label]);
   playersRef.current = players;
   spinAngleRef.current = spinAngle;
   seatMovesRef.current = seatMoves;
@@ -207,8 +226,7 @@ export default function HotSeatGame({
       setPlayers(champ ? [champ] : []);
       setChairs([]);
       setInnerPhase("winner");
-      setWinner(champ);
-      setWinnerOpen(Boolean(champ));
+      declareWinner(champ);
       return;
     }
 
@@ -251,8 +269,7 @@ export default function HotSeatGame({
       setPlayers(champ ? [champ] : []);
       setChairs([]);
       setInnerPhase("winner");
-      setWinner(champ);
-      setWinnerOpen(Boolean(champ));
+      declareWinner(champ);
       return;
     }
 
@@ -265,7 +282,7 @@ export default function HotSeatGame({
   finishClaimRoundRef.current = finishClaimRound;
 
   // Lobby joins during setup
-  useNewMessages(messages, stagePhase === "setup" && chatActive, (m) => {
+  useNewMessages(chatMessages, stagePhase === "setup" && chatActive, (m) => {
     if (!isJoinCommand(m.text)) return;
     const name = m.user.trim();
     if (!name) return;
@@ -276,7 +293,7 @@ export default function HotSeatGame({
   });
 
   // Claim numbers while claiming
-  useNewMessages(messages, stagePhase === "playing" && innerPhase === "claiming" && chatActive, (m) => {
+  useNewMessages(chatMessages, stagePhase === "playing" && innerPhase === "claiming" && chatActive, (m) => {
     const num = extractNumber(m.text);
     if (num == null) return;
     const name = m.user.trim();
@@ -349,8 +366,7 @@ export default function HotSeatGame({
     if (roster.length < 2) {
       const champ = roster[0] ?? null;
       setInnerPhase("winner");
-      setWinner(champ);
-      setWinnerOpen(Boolean(champ));
+      declareWinner(champ);
       return;
     }
     finishingRef.current = false;
@@ -432,12 +448,12 @@ export default function HotSeatGame({
         accent={ACCENT}
         glow={GLOW}
         icon={<Armchair />}
-        title="الكراسي الساخنة"
-        description="الجمهور يدخل من الشات بكلمة «دخول». كل جولة يطلع لاعب واحد لغاية ما يضل بطل الكراسي."
+        title={g.title}
+        description={g.desc}
         chatActive={chatActive}
         canStart={players.length >= 2}
-        setupCtaLabel={players.length >= 2 ? "التالي · جهّز اللعبة" : "بحاجة ٢ لاعبين على الأقل"}
-        startLabel="ابدأ اللعبة"
+        setupCtaLabel={players.length >= 2 ? g.setupCta : `${c.minPlayers}`}
+        startLabel={g.start}
         onGoReady={() => {
           if (players.length >= 2) setStagePhase("ready");
         }}
@@ -518,7 +534,7 @@ export default function HotSeatGame({
                 </span>
                 <div>
                   <p className="text-base font-extrabold text-white sm:text-lg">
-                    الجولة {round} · {players.length} لاعب · {chairsTotal || Math.max(players.length - 1, 0)} كرسي
+                    {c.round} {round} · {players.length} {c.players} · {chairsTotal || Math.max(players.length - 1, 0)} {c.chairs}
                   </p>
                   <p className="text-sm text-white/55 sm:text-base">
                     {innerPhase === "claiming"
@@ -564,16 +580,16 @@ export default function HotSeatGame({
                       className="text-xs font-bold tracking-[0.25em] uppercase sm:text-sm"
                       style={{ color: GLOW }}
                     >
-                      الكراسي
+                      {c.chairs}
                     </p>
                     <p className="mt-1 text-sm font-bold text-white/65 sm:text-base">
                       {innerPhase === "spinning"
-                        ? "يلفّون…"
+                        ? c.spin
                         : innerPhase === "claiming"
-                          ? "اختاروا رقم!"
+                          ? c.seats
                           : innerPhase === "round_end"
-                            ? "طلع واحد…"
-                            : "الفائز"}
+                            ? c.eliminated
+                            : c.winner}
                     </p>
                   </div>
                 </div>
@@ -722,7 +738,7 @@ export default function HotSeatGame({
           if (!open) setWinner(null);
         }}
       >
-        <DialogContent className="max-w-sm border-white/12 bg-[#0d0a1e] sm:rounded-2xl" dir="rtl">
+        <DialogContent className="max-w-sm border-white/12 bg-[#0d0a1e] sm:rounded-2xl" dir={dir}>
           <DialogHeader className="text-center sm:text-center">
             <div
               className="mx-auto grid size-14 place-items-center rounded-2xl"
@@ -730,7 +746,7 @@ export default function HotSeatGame({
             >
               <Crown className="size-7" />
             </div>
-            <DialogTitle className="text-xl font-extrabold">فاز بالكراسي!</DialogTitle>
+            <DialogTitle className="text-xl font-extrabold">{c.winner}!</DialogTitle>
             <DialogDescription>آخر واحد على كرسي</DialogDescription>
           </DialogHeader>
           {winner ? (

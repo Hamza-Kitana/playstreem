@@ -1,5 +1,7 @@
 import { Clock3, Play, Square } from "lucide-react";
-import { DURATION_OPTIONS, formatClock } from "@/hooks/useGameSession";
+import { useT } from "@/contexts/LocaleContext";
+import { formatClock } from "@/hooks/useGameSession";
+import { useDurationOptions } from "@/hooks/useDurationOptions";
 import { Button } from "@/components/ui/button";
 
 type Props = {
@@ -24,13 +26,15 @@ export default function SessionControls({
   left,
   participantCount,
   canStart = true,
-  startLabel = "بدء",
-  stopLabel = "إيقاف",
-  hint = "كل مشاهد يشارك مرة واحدة فقط أثناء الجلسة.",
+  startLabel,
+  stopLabel,
+  hint,
   onDurationChange,
   onStart,
   onStop,
 }: Props) {
+  const { messages } = useT();
+  const { options } = useDurationOptions();
   const urgent = left != null && left <= 10;
 
   return (
@@ -39,7 +43,7 @@ export default function SessionControls({
         <div className="min-w-[9rem] flex-1">
           <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
             <Clock3 className="size-3.5" />
-            مدة الجلسة
+            {messages.common.duration}
           </label>
           <select
             value={durationSec}
@@ -47,7 +51,7 @@ export default function SessionControls({
             onChange={(e) => onDurationChange(Number(e.target.value))}
             className="border-input bg-background focus-visible:ring-ring h-11 w-full rounded-md border px-3 text-sm font-bold outline-none focus-visible:ring-2 disabled:opacity-60"
           >
-            {DURATION_OPTIONS.map((o) => (
+            {options.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
@@ -58,7 +62,7 @@ export default function SessionControls({
         {running ? (
           <Button type="button" variant="destructive" className="h-11 px-5 font-extrabold" onClick={onStop}>
             <Square className="size-4" />
-            {stopLabel}
+            {stopLabel ?? messages.common.stopBtn}
           </Button>
         ) : (
           <Button
@@ -68,7 +72,7 @@ export default function SessionControls({
             onClick={onStart}
           >
             <Play className="size-4" />
-            {startLabel}
+            {startLabel ?? messages.common.startBtn}
           </Button>
         )}
       </div>
@@ -84,22 +88,27 @@ export default function SessionControls({
           <span
             className={`size-2 rounded-full ${running ? "animate-pulse bg-primary" : "bg-muted-foreground/40"}`}
           />
-          {running ? "الجلسة شغّالة" : "بانتظار البدء"}
+          {running ? messages.common.sessionRunning : messages.common.waitingStart}
           {running && left != null ? (
             <span className={`tabular-nums ${urgent ? "text-destructive" : "text-foreground"}`}>
               · {formatClock(left)}
             </span>
           ) : null}
-          {running && left == null ? <span className="text-muted-foreground">· بدون حد زمني</span> : null}
+          {running && left == null ? (
+            <span className="text-muted-foreground">· {messages.common.noTimeLimit}</span>
+          ) : null}
         </span>
         <span className="text-muted-foreground">
-          مشاركون: <span className="text-foreground tabular-nums">{participantCount}</span>
+          {messages.common.participants}:{" "}
+          <span className="text-foreground tabular-nums">{participantCount}</span>
         </span>
       </div>
 
-      <p className="mt-2 text-[11px] leading-5 text-muted-foreground">{hint}</p>
+      <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+        {hint ?? messages.common.oneVoteHint}
+      </p>
       {!chatActive ? (
-        <p className="mt-1 text-[11px] font-bold text-destructive">اربط كيك قبل البدء.</p>
+        <p className="mt-1 text-[11px] font-bold text-destructive">{messages.common.connectKick}</p>
       ) : null}
     </div>
   );

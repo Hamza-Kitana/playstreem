@@ -1,4 +1,5 @@
 import { Clock, Crown, PartyPopper, Skull, Square, Trophy } from "lucide-react";
+import { useT } from "@/contexts/LocaleContext";
 import type { GameMoment, GameMomentKind } from "@/lib/game-moments";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ const RING: Record<GameMomentKind, string> = {
 };
 
 export default function GameMomentOverlay({ moment, accent, glow, onDismiss }: Props) {
+  const { messages } = useT();
   const Icon = ICONS[moment.kind];
 
   const handlePrimary = () => {
@@ -115,7 +117,7 @@ export default function GameMomentOverlay({ moment, accent, glow, onDismiss }: P
               boxShadow: `0 20px 50px -16px ${accent}`,
             }}
           >
-            {moment.actionLabel ?? "متابعة"}
+            {moment.actionLabel ?? messages.common.continue}
           </Button>
           {moment.secondaryLabel ? (
             <Button

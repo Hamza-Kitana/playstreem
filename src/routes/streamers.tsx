@@ -5,7 +5,7 @@ import { ArrowLeft, BadgeCheck, Radio, Shield, Sparkles, Zap } from "lucide-reac
 import StreamerCard from "@/components/StreamerCard";
 import { Reveal } from "@/components/Reveal";
 import { Button } from "@/components/ui/button";
-import { checkKickLiveStatuses } from "@/lib/kick.functions";
+import { checkKickLiveStatuses, type KickChannelBrief } from "@/lib/kick.functions";
 import { VERIFIED_STREAMERS } from "@/lib/verified-streamers";
 
 export const Route = createFileRoute("/streamers")({
@@ -25,7 +25,7 @@ const VERIFIED = VERIFIED_STREAMERS;
 const GUTTER = "px-4 sm:px-8 lg:px-12 xl:px-16";
 
 function StreamersPage() {
-  const [liveMap, setLiveMap] = useState<Record<string, boolean | null>>(() =>
+  const [metaMap, setMetaMap] = useState<Record<string, KickChannelBrief | null>>(() =>
     Object.fromEntries(VERIFIED.map((s) => [s.slug, null])),
   );
   const checkLive = useServerFn(checkKickLiveStatuses);
@@ -36,18 +36,24 @@ function StreamersPage() {
       try {
         const statuses = await checkLive({ data: { slugs: VERIFIED.map((s) => s.slug) } });
         if (cancelled) return;
-        setLiveMap((prev) => {
+        setMetaMap((prev) => {
           const next = { ...prev };
           for (const s of VERIFIED) {
-            next[s.slug] = statuses[s.slug] ?? false;
+            next[s.slug] = statuses[s.slug] ?? {
+              isLive: false,
+              avatar: null,
+              displayName: s.name,
+            };
           }
           return next;
         });
       } catch {
         if (cancelled) return;
-        setLiveMap((prev) => {
+        setMetaMap((prev) => {
           const next = { ...prev };
-          for (const s of VERIFIED) next[s.slug] = false;
+          for (const s of VERIFIED) {
+            next[s.slug] = { isLive: false, avatar: null, displayName: s.name };
+          }
           return next;
         });
       }
@@ -57,7 +63,7 @@ function StreamersPage() {
     };
   }, [checkLive]);
 
-  const liveCount = Object.values(liveMap).filter((v) => v === true).length;
+  const liveCount = Object.values(metaMap).filter((v) => v?.isLive === true).length;
 
   return (
     <div className="w-full space-y-10 pb-8">
@@ -158,7 +164,7 @@ function StreamersPage() {
             <Reveal key={s.slug} delay={i * 60} className="h-full">
               <StreamerCard
                 streamer={s}
-                isLive={liveMap[s.slug] ?? null}
+                isLive={metaMap[s.slug]?.isLive ?? null}
               />
             </Reveal>
           ))}

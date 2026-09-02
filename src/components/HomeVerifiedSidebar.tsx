@@ -3,9 +3,11 @@ import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { BadgeCheck, Loader2, PlugZap, Radio, Users } from "lucide-react";
 import { useKickChatContext } from "@/contexts/KickChatContext";
-import { checkKickLiveStatuses, resolveKickChannel } from "@/lib/kick.functions";
+import { useT } from "@/contexts/LocaleContext";
+import { checkKickLiveStatuses, resolveKickChannel, type KickChannelBrief } from "@/lib/kick.functions";
 import { saveKickSession } from "@/lib/kick-session";
 import { VERIFIED_STREAMERS } from "@/lib/verified-streamers";
+import StreamerAvatar from "@/components/StreamerAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -26,10 +28,11 @@ function looksLikeSlug(value: string) {
 
 export default function HomeVerifiedSidebar() {
   const chat = useKickChatContext();
+  const { messages } = useT();
   const resolve = useServerFn(resolveKickChannel);
   const checkLive = useServerFn(checkKickLiveStatuses);
 
-  const [liveMap, setLiveMap] = useState<Record<string, boolean | null>>(() =>
+  const [metaMap, setMetaMap] = useState<Record<string, KickChannelBrief | null>>(() =>
     Object.fromEntries(VERIFIED_STREAMERS.map((s) => [s.slug, null])),
   );
   const [connectingSlug, setConnectingSlug] = useState<string | null>(null);
@@ -48,18 +51,24 @@ export default function HomeVerifiedSidebar() {
           data: { slugs: VERIFIED_STREAMERS.map((s) => s.slug) },
         });
         if (cancelled) return;
-        setLiveMap((prev) => {
+        setMetaMap((prev) => {
           const next = { ...prev };
           for (const s of VERIFIED_STREAMERS) {
-            next[s.slug] = statuses[s.slug] ?? false;
+            next[s.slug] = statuses[s.slug] ?? {
+              isLive: false,
+              avatar: null,
+              displayName: s.name,
+            };
           }
           return next;
         });
       } catch {
         if (cancelled) return;
-        setLiveMap((prev) => {
+        setMetaMap((prev) => {
           const next = { ...prev };
-          for (const s of VERIFIED_STREAMERS) next[s.slug] = false;
+          for (const s of VERIFIED_STREAMERS) {
+            next[s.slug] = { isLive: false, avatar: null, displayName: s.name };
+          }
           return next;
         });
       }
@@ -73,7 +82,7 @@ export default function HomeVerifiedSidebar() {
     setErr(null);
     const slug = cleanSlug(raw);
     if (!looksLikeSlug(slug)) {
-      setErr("اسم القناة غير صالح.");
+      setErr(messages.sidebar.invalidSlug);
       return;
     }
 
@@ -83,7 +92,7 @@ export default function HomeVerifiedSidebar() {
       saveKickSession({ slug: info.slug, chatroomId: info.chatroomId, channelId: info.channelId });
       chat.connect(info.chatroomId, `kick.com/${info.slug}`, info.slug, info.channelId);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "تعذّر الربط.");
+      setErr(e instanceof Error ? e.message : messages.sidebar.connectFailed);
     } finally {
       setConnectingSlug(null);
     }
@@ -104,10 +113,14 @@ export default function HomeVerifiedSidebar() {
           <div className="min-w-0">
             <span className="chip !text-[10px] !tracking-[0.22em]">
               <BadgeCheck className="size-3" />
-              Verified
+              {messages.sidebar.verified}
             </span>
-            <h2 className="mt-1.5 text-lg font-extrabold leading-tight text-white">الستريمر الموثقين</h2>
-            <p className="mt-0.5 text-[11px] leading-5 text-white/60">اربط بكبسة وابدأ اللعب</p>
+            <h2 className="mt-1.5 text-lg font-extrabold leading-tight text-white">
+              {messages.sidebar.streamersTitle}
+            </h2>
+            <p className="mt-0.5 text-[11px] leading-5 text-white/60">
+              {messages.sidebar.streamersSubtitle}
+            </p>
           </div>
           <span
             className="grid size-11 shrink-0 place-items-center rounded-2xl text-white shadow-[0_10px_30px_-10px_var(--neon)]"
@@ -133,9 +146,11 @@ export default function HomeVerifiedSidebar() {
             )}
           />
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold tracking-wider text-white/50 uppercase">حالة الربط</p>
+            <p className="text-[10px] font-bold tracking-wider text-white/50 uppercase">
+              {messages.sidebar.linkStatus}
+            </p>
             <p className="truncate text-xs font-extrabold text-white" dir="ltr">
-              {live ? chat.channel : "غير متصل"}
+              {live ? chat.channel : messages.common.disconnected}
             </p>
           </div>
           {live ? (
@@ -146,7 +161,7 @@ export default function HomeVerifiedSidebar() {
               className="h-8 shrink-0 px-2 text-[11px] font-bold"
               onClick={() => chat.stop()}
             >
-              قطع
+              {messages.sidebar.disconnectShort}
             </Button>
           ) : null}
         </div>
@@ -156,7 +171,8 @@ export default function HomeVerifiedSidebar() {
       <div className="min-h-0 flex-1 overflow-y-auto p-2.5 sm:p-3">
         <ul className="space-y-1.5">
           {VERIFIED_STREAMERS.map((s) => {
-            const isLive = liveMap[s.slug];
+            const meta = metaMap[s.slug];
+            const isLive = meta?.isLive ?? null;
             const isConnected = connectedSlug === s.slug;
             const isConnecting = connectingSlug === s.slug;
 
@@ -171,15 +187,11 @@ export default function HomeVerifiedSidebar() {
                   )}
                 >
                   <div className="flex items-center gap-2.5">
-                    <span
-                      className="grid size-9 shrink-0 place-items-center rounded-xl text-xs font-extrabold uppercase text-white shadow-inner"
-                      style={{
-                        background: `linear-gradient(145deg, oklch(0.5 0.15 ${s.hue ?? 305}), oklch(0.28 0.09 ${s.hue ?? 305}))`,
-                        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.18), 0 4px 12px -6px oklch(0.5 0.2 ${s.hue ?? 305} / 0.6)`,
-                      }}
-                    >
-                      {s.name.slice(0, 2)}
-                    </span>
+                    <StreamerAvatar
+                      name={meta?.displayName ?? s.name}
+                      avatar={meta?.avatar}
+                      hue={s.hue}
+                    />
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
@@ -223,12 +235,12 @@ export default function HomeVerifiedSidebar() {
                       ) : isConnected ? (
                         <>
                           <Radio className="size-3" />
-                          متصل
+                          {messages.sidebar.connected}
                         </>
                       ) : (
                         <>
                           <PlugZap className="size-3" />
-                          ربط
+                          {messages.sidebar.connectBtn}
                         </>
                       )}
                     </Button>
@@ -242,7 +254,9 @@ export default function HomeVerifiedSidebar() {
 
       {/* Custom connect */}
       <div className="space-y-2 border-t border-white/10 bg-black/20 p-3.5">
-        <p className="text-[10px] font-bold tracking-wider text-white/55 uppercase">ربط قناة أخرى</p>
+        <p className="text-[10px] font-bold tracking-wider text-white/55 uppercase">
+          {messages.sidebar.otherChannel}
+        </p>
         <form
           className="flex gap-2"
           onSubmit={(e) => {
@@ -253,7 +267,7 @@ export default function HomeVerifiedSidebar() {
           <Input
             value={customInput}
             onChange={(e) => setCustomInput(e.target.value)}
-            placeholder="kick.com/اسمك"
+            placeholder={messages.sidebar.channelPlaceholder}
             dir="ltr"
             className="h-10 flex-1 rounded-xl border-white/12 bg-black/30 text-sm font-semibold placeholder:text-white/30"
             disabled={busy}
@@ -268,7 +282,7 @@ export default function HomeVerifiedSidebar() {
           variant="ghost"
           className="h-8 w-full text-[11px] font-bold text-white/60 hover:text-white"
         >
-          <Link to="/streamers">عرض الكروت الكاملة ←</Link>
+          <Link to="/streamers">{messages.sidebar.viewFullCards}</Link>
         </Button>
       </div>
     </aside>

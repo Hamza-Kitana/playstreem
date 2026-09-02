@@ -82,16 +82,26 @@ export const resolveKickChannel = createServerFn({ method: "POST" })
     return info;
   });
 
-/** Batch live-status check for verified streamers page. */
+export type KickChannelBrief = {
+  isLive: boolean;
+  avatar: string | null;
+  displayName: string;
+};
+
+/** Batch live-status + profile meta for verified streamers. */
 export const checkKickLiveStatuses = createServerFn({ method: "POST" })
   .validator((input: unknown) => liveSchema.parse(input))
-  .handler(async ({ data }): Promise<Record<string, boolean>> => {
-    const out: Record<string, boolean> = {};
+  .handler(async ({ data }): Promise<Record<string, KickChannelBrief>> => {
+    const out: Record<string, KickChannelBrief> = {};
     await Promise.all(
       data.slugs.map(async (raw) => {
         const slug = raw.toLowerCase();
         const info = await fetchKickChannel(slug);
-        out[slug] = Boolean(info?.isLive);
+        out[slug] = {
+          isLive: Boolean(info?.isLive),
+          avatar: info?.avatar ?? null,
+          displayName: info?.displayName ?? slug,
+        };
       }),
     );
     return out;

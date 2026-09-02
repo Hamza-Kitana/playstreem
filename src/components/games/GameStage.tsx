@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router";
 import GameCountdownOverlay from "@/components/games/GameCountdownOverlay";
 import GameMomentOverlay from "@/components/games/GameMomentOverlay";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/contexts/LocaleContext";
 import type { GameMoment } from "@/lib/game-moments";
 import { cn } from "@/lib/utils";
 
@@ -60,8 +61,8 @@ export default function GameStage({
   description,
   chatActive,
   canStart = true,
-  setupCtaLabel = "التالي",
-  startLabel = "ابدأ اللعبة",
+  setupCtaLabel,
+  startLabel,
   settings,
   play,
   moment = null,
@@ -71,6 +72,10 @@ export default function GameStage({
   onBackToSetup,
   setupExtras,
 }: GameStageProps) {
+  const { messages } = useT();
+  const resolvedSetupCta = setupCtaLabel ?? messages.common.next;
+  const resolvedStartLabel = startLabel ?? messages.common.start;
+
   return (
     <div className="game-page overflow-hidden">
       {phase === "setup" ? (
@@ -82,7 +87,7 @@ export default function GameStage({
           description={description}
           chatActive={chatActive}
           canStart={canStart}
-          ctaLabel={setupCtaLabel}
+          ctaLabel={resolvedSetupCta}
           onGoReady={onGoReady}
           settings={settings}
           setupExtras={setupExtras}
@@ -93,7 +98,7 @@ export default function GameStage({
           glow={glow}
           icon={icon}
           title={title}
-          startLabel={startLabel}
+          startLabel={resolvedStartLabel}
           chatActive={chatActive}
           canStart={canStart}
           onStart={onStart}
@@ -142,6 +147,9 @@ function SetupStage({
   settings: ReactNode;
   setupExtras?: ReactNode;
 }) {
+  const { messages, dir } = useT();
+  const NextArrow = dir === "rtl" ? ArrowLeft : ArrowRight;
+  const BackArrow = dir === "rtl" ? ArrowRight : ArrowLeft;
   const disabled = !chatActive || !canStart;
   return (
     <div className="flex h-full min-h-0 w-full animate-[stage-in_0.5s_cubic-bezier(0.16,1,0.3,1)_both]">
@@ -184,7 +192,7 @@ function SetupStage({
                     background: `${accent}18`,
                   }}
                 >
-                  الخطوة ١ · الإعدادات
+                  {messages.common.step1}
                 </span>
                 <h3 className="font-brand mt-2 text-3xl font-bold leading-tight sm:text-4xl lg:text-[2.75rem]">
                   {title}
@@ -213,13 +221,13 @@ function SetupStage({
             >
               <Link to="/connect">
                 <PlugZap className="size-5" />
-                اربط الشات أول
+                {messages.common.connectFirst}
               </Link>
             </Button>
           ) : (
             <p className="flex items-center gap-2 text-sm font-extrabold tracking-wider text-white/55 uppercase">
               <Sparkles className="size-4" style={{ color: accent }} />
-              جاهزين · بس اضغط التالي
+              {messages.common.readyHint}
             </p>
           )}
 
@@ -237,7 +245,7 @@ function SetupStage({
             }}
           >
             {ctaLabel}
-            <ArrowLeft className="size-5" />
+            <NextArrow className="size-5" />
           </Button>
         </div>
       </div>
@@ -268,6 +276,8 @@ function ReadyStage({
   onStart: () => void;
   onBackToSetup: () => void;
 }) {
+  const { messages, dir } = useT();
+  const BackArrow = dir === "rtl" ? ArrowRight : ArrowLeft;
   const [pulse, setPulse] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
 
@@ -337,7 +347,7 @@ function ReadyStage({
             className="mt-6 text-sm font-extrabold tracking-[0.28em] uppercase sm:text-base"
             style={{ color: glow }}
           >
-            الخطوة ٢ · جاهز؟
+            {messages.common.step2}
           </p>
           <h2 className="font-brand mt-3 text-4xl font-bold sm:text-5xl lg:text-6xl">
             <span
@@ -350,7 +360,7 @@ function ReadyStage({
             </span>
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-8 text-white/70 sm:text-lg">
-            الإعدادات محفوظة. لما تكون جاهز، اضغط الزر تحت وابدأ العد التنازلي.
+            {messages.common.readyDesc}
           </p>
 
           <div className="mt-8 flex flex-col items-center gap-4 sm:mt-10">
@@ -364,7 +374,7 @@ function ReadyStage({
                 boxShadow: `0 25px 70px -12px ${accent}`,
               }}
             >
-              {countdown !== null ? "جاري البدء…" : startLabel}
+              {countdown !== null ? messages.common.starting : startLabel}
               <Sparkles className="size-6" />
             </Button>
             <button
@@ -373,8 +383,8 @@ function ReadyStage({
               disabled={countdown !== null}
               className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold text-white/60 transition hover:bg-white/10 hover:text-white disabled:opacity-40 sm:text-base"
             >
-              <ArrowRight className="size-4" />
-              رجوع للإعدادات
+              <BackArrow className="size-4" />
+              {messages.common.backToSettings}
             </button>
           </div>
         </div>
@@ -406,6 +416,7 @@ function PlayingStage({
   onBackToSetup: () => void;
   children: ReactNode;
 }) {
+  const { messages } = useT();
   return (
     <div className="game-page overflow-hidden animate-[stage-in_0.55s_cubic-bezier(0.16,1,0.3,1)_both]">
       <div className="mb-1.5 flex shrink-0 flex-wrap items-center justify-between gap-2 sm:mb-2">
@@ -419,7 +430,7 @@ function PlayingStage({
         >
           <span className="size-2 animate-pulse rounded-full" style={{ background: accent }} />
           <span className="text-white/90">{title}</span>
-          <span className="hidden sm:inline">· قيد اللعب</span>
+          <span className="hidden sm:inline">· {messages.common.playing}</span>
         </span>
 
         <Button
@@ -429,7 +440,7 @@ function PlayingStage({
           className="h-10 gap-2 rounded-full px-5 text-sm font-bold text-white/70 hover:bg-white/10 hover:text-white sm:h-11 sm:text-base"
         >
           <RotateCcw className="size-4" />
-          تعديل الإعدادات
+          {messages.common.editSettings}
         </Button>
       </div>
 

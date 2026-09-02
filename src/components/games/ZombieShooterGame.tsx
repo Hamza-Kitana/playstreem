@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Crosshair, Gift, Heart, Maximize2, MessageCircle, Minimize2, Rocket, Skull, Swords, Trophy, Zap } from "lucide-react";
+import { useT } from "@/contexts/LocaleContext";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
-import { ZOMBIE_DURATION_OPTIONS, formatClock, useGameSession } from "@/hooks/useGameSession";
+import { formatClock, useGameSession } from "@/hooks/useGameSession";
+import { useDurationOptions } from "@/hooks/useDurationOptions";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
 import type {
   BossSpawnInfo,
@@ -63,9 +65,11 @@ type RoundVerdict = {
   outcome: EndState["outcome"];
 };
 
-function isZombieTrigger(text: string) {
+function isZombieTrigger(text: string, chatWord: string) {
   const raw = text.trim().toLowerCase();
   if (!raw) return false;
+  const word = chatWord.trim().toLowerCase();
+  if (word && raw.includes(word)) return true;
   if (raw.includes("zombie") || raw.includes("زومبي") || raw.includes("زومبى")) return true;
   const t = normalizeAr(text);
   if (!t) return false;
@@ -167,12 +171,18 @@ function rankContributors(map: Map<string, Contributor>) {
 }
 
 export default function ZombieShooterGame({
-  messages,
+  messages: chatMessages,
   chatActive,
 }: {
   messages: ChatMessage[];
   chatActive: boolean;
 }) {
+  const { messages, dir } = useT();
+  const { zombieOptions } = useDurationOptions();
+  const g = messages.games.zombie;
+  const c = messages.common;
+  const zombieChatWord = c.zombieChat;
+
   const [bossEvery, setBossEvery] = useState(20);
   const [stagePhase, setStagePhase] = useState<StagePhase>("setup");
   const [phase, setPhase] = useState<"lobby" | "playing" | "ended">("lobby");
@@ -186,11 +196,11 @@ export default function ZombieShooterGame({
     bosses: 0,
     locked: false,
     weapon: "rifle",
-    weaponLabel: "بندقية",
+    weaponLabel: c.rifle,
     rifleTier: 0,
     hasRpg: false,
     hasRiflePlus: false,
-    bossThreat: "وحش كبير",
+    bossThreat: c.bigBoss,
     bossSegments: 1,
     bossHpPreview: 1400,
     ammo: 50,
@@ -295,9 +305,9 @@ export default function ZombieShooterGame({
   const showBossSpawn = (info: BossSpawnInfo) => {
     const seg = info.segments > 1 ? ` · ${info.segments} هيلات` : "";
     const prefix = info.isTitan
-      ? "وحش استثنائي — "
+      ? c.bossSpecial
       : info.isMega
-        ? "تحذير — "
+        ? c.bossWarning
         : "";
     pushFeed(
       `${prefix}${info.title} نزل! (${info.hp} دم${seg}) — ${info.from}`,
@@ -358,7 +368,7 @@ export default function ZombieShooterGame({
     });
   }, [session]);
 
-  useNewMessages(messages, phase === "playing", (m) => {
+  useNewMessages(chatMessages, phase === "playing", (m) => {
     if (endHandled.current) return;
 
     if (m.kind === "gift" && m.giftAmount) {
@@ -383,7 +393,7 @@ export default function ZombieShooterGame({
     }
 
     if (m.kind === "gift") return;
-    if (!isZombieTrigger(m.text)) return;
+    if (!isZombieTrigger(m.text, zombieChatWord)) return;
 
     zombieCommentCountRef.current += 1;
     const comments = zombieCommentCountRef.current;
@@ -523,11 +533,11 @@ export default function ZombieShooterGame({
       bosses: 0,
       locked: false,
       weapon: "rifle",
-      weaponLabel: "بندقية",
+      weaponLabel: c.rifle,
       rifleTier: 0,
       hasRpg: false,
       hasRiflePlus: false,
-      bossThreat: "وحش كبير",
+      bossThreat: c.bigBoss,
       bossSegments: 1,
       bossHpPreview: 1400,
       ammo: 50,
@@ -587,12 +597,12 @@ export default function ZombieShooterGame({
       accent={ACCENT}
       glow={GLOW}
       icon={<Skull />}
-      title="شوتر الزومبي — First Person"
-      description="منظور أول شخص واقعي. المشاهدون يكتبون «زومبي» في الشات وينزلون على الماب. أنت تصوّب وتصمد."
+      title={g.title}
+      description={g.desc}
       chatActive={chatActive}
       canStart={true}
-      setupCtaLabel="التالي · جهّز الماب"
-      startLabel="دخول الماب (First Person)"
+      setupCtaLabel={g.setupCta}
+      startLabel={g.start}
       onGoReady={() => setStagePhase("ready")}
       onStart={startMatch}
       onBackToSetup={resetLobby}
@@ -600,17 +610,17 @@ export default function ZombieShooterGame({
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <SelectField
-              label="مدة الجولة"
+              label={c.roundDuration}
               accent={ACCENT}
               value={String(session.durationSec)}
               onChange={(v) => session.setDurationSec(Number(v))}
-              options={ZOMBIE_DURATION_OPTIONS.map((o) => ({
+              options={zombieOptions.map((o) => ({
                 value: String(o.value),
                 label: o.label,
               }))}
             />
             <SelectField
-              label="وحش كبير كل كم تعليق؟"
+              label={c.bossEvery}
               accent={ACCENT}
               value={String(bossEvery)}
               onChange={(v) => setBossEvery(Number(v))}
@@ -685,12 +695,12 @@ export default function ZombieShooterGame({
           </div>
 
           <div className="grid gap-2 rounded-2xl border border-white/10 bg-black/25 p-4 sm:grid-cols-2 lg:grid-cols-3 text-xs">
-            <ControlHint label="حركة" value="WASD" />
-            <ControlHint label="نظر" value="الماوس (Pointer Lock)" />
-            <ControlHint label="إطلاق" value="كبسة يسار" />
-            <ControlHint label="زوم" value="كليك يمين" />
-            <ControlHint label="قفز" value="Space" />
-            <ControlHint label="ملء الشاشة" value="K" />
+            <ControlHint label={c.movement} value={c.wasd} />
+            <ControlHint label={c.look} value={c.mouseLook} />
+            <ControlHint label={c.shoot} value={c.leftClick} />
+            <ControlHint label={c.zoom} value={c.rightClick} />
+            <ControlHint label={c.jump} value={c.spaceKey} />
+            <ControlHint label={c.fullscreen} value={c.fullscreenKey} />
           </div>
 
           <div
@@ -738,7 +748,7 @@ export default function ZombieShooterGame({
                 ) : (
                   <Maximize2 className="size-4" />
                 )}
-                {isFullscreen ? "تصغير الشاشة" : "تكبير ملء الشاشة"}
+                {isFullscreen ? c.exitFullscreen : c.enterFullscreen}
               </Button>
               <Button type="button" variant="destructive" className="h-11 px-4" onClick={stopMatch}>
                 إنهاء الجولة

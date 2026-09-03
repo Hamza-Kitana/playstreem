@@ -556,7 +556,7 @@
 }
 
 @utility animate-chat-in {
-  animation: slide-in-chat 0.35s ease-out both;
+  animation: slide-in-chat 0.35s ease-out;
 }
 @utility animate-spin-slow {
   animation: spin-slow 22s linear infinite;

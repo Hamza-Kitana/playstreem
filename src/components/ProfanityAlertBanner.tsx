@@ -36,7 +36,7 @@ export default function ProfanityAlertBanner() {
     <div
       role="alert"
       className={cn(
-        "pointer-events-auto fixed inset-x-3 top-[4.5rem] z-[60] mx-auto max-w-2xl",
+        "pointer-events-auto fixed inset-x-3 top-24 z-[60] mx-auto max-w-2xl sm:top-28",
         "animate-in slide-in-from-top-4 fade-in duration-300",
       )}
     >

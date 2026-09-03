@@ -188,6 +188,7 @@ export function useKickChat() {
     (chatroomId: number, label: string, slug?: string, channelId?: number) => {
       disconnectSockets();
       seenIds.current.clear();
+      setMessages([]);
       setError(null);
       setStatus("connecting");
       setChannel(label);

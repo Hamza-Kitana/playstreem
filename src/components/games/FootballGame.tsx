@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Clock, RotateCcw, Square, Trophy, UserRound } from "lucide-react";
+import { Clock, Lock, RotateCcw, Sparkles, Square, Trophy, UserRound } from "lucide-react";
 import { useT } from "@/contexts/LocaleContext";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
 import { formatClock, useGameSession } from "@/hooks/useGameSession";
@@ -32,19 +32,42 @@ import {
 
 const ACCENT = "#22c55e";
 const GLOW = "#4ade80";
-const HINT_INTERVAL_SEC = 12;
+const HINT_EVERY_SEC = 3;
 
 type Winner = { user: string; answer: string; color: string };
+
+type PlayerHintStep = { label: string; value: string };
+
+function buildPlayerHintSteps(
+  player: FootballPlayer,
+  labels: {
+    hintNationality: string;
+    hintDebut: string;
+    hintClub: string;
+    hintPosition: string;
+  },
+): PlayerHintStep[] {
+  const steps: PlayerHintStep[] = [{ label: labels.hintNationality, value: player.nationality }];
+  if (player.clubs[0]) steps.push({ label: labels.hintDebut, value: player.clubs[0] });
+  if (player.clubs[1]) steps.push({ label: labels.hintClub, value: player.clubs[1] });
+  if (player.clubs[2]) steps.push({ label: labels.hintClub, value: player.clubs[2] });
+  steps.push({ label: labels.hintPosition, value: player.position });
+  return steps;
+}
 
 function PlayerCard({
   player,
   revealed,
   hintLevel,
+  nextHintIn,
+  allHintsShown,
   labels,
 }: {
   player: FootballPlayer;
   revealed: boolean;
   hintLevel: number;
+  nextHintIn: number | null;
+  allHintsShown: boolean;
   labels: {
     hidden: string;
     hintNationality: string;
@@ -52,14 +75,14 @@ function PlayerCard({
     hintClub: string;
     hintPosition: string;
     hintLevel: string;
+    hintNextIn: string;
+    hintAllShown: string;
+    hintLocked: string;
   };
 }) {
-  const hints: string[] = [];
-  if (hintLevel >= 1) hints.push(`${labels.hintNationality} ${player.nationality}`);
-  if (hintLevel >= 2 && player.clubs[0]) hints.push(`${labels.hintDebut} ${player.clubs[0]}`);
-  if (hintLevel >= 3 && player.clubs[1]) hints.push(`${labels.hintClub} ${player.clubs[1]}`);
-  if (hintLevel >= 4 && player.clubs[2]) hints.push(`${labels.hintClub} ${player.clubs[2]}`);
-  if (hintLevel >= 5) hints.push(`${labels.hintPosition} ${player.position}`);
+  const steps = buildPlayerHintSteps(player, labels);
+  const progress =
+    nextHintIn != null ? ((HINT_EVERY_SEC - nextHintIn) / HINT_EVERY_SEC) * 100 : 100;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4">
@@ -95,16 +118,78 @@ function PlayerCard({
         ) : null}
       </div>
 
-      <div className="w-full max-w-md space-y-2">
-        {hints.map((h, i) => (
-          <p
-            key={i}
-            className="animate-pop-in rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-2.5 text-center text-sm font-bold text-emerald-100"
-          >
-            <span className="text-emerald-400/80">{labels.hintLevel} {i + 1} · </span>
-            {h}
-          </p>
-        ))}
+      <div className="w-full max-w-lg">
+        {!revealed ? (
+          <div className="mb-3 flex items-center justify-center gap-1.5">
+            {steps.map((_, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "h-1.5 rounded-full transition-all duration-500",
+                  i < hintLevel ? "w-7 bg-emerald-400 shadow-[0_0_12px_-2px_#4ade80]" : "w-1.5 bg-white/20",
+                )}
+              />
+            ))}
+          </div>
+        ) : null}
+
+        {!revealed && nextHintIn != null && !allHintsShown ? (
+          <div className="mb-3 overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/15 to-amber-600/5 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-500/20 text-lg font-black text-amber-200 tabular-nums">
+                {nextHintIn}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-1.5 text-xs font-extrabold text-amber-200/90">
+                  <Sparkles className="size-3.5 shrink-0" />
+                  {labels.hintNextIn.replace("{s}", String(nextHintIn))}
+                </p>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/30">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-300 transition-[width] duration-1000 ease-linear"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {!revealed && allHintsShown ? (
+          <p className="mb-3 text-center text-xs font-bold text-emerald-300/80">{labels.hintAllShown}</p>
+        ) : null}
+
+        <div className="space-y-2">
+          {steps.map((step, i) => {
+            const unlocked = i < hintLevel;
+            return (
+              <div
+                key={`${step.label}-${i}`}
+                className={cn(
+                  "rounded-xl border px-4 py-2.5 text-center text-sm font-bold transition-all duration-500",
+                  unlocked
+                    ? "animate-pop-in border-emerald-500/30 bg-emerald-500/12 text-emerald-50 shadow-[0_8px_24px_-12px_rgba(34,197,94,0.45)]"
+                    : "border-white/8 bg-black/25 text-white/35",
+                )}
+              >
+                {unlocked ? (
+                  <>
+                    <span className="text-emerald-400/90">
+                      {labels.hintLevel} {i + 1} ·{" "}
+                    </span>
+                    <span className="text-white/70">{step.label}</span>{" "}
+                    <span className="text-white">{step.value}</span>
+                  </>
+                ) : (
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <Lock className="size-3.5 opacity-60" />
+                    {labels.hintLevel} {i + 1} · {labels.hintLocked}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -138,7 +223,8 @@ export default function FootballGame({
   const [moment, setMoment] = useState<GameMoment | null>(null);
   const [finished, setFinished] = useState(false);
   const [finalOpen, setFinalOpen] = useState(false);
-  const [hintLevel, setHintLevel] = useState(0);
+  const [hintLevel, setHintLevel] = useState(1);
+  const [nextHintIn, setNextHintIn] = useState<number | null>(HINT_EVERY_SEC);
   const [revealed, setRevealed] = useState(false);
 
   const session = useGameSession(durationSec);
@@ -150,6 +236,17 @@ export default function FootballGame({
   hasNextRef.current = hasNext;
   const urgent = session.left != null && session.left <= 10;
   const isPlayerRound = current?.kind === "player";
+  const playerHintSteps =
+    current?.kind === "player"
+      ? buildPlayerHintSteps(current.player, {
+          hintNationality: g.hintNationality,
+          hintDebut: g.hintDebut,
+          hintClub: g.hintClub,
+          hintPosition: g.hintPosition,
+        })
+      : [];
+  const maxHints = playerHintSteps.length;
+  const allHintsShown = hintLevel >= maxHints;
 
   const playerRoundCount = useMemo(
     () => Math.floor(Number(roundCount) / Number(playerEvery)),
@@ -183,15 +280,28 @@ export default function FootballGame({
   }, [session.setOnExpire, loseMoment, c, g, current]);
 
   useEffect(() => {
-    if (!session.running || !isPlayerRound) return;
-    setHintLevel(0);
+    if (!session.running || !isPlayerRound || maxHints === 0) return;
+    setHintLevel(1);
+    setNextHintIn(HINT_EVERY_SEC);
     setRevealed(false);
+
     const id = window.setInterval(() => {
       if (settled.current) return;
-      setHintLevel((h) => Math.min(h + 1, 5));
-    }, HINT_INTERVAL_SEC * 1000);
+      setNextHintIn((t) => {
+        if (t == null) return null;
+        if (t > 1) return t - 1;
+        setHintLevel((h) => {
+          const next = Math.min(h + 1, maxHints);
+          if (next >= maxHints) setNextHintIn(null);
+          else setNextHintIn(HINT_EVERY_SEC);
+          return next;
+        });
+        return t;
+      });
+    }, 1000);
+
     return () => window.clearInterval(id);
-  }, [session.running, isPlayerRound, index]);
+  }, [session.running, isPlayerRound, index, maxHints]);
 
   useEffect(() => {
     if (session.running) settled.current = false;
@@ -237,7 +347,8 @@ export default function FootballGame({
     if (fromMoment) setMoment(null);
     setWinner(null);
     setRevealed(false);
-    setHintLevel(0);
+    setHintLevel(1);
+    setNextHintIn(HINT_EVERY_SEC);
     if (!hasNext) {
       showFinal();
       return;
@@ -430,6 +541,8 @@ export default function FootballGame({
                         player={current.player}
                         revealed={revealed || Boolean(winner)}
                         hintLevel={hintLevel}
+                        nextHintIn={session.running ? nextHintIn : null}
+                        allHintsShown={allHintsShown}
                         labels={{
                           hidden: g.hiddenPlayer,
                           hintNationality: g.hintNationality,
@@ -437,6 +550,9 @@ export default function FootballGame({
                           hintClub: g.hintClub,
                           hintPosition: g.hintPosition,
                           hintLevel: g.hintLevel,
+                          hintNextIn: g.hintNextIn,
+                          hintAllShown: g.hintAllShown,
+                          hintLocked: g.hintLocked,
                         }}
                       />
                     </>

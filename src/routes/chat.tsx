@@ -42,14 +42,14 @@ function ChatPage() {
   const [statsOpen, setStatsOpen] = useState(false);
   const [profanityOpen, setProfanityOpen] = useState(false);
   const [supportersOpen, setSupportersOpen] = useState(false);
-  // FIFO queue: oldest first, newest last — max 100 (also capped in useKickChat).
-  const latest = chat.messages.length > 100 ? chat.messages.slice(-100) : chat.messages;
-  const newestKey = latest.at(-1)?.key;
+  // FIFO buffer (max 100 in useKickChat); newest shown first at the top.
+  const latest = [...chat.messages].slice(-100).reverse();
+  const newestKey = latest[0]?.key;
 
   useEffect(() => {
     const el = boxRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
+    el.scrollTop = 0;
   }, [newestKey]);
 
   const timeFmt = new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en", {

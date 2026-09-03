@@ -10,6 +10,8 @@ import {
   ShieldAlert,
   Sparkles,
   Users,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { useKickChatContext } from "@/contexts/KickChatContext";
 import { useChatAnalytics } from "@/contexts/ChatAnalyticsContext";
@@ -21,6 +23,11 @@ import ChatSupportersDialog from "@/components/ChatSupportersDialog";
 import ProfanityAlertBanner from "@/components/ProfanityAlertBanner";
 import { Button } from "@/components/ui/button";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
+import {
+  isChatToneMuted,
+  playChatTone,
+  setChatToneMuted,
+} from "@/lib/alert-sound";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/chat")({
@@ -47,7 +54,9 @@ function ChatPage() {
   const [profanityOpen, setProfanityOpen] = useState(false);
   const [supportersOpen, setSupportersOpen] = useState(false);
   const [splitView, setSplitView] = useState(false);
+  const [chatToneMuted, setChatToneMutedState] = useState(isChatToneMuted);
   const seenAnimKeys = useRef<Set<number>>(new Set());
+  const chatToneReady = useRef(false);
 
   const supporterKeys = useMemo(
     () => new Set(analytics.topSupporters.map((s) => s.userKey)),
@@ -93,11 +102,30 @@ function ChatPage() {
     for (const key of [...seenAnimKeys.current]) {
       if (!liveKeys.has(key)) seenAnimKeys.current.delete(key);
     }
-    if (incoming.size === 0) return;
+    if (incoming.size === 0) {
+      if (!chatToneReady.current && latest.length >= 0) chatToneReady.current = true;
+      return;
+    }
+
+    // Skip the first buffered batch after connect/refresh — only live arrivals.
+    if (chatToneReady.current) {
+      const newest = latest.find((m) => incoming.has(m.key));
+      playChatTone({ gift: newest?.kind === "gift" });
+    } else {
+      chatToneReady.current = true;
+    }
+
     setEnteringKeys(incoming);
     const t = window.setTimeout(() => setEnteringKeys(new Set()), 380);
     return () => window.clearTimeout(t);
   }, [latest]);
+
+  const toggleChatTone = () => {
+    const next = !chatToneMuted;
+    setChatToneMutedState(next);
+    setChatToneMuted(next);
+    if (!next) playChatTone();
+  };
 
   useEffect(() => {
     if (splitView) {
@@ -234,6 +262,23 @@ function ChatPage() {
               {chat.channel}
             </span>
           ) : null}
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className={cn(
+              "h-9 gap-1.5 font-extrabold transition",
+              chatToneMuted
+                ? "border border-white/10 text-muted-foreground"
+                : "border border-cyan-400/35 bg-gradient-to-r from-cyan-500/20 to-primary/15 text-cyan-50 shadow-[0_0_22px_-10px_rgba(34,211,238,0.75)]",
+            )}
+            onClick={toggleChatTone}
+            title={chatToneMuted ? p.chatToneOn : p.chatToneOff}
+            aria-label={chatToneMuted ? p.chatToneOn : p.chatToneOff}
+          >
+            {chatToneMuted ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5 text-cyan-300" />}
+            {chatToneMuted ? p.chatToneOffLabel : p.chatToneOnLabel}
+          </Button>
           <Button
             type="button"
             size="sm"

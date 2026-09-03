@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import LoadingScreen from "@/components/LoadingScreen";
+import { useT } from "@/contexts/LocaleContext";
 
 type Props = {
   children: ReactNode;
@@ -11,6 +12,7 @@ type Props = {
  * then fades out so the app feels intentional without blocking forever.
  */
 export default function BootSplash({ children, onFinished }: Props) {
+  const { messages } = useT();
   const [progress, setProgress] = useState(8);
   const [visible, setVisible] = useState(true);
   const [exiting, setExiting] = useState(false);
@@ -67,7 +69,7 @@ export default function BootSplash({ children, onFinished }: Props) {
             exiting ? "pointer-events-none opacity-0" : "opacity-100"
           }`}
         >
-          <LoadingScreen progress={progress} label="تحضير Al-Daboor…" />
+          <LoadingScreen progress={progress} label={messages.common.loading} />
         </div>
       ) : null}
     </>

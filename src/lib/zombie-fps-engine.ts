@@ -80,9 +80,35 @@ export type ZombieScaling = {
 
 export const TITAN_COMMENT_INTERVAL = 50;
 
-const BOSS_TITLES = ["وحش كبير", "وحش ضخم", "كابوس", "وحش أسطوري"] as const;
-const MEGA_BOSS_TITLE = "وحش المذبحة";
-const TITAN_BOSS_TITLE = "وحش الذيل الأسطوري";
+export type ZombieEngineLabels = {
+  bossTitles: readonly [string, string, string, string];
+  megaBossTitle: string;
+  titanBossTitle: string;
+  viewer: string;
+  segment: string;
+  rifle: string;
+  riflePlus: string;
+  rpg: string;
+  unlockWeapons: string;
+  rifleUpgrade: string;
+  maxRifleUpgrade: string;
+  dir: "rtl" | "ltr";
+};
+
+const DEFAULT_LABELS: ZombieEngineLabels = {
+  bossTitles: ["Big Boss", "Huge Boss", "Nightmare", "Legendary Boss"],
+  megaBossTitle: "Massacre Boss",
+  titanBossTitle: "Legendary Titan",
+  viewer: "Viewer",
+  segment: "Bar",
+  rifle: "Rifle",
+  riflePlus: "Rifle+",
+  rpg: "RPG",
+  unlockWeapons: "Power rifle + RPG unlocked — scroll to switch weapons",
+  rifleUpgrade: "Rifle upgraded to level",
+  maxRifleUpgrade: "Maximum rifle upgrade — use the RPG!",
+  dir: "ltr",
+};
 
 /** Shorter rounds and higher boss thresholds make regular zombies tougher. */
 export function computeZombieScaling(roundDurationSec: number, bossEvery: number): ZombieScaling {
@@ -100,7 +126,10 @@ export function computeZombieScaling(roundDurationSec: number, bossEvery: number
 }
 
 /** Boss power scales with comment threshold — 100+ = mega boss, 150 = ×4.8 HP (3 هيلات). */
-export function computeBossProfile(bossEvery: number): BossProfile {
+export function computeBossProfile(
+  bossEvery: number,
+  titles: Pick<ZombieEngineLabels, "bossTitles" | "megaBossTitle"> = DEFAULT_LABELS,
+): BossProfile {
   const threshold = Math.max(5, Math.min(150, bossEvery));
 
   if (threshold >= 100) {
@@ -112,7 +141,7 @@ export function computeBossProfile(bossEvery: number): BossProfile {
       tier: 3,
       isMega: true,
       isTitan: false,
-      title: MEGA_BOSS_TITLE,
+      title: titles.megaBossTitle,
       hp: Math.round(BOSS_HP * multiplier),
       damage: Math.round(BOSS_DAMAGE * (1 + (multiplier - 1) * 0.8)),
       speed: Math.max(0.78, BOSS_SPEED - 0.12),
@@ -133,7 +162,7 @@ export function computeBossProfile(bossEvery: number): BossProfile {
     tier,
     isMega: false,
     isTitan: false,
-    title: BOSS_TITLES[tier],
+    title: titles.bossTitles[tier],
     hp: Math.round(BOSS_HP * multiplier),
     damage: Math.round(BOSS_DAMAGE * (1 + (multiplier - 1) * 0.6)),
     speed: Math.max(0.82, BOSS_SPEED - (multiplier - 1) * 0.1),
@@ -145,7 +174,10 @@ export function computeBossProfile(bossEvery: number): BossProfile {
 }
 
 /** Exceptional titan — always every 50 zombie comments. Tail smash + self-heal. */
-export function computeTitanProfile(bossEvery: number): BossProfile {
+export function computeTitanProfile(
+  bossEvery: number,
+  title = DEFAULT_LABELS.titanBossTitle,
+): BossProfile {
   const threshold = Math.max(5, Math.min(150, bossEvery));
   const t = (threshold - 5) / 145;
   const multiplier = 4.4 + t * 2.1;
@@ -155,7 +187,7 @@ export function computeTitanProfile(bossEvery: number): BossProfile {
     tier: 3,
     isMega: false,
     isTitan: true,
-    title: TITAN_BOSS_TITLE,
+    title,
     hp: Math.round(BOSS_HP * multiplier * 1.4),
     damage: Math.round(PLAYER_MAX_HP * 0.58),
     speed: 1.42,
@@ -591,8 +623,14 @@ function scatterArenaRocks(scene: THREE.Scene, colliders: THREE.Object3D[]) {
   }
 }
 
-function makeNameTag(name: string, boss: boolean, mega = false, titan = false) {
-  const label = (name || "مشاهد").trim().slice(0, 18);
+function makeNameTag(
+  name: string,
+  boss: boolean,
+  mega = false,
+  titan = false,
+  labels: ZombieEngineLabels = DEFAULT_LABELS,
+) {
+  const label = (name || labels.viewer).trim().slice(0, 18);
   const canvas = document.createElement("canvas");
   canvas.width = 512;
   canvas.height = 140;
@@ -636,7 +674,7 @@ function makeNameTag(name: string, boss: boolean, mega = false, titan = false) {
   ctx.fillStyle = "#ffffff";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.direction = "rtl";
+  ctx.direction = labels.dir;
   ctx.fillText(label, canvas.width / 2, boxY + boxH / 2 + 2);
 
   const tex = new THREE.CanvasTexture(canvas);
@@ -730,6 +768,7 @@ function paintHpBar(
   boss: boolean,
   segments = 1,
   isTitan = false,
+  segmentLabel = DEFAULT_LABELS.segment,
 ) {
   const ratio = Math.max(0, Math.min(1, hp / maxHp));
   const fillCanvas = (fill.material as THREE.SpriteMaterial).map!.image as HTMLCanvasElement;
@@ -793,7 +832,7 @@ function paintHpBar(
   if (boss && segments > 1) {
     const perSeg = maxHp / segments;
     const currentSeg = Math.max(1, Math.ceil(Math.max(hp, 1) / perSeg));
-    lctx.fillText(`${hpText} · هيل ${currentSeg}/${segments}`, labelCanvas.width / 2, 32);
+    lctx.fillText(`${hpText} · ${segmentLabel} ${currentSeg}/${segments}`, labelCanvas.width / 2, 32);
   } else {
     lctx.fillText(hpText, labelCanvas.width / 2, 32);
   }
@@ -852,7 +891,11 @@ function buildTitanTail(
   return tailPivot;
 }
 
-function makeTitanMesh(fromName: string, bossProfile?: BossProfile) {
+function makeTitanMesh(
+  fromName: string,
+  bossProfile?: BossProfile,
+  labels: ZombieEngineLabels = DEFAULT_LABELS,
+) {
   const g = new THREE.Group();
   const scale = bossProfile?.scale ?? 3.35;
 
@@ -995,7 +1038,7 @@ function makeTitanMesh(fromName: string, bossProfile?: BossProfile) {
 
   const hpBarScale = 3.2 + 1.1 + 3 * 0.35;
   const hp = makeHpBarSprites(true, hpBarScale);
-  g.add(makeNameTag(fromName, true, false, true));
+  g.add(makeNameTag(fromName, true, false, true, labels));
   g.add(hp.bg, hp.fill, hp.hpLabel);
 
   return {
@@ -1006,9 +1049,14 @@ function makeTitanMesh(fromName: string, bossProfile?: BossProfile) {
   };
 }
 
-function makeZombieMesh(kind: MobKind, fromName: string, bossProfile?: BossProfile) {
+function makeZombieMesh(
+  kind: MobKind,
+  fromName: string,
+  bossProfile?: BossProfile,
+  labels: ZombieEngineLabels = DEFAULT_LABELS,
+) {
   const isTitan = kind === "titan" || (bossProfile?.isTitan ?? false);
-  if (isTitan) return makeTitanMesh(fromName, bossProfile);
+  if (isTitan) return makeTitanMesh(fromName, bossProfile, labels);
 
   const g = new THREE.Group();
   const boss = kind === "boss";
@@ -1165,7 +1213,7 @@ function makeZombieMesh(kind: MobKind, fromName: string, bossProfile?: BossProfi
 
   const hpBarScale = boss ? 3.2 + tier * 0.35 + (isMega ? 0.9 : 0) : 1.6;
   const hp = makeHpBarSprites(boss, hpBarScale);
-  g.add(makeNameTag(fromName, boss, isMega, false));
+  g.add(makeNameTag(fromName, boss, isMega, false, labels));
   g.add(hp.bg, hp.fill, hp.hpLabel);
 
   return {
@@ -1417,12 +1465,14 @@ export function createZombieFpsEngine(
     onMobGroan?: (kind: MobKind) => void;
     bossEveryThreshold?: number;
     roundDurationSec?: number;
+    labels?: ZombieEngineLabels;
   } = {},
 ): ZombieFpsEngine {
+  const labels = opts.labels ?? DEFAULT_LABELS;
   const bossEveryThreshold = Math.max(5, Math.min(150, opts.bossEveryThreshold ?? 20));
   const roundDurationSec = Math.max(0, opts.roundDurationSec ?? 180);
   const zombieScaling = computeZombieScaling(roundDurationSec, bossEveryThreshold);
-  const bossProfilePreview = computeBossProfile(bossEveryThreshold);
+  const bossProfilePreview = computeBossProfile(bossEveryThreshold, labels);
   const scene = new THREE.Scene();
   scene.add(createSkyDome());
   scene.fog = new THREE.Fog(0xb8d9ef, 38, 118);
@@ -1768,6 +1818,7 @@ export function createZombieFpsEngine(
       mob.kind === "boss" || mob.isTitan,
       mob.bossSegments,
       mob.isTitan,
+      labels.segment,
     );
   };
 
@@ -1785,9 +1836,9 @@ export function createZombieFpsEngine(
     const isTitan = kind === "titan";
     const boss = kind === "boss" || isTitan;
     const profile = isTitan
-      ? computeTitanProfile(bossEveryThreshold)
+      ? computeTitanProfile(bossEveryThreshold, labels.titanBossTitle)
       : boss
-        ? computeBossProfile(bossEveryThreshold)
+        ? computeBossProfile(bossEveryThreshold, labels)
         : null;
     let x: number;
     let z: number;
@@ -1804,7 +1855,7 @@ export function createZombieFpsEngine(
       z = gate.z + Math.sin(angle) * dist;
     }
 
-    const { root, hpFill, hpLabel, anim } = makeZombieMesh(kind, from, profile ?? undefined);
+    const { root, hpFill, hpLabel, anim } = makeZombieMesh(kind, from, profile ?? undefined, labels);
     const mobRadius = boss ? profile!.radius : 0.58;
     const spawnPos = resolveObstacles(x, z, mobRadius);
     const spawnGround = terrainHeight(spawnPos.x, spawnPos.z);
@@ -1812,7 +1863,7 @@ export function createZombieFpsEngine(
     scene.add(root);
     const maxHp = boss ? profile!.hp : Math.round(ZOMBIE_HP * zombieScaling.hpMult);
     const segments = boss ? profile!.segments : 1;
-    paintHpBar(hpFill, hpLabel, maxHp, maxHp, boss, segments, isTitan);
+    paintHpBar(hpFill, hpLabel, maxHp, maxHp, boss, segments, isTitan, labels.segment);
     const mob: Mob = {
       id: nextId++,
       kind,
@@ -1953,7 +2004,7 @@ export function createZombieFpsEngine(
     if (activeWeapon === "rpg") {
       return {
         id: "rpg",
-        label: "آر بي جي",
+        label: labels.rpg,
         damage: RPG_DIRECT_DAMAGE,
         cooldown: RPG_COOLDOWN,
         recoil: 2,
@@ -1966,7 +2017,7 @@ export function createZombieFpsEngine(
       const tierIdx = rifleTier - 1;
       return {
         id: "rifle_plus",
-        label: `بندقية+ ${rifleTier}`,
+        label: `${labels.riflePlus} ${rifleTier}`,
         damage: RIFLE_PLUS_DAMAGE[tierIdx] ?? RIFLE_PLUS_DAMAGE[0],
         cooldown: RIFLE_PLUS_COOLDOWN[tierIdx] ?? RIFLE_PLUS_COOLDOWN[0],
         recoil: 1.1,
@@ -1977,7 +2028,7 @@ export function createZombieFpsEngine(
     }
     return {
       id: "rifle",
-      label: "بندقية",
+      label: labels.rifle,
       damage: RIFLE_DAMAGE,
       cooldown: RIFLE_COOLDOWN,
       recoil: 1,
@@ -2029,7 +2080,7 @@ export function createZombieFpsEngine(
       camera.add(weaponGroups.rifle_plus);
       camera.add(weaponGroups.rpg!);
       setActiveWeapon("rifle_plus");
-      message = "فتحت بندقية قوية + آر بي جي — غيّر السلاح بالسكرول";
+      message = labels.unlockWeapons;
     } else if (rifleTier < MAX_RIFLE_TIER) {
       rifleTier += 1;
       if (weaponGroups.rifle_plus) {
@@ -2039,9 +2090,9 @@ export function createZombieFpsEngine(
       weaponGroups.rifle_plus = makeRifleWeapon(rifleTier);
       camera.add(weaponGroups.rifle_plus);
       bindActiveWeaponVisuals();
-      message = `ترقية البندقية للمستوى ${rifleTier}`;
+      message = `${labels.rifleUpgrade} ${rifleTier}`;
     } else {
-      message = "أقصى ترقية للبندقية — استخدم آر بي جي!";
+      message = labels.maxRifleUpgrade;
     }
     opts.onWeaponUnlock?.({
       rifleTier,

@@ -7,13 +7,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { createTranslator, getMessages } from "@/i18n";
+import { createTranslator, getMessages, type TranslateFn } from "@/i18n";
 import {
   LOCALE_STORAGE_KEY,
   localeDir,
   type Locale,
   type Messages,
-  type TranslateFn,
 } from "@/i18n/types";
 
 type LocaleContextValue = {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useT } from "@/contexts/LocaleContext";
 
 type Props = {
   /** Full-viewport splash overlay (initial boot). */
@@ -12,9 +13,10 @@ type Props = {
 export default function LoadingScreen({
   fullscreen = true,
   progress,
-  label = "جاري التحميل…",
+  label,
   className = "",
 }: Props) {
+  const { messages } = useT();
   const [auto, setAuto] = useState(12);
 
   useEffect(() => {
@@ -52,12 +54,12 @@ export default function LoadingScreen({
       <div className="relative z-10 flex w-full max-w-sm flex-col items-center px-6 text-center">
         <p className="font-brand text-3xl font-bold tracking-tight shimmer-text sm:text-4xl">Al-Daboor</p>
         <p className="mt-2 font-display text-xs font-extrabold tracking-[0.35em] text-muted-foreground">
-          الدبور
+          {messages.common.brandSubtitle}
         </p>
 
         <div className="mt-10 w-full">
           <div className="mb-2 flex items-center justify-between text-xs font-bold text-muted-foreground">
-            <span>{label}</span>
+            <span>{label ?? messages.common.loading}</span>
             <span className="tabular-nums text-primary">{Math.round(value)}%</span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
@@ -68,7 +70,7 @@ export default function LoadingScreen({
           </div>
         </div>
 
-        <p className="mt-6 text-sm text-muted-foreground">ألعاب تفاعلية مع شات كيك</p>
+        <p className="mt-6 text-sm text-muted-foreground">{messages.common.loadingTagline}</p>
       </div>
     </div>
   );

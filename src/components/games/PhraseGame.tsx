@@ -178,7 +178,7 @@ export default function PhraseGame({
                 className="rounded-full px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider"
                 style={{ background: `${ACCENT}30`, color: GLOW }}
               >
-                ✓ محفوظة
+                {g.saved}
               </span>
             ) : null}
           </button>
@@ -255,7 +255,7 @@ export default function PhraseGame({
                 className="text-xs font-extrabold tracking-[0.28em] uppercase sm:text-sm"
                 style={{ color: GLOW }}
               >
-                خمّنوا في الشات
+                {g.guessInChat}
               </p>
               <p
                 className="font-brand mt-2 text-5xl font-bold leading-none tabular-nums sm:text-6xl"
@@ -267,7 +267,7 @@ export default function PhraseGame({
                 ؟ ؟ ؟
               </p>
               <p className="mt-2 text-base text-white/55 sm:text-lg">
-                الكلمة مخفية — اللي يعرفها يكتبها في الشات
+                {g.hiddenPrompt}
               </p>
 
               <div className="mx-auto mt-6 min-h-[5rem]">
@@ -282,7 +282,7 @@ export default function PhraseGame({
                       }}
                     >
                       <Sparkles className="size-3.5" />
-                      خمّن الكلمة السرية
+                      {g.guessedSecret}
                     </p>
                     <p
                       className="font-brand mt-4 text-4xl font-bold tracking-tight sm:text-6xl"
@@ -312,7 +312,7 @@ export default function PhraseGame({
               <div className="flex items-center gap-2">
                 <Users className="size-5" style={{ color: GLOW }} />
                 <h5 className="text-base font-extrabold text-white sm:text-lg">
-                  الأسماء اللي خمّنت صح ({hits.length})
+                  {g.correctNames} ({hits.length})
                 </h5>
               </div>
               {hits.length > 0 && !session.running ? (
@@ -322,14 +322,14 @@ export default function PhraseGame({
                   className="font-bold text-white/60 hover:text-white"
                   onClick={() => setHits([])}
                 >
-                  مسح
+                  {g.clear}
                 </Button>
               ) : null}
             </div>
 
             {hits.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-white/12 bg-black/25 px-4 py-8 text-center text-base text-white/50">
-                لما أحد يخمن الكلمة، اسمه يطلع هنا بهالة نيون.
+                {g.emptyHits}
               </p>
             ) : (
               <div className="min-h-0 flex-1 overflow-hidden">
@@ -376,10 +376,10 @@ export default function PhraseGame({
             <Lock className="size-7" />
           </div>
           <DialogTitle className="text-center text-2xl font-extrabold">
-            اكتب الكلمة هنا
+            {g.enterWord}
           </DialogTitle>
           <DialogDescription className="text-center">
-            هاي النافذة إلك أنت. سكّرها قبل ما توجّه الكاميرا على الشاشة.
+            {g.privateWarning}
           </DialogDescription>
         </DialogHeader>
         <div className="relative">
@@ -418,7 +418,7 @@ export default function PhraseGame({
               setShowWord(false);
             }}
           >
-            تم — أخفي الكلمة
+            {g.hideWordDone}
           </Button>
         </DialogFooter>
       </DialogContent>

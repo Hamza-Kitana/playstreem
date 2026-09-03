@@ -24,12 +24,16 @@ export function createTranslator(locale: Locale): TranslateFn {
 
 /** Shorthand for nested game meta: tGame('quiz', 'title') */
 export function tGame(locale: Locale, id: string, field: "label" | "title" | "desc" | "tag") {
-  return getMessages(locale).gameMeta[id]?.[field] ?? id;
+  const gameMeta = getMessages(locale).gameMeta as Record<
+    string,
+    Record<"label" | "title" | "desc" | "tag", string>
+  >;
+  return gameMeta[id]?.[field] ?? id;
 }
 
 /** Shorthand for nested games section: tGames('poll', 'title') */
 export function tGames(locale: Locale, id: string, field: string) {
-  const games = getMessages(locale).games[id];
+  const games = (getMessages(locale).games as Record<string, Record<string, string>>)[id];
   if (games && field in games) return games[field as keyof typeof games];
   return `${id}.${field}`;
 }

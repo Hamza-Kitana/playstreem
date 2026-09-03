@@ -37,7 +37,7 @@ export default function QuizGame({
   messages: ChatMessage[];
   chatActive: boolean;
 }) {
-  const { messages, locale } = useT();
+  const { messages, locale, dir } = useT();
   const { options: durationOptions } = useDurationOptions();
   const g = messages.games.quiz;
   const c = messages.common;
@@ -170,11 +170,11 @@ export default function QuizGame({
             <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-extrabold text-white">أسئلة إضافية</p>
+                  <p className="text-sm font-extrabold text-white">{g.extraQuestions}</p>
                   <p className="mt-0.5 text-xs text-white/55">
                     {customs.length > 0
-                      ? `عندك ${customs.length} سؤال إضافي — ينضاف قبل السحب`
-                      : "أضف أسئلة خاصة لجلستك"}
+                      ? `${customs.length} ${g.extraCount}`
+                      : g.addCustomHint}
                   </p>
                 </div>
                 <Dialog open={addOpen} onOpenChange={setAddOpen}>
@@ -183,30 +183,30 @@ export default function QuizGame({
                       variant="outline"
                       className="h-10 rounded-xl border-white/15 bg-white/[0.03] font-bold hover:bg-white/[0.08]"
                     >
-                      <Plus className="size-4" /> إضافة
+                      <Plus className="size-4" /> {g.add}
                     </Button>
                   </DialogTrigger>
                   <DialogContent
                     className="max-w-lg border-border/60 bg-background sm:rounded-3xl"
-                    dir="rtl"
+                    dir={dir}
                   >
-                    <DialogHeader className="text-right">
-                      <DialogTitle className="text-xl font-extrabold">أسئلة من عندك</DialogTitle>
-                      <DialogDescription className="text-right">
-                        المكتبة {quizBank.length}. {c.library}
+                    <DialogHeader>
+                      <DialogTitle className="text-xl font-extrabold">{g.customTitle}</DialogTitle>
+                      <DialogDescription>
+                        {c.library} {quizBank.length}
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3 py-2">
                       <Input
                         value={draftQ}
                         onChange={(e) => setDraftQ(e.target.value)}
-                        placeholder="السؤال"
+                        placeholder={g.questionPlaceholder}
                         className="h-11 rounded-xl"
                       />
                       <Input
                         value={draftA}
                         onChange={(e) => setDraftA(e.target.value)}
-                        placeholder="الإجابة"
+                        placeholder={g.answerPlaceholder}
                         className="h-11 rounded-xl"
                       />
                       <Button
@@ -214,12 +214,12 @@ export default function QuizGame({
                         onClick={addQuestion}
                         disabled={!draftQ.trim() || !draftA.trim()}
                       >
-                        <Plus className="size-4" /> إضافة
+                        <Plus className="size-4" /> {g.add}
                       </Button>
                       <div className="max-h-56 space-y-2 overflow-y-auto rounded-2xl border border-border/50 bg-secondary/30 p-3">
                         {customs.length === 0 ? (
                           <p className="text-center text-xs text-muted-foreground">
-                            ما في أسئلة إضافية بعد.
+                            {g.noExtraQuestions}
                           </p>
                         ) : (
                           customs.map((item, i) => (
@@ -233,7 +233,7 @@ export default function QuizGame({
                                   {item.q}
                                 </p>
                                 <p className="truncate text-xs text-muted-foreground">
-                                  الجواب: {item.a}
+                                  {g.answerLabel} {item.a}
                                 </p>
                               </div>
                               <button
@@ -254,7 +254,7 @@ export default function QuizGame({
                         className="rounded-xl font-bold"
                         onClick={() => setAddOpen(false)}
                       >
-                        تم
+                        {g.done}
                       </Button>
                     </DialogFooter>
                   </DialogContent>
@@ -267,15 +267,15 @@ export default function QuizGame({
           <ul className="space-y-1.5 text-[13px] leading-6 text-white/60">
             <li className="flex gap-2">
               <span className="mt-2 size-1.5 shrink-0 rounded-full" style={{ background: ACCENT }} />
-              الجواب الأول من الشات يفوز بالنقطة.
+              {g.ruleFirst}
             </li>
             <li className="flex gap-2">
               <span className="mt-2 size-1.5 shrink-0 rounded-full" style={{ background: GLOW }} />
-              يظهر الجواب الصحيح بعد كل سؤال.
+              {g.ruleReveal}
             </li>
             <li className="flex gap-2">
               <span className="mt-2 size-1.5 shrink-0 rounded-full" style={{ background: ACCENT }} />
-              النتيجة النهائية تطلع بعد آخر سؤال.
+              {g.ruleFinal}
             </li>
           </ul>
         }

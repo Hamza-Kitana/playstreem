@@ -81,7 +81,7 @@ export default function ConnectPanel({
       const info = await resolve({ data: { slug } });
       saveKickSession({ slug: info.slug, chatroomId: info.chatroomId, channelId: info.channelId });
       setInput(info.slug);
-      setHint(`تم الربط عبر ${source}`);
+      setHint(messages.connect.connectedVia.replace("{source}", source));
       onConnect(info.chatroomId, `kick.com/${info.slug}`, info.slug, info.channelId);
     } catch (e) {
       setErr(e instanceof Error ? e.message : messages.connect.connectFailed);
@@ -92,7 +92,7 @@ export default function ConnectPanel({
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    void connectWith(input, "الرابط المدخل");
+    void connectWith(input, messages.connect.sourceInput);
   };
 
   const pasteFromClipboard = async () => {
@@ -104,7 +104,7 @@ export default function ConnectPanel({
         return;
       }
       setInput(text.trim());
-      await connectWith(text, "الحافظة");
+      await connectWith(text, messages.connect.sourceClipboard);
     } catch {
       setErr(messages.connect.clipboardFailed);
     }
@@ -115,7 +115,7 @@ export default function ConnectPanel({
     const params = new URLSearchParams(search);
     const fromUrl = params.get("channel") || params.get("kick");
     if (!fromUrl) return;
-    void connectWith(fromUrl, "رابط الصفحة");
+    void connectWith(fromUrl, messages.connect.sourcePageUrl);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once when channel search arrives
   }, [search]);
 
@@ -225,7 +225,7 @@ export default function ConnectPanel({
               <span className="font-brand rounded-md bg-black/40 px-1.5 py-0.5 text-primary" dir="ltr">
                 https://kick.com/salahat8
               </span>{" "}
-              أو الاسم فقط.
+              {messages.connect.exampleSuffix}
             </p>
 
             {hint ? (

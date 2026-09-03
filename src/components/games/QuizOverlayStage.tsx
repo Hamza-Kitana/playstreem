@@ -43,6 +43,7 @@ export default function QuizOverlayStage({
 }) {
   const { messages, dir } = useT();
   const c = messages.common;
+  const g = messages.games.quiz;
   const isModal = variant === "modal";
   const initial = loadQuizPack();
   const [list, setList] = useState<QuizQuestion[]>(initial.questions);
@@ -297,9 +298,9 @@ export default function QuizOverlayStage({
       {finished ? (
         <div className="relative flex flex-1 flex-col items-center justify-center px-5 py-12 text-center">
           <Trophy className="size-12 text-primary" />
-          <h1 className="mt-4 text-3xl font-extrabold">انتهت الأسئلة</h1>
+          <h1 className="mt-4 text-3xl font-extrabold">{g.quizEnded}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            خلصت الـ {list.length} سؤال — هذي النتيجة النهائية.
+            {list.length} {g.completedQuestions}
           </p>
           {champion ? (
             <p className="mt-6 font-brand text-4xl font-bold" style={{ color: scoreColors[champion[0]] }}>
@@ -307,10 +308,10 @@ export default function QuizOverlayStage({
               <span className="ms-2 text-lg text-primary">({champion[1]})</span>
             </p>
           ) : (
-            <p className="mt-6 text-sm text-muted-foreground">ما في نقاط بهالجولة.</p>
+            <p className="mt-6 text-sm text-muted-foreground">{g.noRoundPoints}</p>
           )}
           <Button className="mt-8 font-extrabold" onClick={() => setFinalOpen(true)}>
-            عرض الترتيب الكامل
+            {g.fullRanking}
           </Button>
         </div>
       ) : (
@@ -347,7 +348,7 @@ export default function QuizOverlayStage({
                     >
                       {reveal.winner.user}
                     </p>
-                    <p className="text-sm text-muted-foreground">كتب: {reveal.winner.answer}</p>
+                    <p className="text-sm text-muted-foreground">{g.wrote} {reveal.winner.answer}</p>
                   </div>
                 ) : (
                   <p className="text-lg font-extrabold text-amber-200/90">
@@ -357,7 +358,7 @@ export default function QuizOverlayStage({
 
                 <div className="rounded-2xl border border-primary/35 bg-primary/10 px-5 py-5 shadow-[0_0_40px_-12px_var(--neon)]">
                   <p className="text-[11px] font-extrabold tracking-[0.28em] text-primary uppercase">
-                    الإجابة الصحيحة
+                    {g.correctAnswer}
                   </p>
                   <p className="mt-3 text-balance text-3xl font-extrabold leading-snug text-foreground sm:text-4xl">
                     {reveal.correctAnswer}
@@ -365,7 +366,7 @@ export default function QuizOverlayStage({
                 </div>
 
                 <p className="text-xs text-muted-foreground">
-                  السؤال كان: <span className="font-bold text-foreground/90">{current?.q}</span>
+                  {g.questionWas} <span className="font-bold text-foreground/90">{current?.q}</span>
                 </p>
 
                 <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:justify-center">
@@ -392,14 +393,14 @@ export default function QuizOverlayStage({
             ) : (
               <>
                 <p className="relative text-[11px] font-extrabold tracking-[0.28em] text-primary">
-                  سؤال {list.length ? index + 1 : 0} / {list.length}
+                  {g.question} {list.length ? index + 1 : 0} / {list.length}
                 </p>
                 <h1 className="relative mt-4 text-balance text-3xl font-extrabold leading-snug sm:text-4xl lg:text-5xl">
                   {current?.q ?? c.noQuestion}
                 </h1>
                 <p className="relative mt-4 text-base text-muted-foreground sm:text-lg">
                   {session.running
-                    ? `${c.firstCorrect} · ${attempts} محاولة · ${session.participantCount} مشارك`
+                    ? `${c.firstCorrect} · ${attempts} ${g.attempts} · ${session.participantCount} ${g.participant}`
                     : c.broadcastReady}
                 </p>
                 {!session.running ? (
@@ -426,9 +427,9 @@ export default function QuizOverlayStage({
           </div>
 
           <div className="shrink-0 border-t border-dashed border-white/12 bg-black/30 px-4 py-3 text-center sm:py-3.5">
-            <p className="text-xs font-bold tracking-[0.22em] text-muted-foreground uppercase">التالي</p>
+            <p className="text-xs font-bold tracking-[0.22em] text-muted-foreground uppercase">{c.next}</p>
             <p className="mt-1 text-base font-extrabold sm:text-lg">
-              {upcoming?.q ?? "— آخر سؤال / النتيجة —"}
+              {upcoming?.q ?? g.lastQuestion}
             </p>
           </div>
         </div>
@@ -437,10 +438,10 @@ export default function QuizOverlayStage({
       <div className="shrink-0 border-t border-white/10 bg-black/40 px-3 py-2.5 sm:py-3">
         <div className="mb-2 flex items-center gap-2">
           <Trophy className="size-4 text-accent" />
-          <span className="text-sm font-extrabold sm:text-base">المتصدرين</span>
+          <span className="text-sm font-extrabold sm:text-base">{g.leaderboard}</span>
         </div>
         {top.length === 0 ? (
-          <p className="text-center text-[11px] text-muted-foreground">الفائزون يظهرون هنا</p>
+          <p className="text-center text-[11px] text-muted-foreground">{g.winnersHere}</p>
         ) : (
           <div className="flex flex-wrap gap-1.5">
             {top.map(([user, pts], i) => (
@@ -464,21 +465,21 @@ export default function QuizOverlayStage({
               <Trophy className="size-7" />
             </div>
             <DialogTitle className="text-xl font-extrabold">{c.finalResult}</DialogTitle>
-            <DialogDescription>بعد {list.length} سؤال — بدون إعادة للأسئلة</DialogDescription>
+            <DialogDescription>{list.length} {g.finalDescription}</DialogDescription>
           </DialogHeader>
           {champion ? (
             <div className="text-center">
-              <p className="text-xs font-bold text-muted-foreground">المتصدّر</p>
+              <p className="text-xs font-bold text-muted-foreground">{g.leader}</p>
               <p
                 className="mt-1 font-brand text-4xl font-bold"
                 style={{ color: scoreColors[champion[0]] }}
               >
                 {champion[0]}
               </p>
-              <p className="mt-1 text-sm font-extrabold text-primary">{champion[1]} نقطة</p>
+              <p className="mt-1 text-sm font-extrabold text-primary">{champion[1]} {g.point}</p>
             </div>
           ) : (
-            <p className="text-center text-sm text-muted-foreground">ما انحسبت نقاط بهالجلسة.</p>
+            <p className="text-center text-sm text-muted-foreground">{g.noSessionPoints}</p>
           )}
           {ranking.length > 0 ? (
             <div className="max-h-56 space-y-2 overflow-y-auto rounded-2xl border border-white/10 bg-black/30 p-3">

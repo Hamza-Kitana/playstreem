@@ -89,10 +89,13 @@ function spawnsFromKicks(amount: number): { bosses: number; titans: number } | n
   return { bosses: 1, titans: 0 };
 }
 
-function describeKickSpawns(plan: { bosses: number; titans: number }) {
+function describeKickSpawns(
+  plan: { bosses: number; titans: number },
+  labels: { titan: string; boss: string },
+) {
   const parts: string[] = [];
-  if (plan.titans > 0) parts.push(`${plan.titans} ذيل أسطوري`);
-  if (plan.bosses > 0) parts.push(`${plan.bosses} وحش كبير`);
+  if (plan.titans > 0) parts.push(`${plan.titans} ${labels.titan}`);
+  if (plan.bosses > 0) parts.push(`${plan.bosses} ${labels.boss}`);
   return parts.join(" + ");
 }
 
@@ -182,6 +185,23 @@ export default function ZombieShooterGame({
   const g = messages.games.zombie;
   const c = messages.common;
   const zombieChatWord = c.zombieChat;
+  const engineLabels = useMemo(
+    () => ({
+      bossTitles: [g.bigBossTitle, g.hugeBossTitle, g.nightmareTitle, g.legendaryBossTitle] as const,
+      megaBossTitle: g.megaBossTitle,
+      titanBossTitle: g.titanBossTitle,
+      viewer: g.viewer,
+      segment: g.segment,
+      rifle: c.rifle,
+      riflePlus: g.riflePlus,
+      rpg: g.rpg,
+      unlockWeapons: g.unlockWeapons,
+      rifleUpgrade: g.rifleUpgrade,
+      maxRifleUpgrade: g.maxRifleUpgrade,
+      dir,
+    }),
+    [c.rifle, dir, g],
+  );
 
   const [bossEvery, setBossEvery] = useState(20);
   const [stagePhase, setStagePhase] = useState<StagePhase>("setup");
@@ -277,19 +297,19 @@ export default function ZombieShooterGame({
   const showHealFeedback = (info: HealInfo) => {
     const text =
       info.kind === "titan"
-        ? `+${info.amount} دم — طاقة الذيل`
+        ? `+${info.amount} ${g.hp} — ${g.titanEnergy}`
         : info.kind === "boss"
-          ? `+${info.amount} دم — هيل الوحش`
-          : `+${info.amount} دم`;
+          ? `+${info.amount} ${g.hp} — ${g.bossHeal}`
+          : `+${info.amount} ${g.hp}`;
     const id = Date.now();
     setHealToast({ id, text, kind: info.kind });
     setHpBarFlash("heal");
     pushFeed(
       info.kind === "titan"
-        ? `امتصيت طاقة الذيل → +${info.amount} دم`
+        ? `${g.absorbedTitan} → +${info.amount} ${g.hp}`
         : info.kind === "boss"
-          ? `هيل من الوحش → +${info.amount} دم`
-          : `هيل من الزومبي → +${info.amount} دم`,
+          ? `${g.healedFromBoss} → +${info.amount} ${g.hp}`
+          : `${g.healedFromZombie} → +${info.amount} ${g.hp}`,
       "heal",
     );
     if (healToastTimer.current) window.clearTimeout(healToastTimer.current);
@@ -303,14 +323,14 @@ export default function ZombieShooterGame({
   };
 
   const showBossSpawn = (info: BossSpawnInfo) => {
-    const seg = info.segments > 1 ? ` · ${info.segments} هيلات` : "";
+    const seg = info.segments > 1 ? ` · ${info.segments} ${g.heals}` : "";
     const prefix = info.isTitan
       ? c.bossSpecial
       : info.isMega
         ? c.bossWarning
         : "";
     pushFeed(
-      `${prefix}${info.title} نزل! (${info.hp} دم${seg}) — ${info.from}`,
+      `${prefix}${info.title} ${g.spawned} (${info.hp} ${g.hp}${seg}) — ${info.from}`,
       "boss",
     );
     audioRef.current?.playBossRoar(info.isTitan);
@@ -383,7 +403,7 @@ export default function ZombieShooterGame({
         enqueueSpawn("titan", m.user, plan.titans);
         bumpContributor(contributorsRef.current, m, "bosses", plan.titans);
       }
-      pushFeed(`${m.user} أرسل ${m.giftAmount} كيك → ${describeKickSpawns(plan)}`, "gift");
+      pushFeed(`${m.user} ${g.sent} ${m.giftAmount} ${g.kick} → ${describeKickSpawns(plan, g)}`, "gift");
       setHud((h) => ({
         ...h,
         queued: h.queued + plan.bosses + plan.titans,
@@ -399,7 +419,7 @@ export default function ZombieShooterGame({
     const comments = zombieCommentCountRef.current;
     enqueueSpawn("zombie", m.user, 1);
     bumpContributor(contributorsRef.current, m, "zombies", 1);
-    pushFeed(`${m.user} أنزل زومبي`, "zombie");
+    pushFeed(`${m.user} ${g.spawnedZombie}`, "zombie");
     setHud((h) => ({ ...h, comments, queued: h.queued + 1 }));
 
     // Keep engine counter in sync when available.
@@ -436,6 +456,7 @@ export default function ZombieShooterGame({
         onMobGroan: (kind) => audioRef.current?.playZombieGroan(kind),
         bossEveryThreshold: bossEvery,
         roundDurationSec: roundDurationRef.current,
+        labels: engineLabels,
       });
       if (cancelled) {
         engine.dispose();
@@ -453,7 +474,7 @@ export default function ZombieShooterGame({
       engine?.dispose();
       if (engine && engineRef.current === engine) engineRef.current = null;
     };
-  }, [phase]);
+  }, [phase, engineLabels]);
 
   useEffect(() => {
     const onFs = () => {
@@ -568,7 +589,6 @@ export default function ZombieShooterGame({
     setRoundVerdict(null);
     setTitanFxId(0);
     setEndState(null);
-    setEndReveal(false);
     setFeed([]);
   };
 
@@ -584,8 +604,14 @@ export default function ZombieShooterGame({
     return rem === 0 ? TITAN_COMMENT_INTERVAL : rem;
   }, [hud.comments]);
 
-  const bossPreview = useMemo(() => computeBossProfile(bossEvery), [bossEvery]);
-  const titanPreview = useMemo(() => computeTitanProfile(bossEvery), [bossEvery]);
+  const bossPreview = useMemo(
+    () => computeBossProfile(bossEvery, engineLabels),
+    [bossEvery, engineLabels],
+  );
+  const titanPreview = useMemo(
+    () => computeTitanProfile(bossEvery, engineLabels.titanBossTitle),
+    [bossEvery, engineLabels.titanBossTitle],
+  );
   const zombieScaling = useMemo(
     () => computeZombieScaling(session.durationSec, bossEvery),
     [session.durationSec, bossEvery],
@@ -626,7 +652,7 @@ export default function ZombieShooterGame({
               onChange={(v) => setBossEvery(Number(v))}
               options={BOSS_EVERY_OPTIONS.map((n) => ({
                 value: String(n),
-                label: `كل ${n} تعليقات`,
+                label: g.everyComments.replace("{n}", String(n)),
               }))}
             />
           </div>
@@ -640,13 +666,13 @@ export default function ZombieShooterGame({
               }}
             >
               <p className="text-[10px] font-extrabold tracking-wider text-white/60 uppercase">
-                قوة الزومبي
+                {g.zombiePower}
               </p>
               <p className="mt-1 text-sm font-black" style={{ color: GLOW }}>
                 {zombieScaling.label}
               </p>
               <p className="mt-1 text-[10px] font-bold text-white/60">
-                دم ×{zombieScaling.hpMult.toFixed(2)} · سرعة ×{zombieScaling.speedMult.toFixed(2)}
+                {g.hp} ×{zombieScaling.hpMult.toFixed(2)} · {g.speed} ×{zombieScaling.speedMult.toFixed(2)}
               </p>
             </div>
 
@@ -663,7 +689,7 @@ export default function ZombieShooterGame({
               }}
             >
               <p className="text-[10px] font-extrabold tracking-wider text-white/60 uppercase">
-                الوحش المتوقع
+                {g.expectedBoss}
               </p>
               <p
                 className="mt-1 text-sm font-black"
@@ -672,8 +698,8 @@ export default function ZombieShooterGame({
                 {bossPreview.title}
               </p>
               <p className="mt-1 text-[10px] font-bold text-white/60">
-                {bossPreview.hp} دم
-                {bossPreview.segments > 1 ? ` · ${bossPreview.segments} هيلات` : ""}
+                {bossPreview.hp} {g.hp}
+                {bossPreview.segments > 1 ? ` · ${bossPreview.segments} ${g.heals}` : ""}
               </p>
             </div>
 
@@ -685,11 +711,11 @@ export default function ZombieShooterGame({
               }}
             >
               <p className="text-[10px] font-extrabold tracking-wider text-white/60 uppercase">
-                كل {TITAN_COMMENT_INTERVAL} تعليق
+                {g.titanEvery.replace("{n}", String(TITAN_COMMENT_INTERVAL))}
               </p>
               <p className="mt-1 text-sm font-black text-cyan-300">{titanPreview.title}</p>
               <p className="mt-1 text-[10px] font-bold text-white/60">
-                3 هيلات · ذيل مدمر · يهيل نفسه
+                {g.titanTraits}
               </p>
             </div>
           </div>
@@ -710,9 +736,9 @@ export default function ZombieShooterGame({
               background: `${ACCENT}0d`,
             }}
           >
-            <p className="font-extrabold text-white/80">هدايا كيك:</p>
+            <p className="font-extrabold text-white/80">{g.kickGifts}</p>
             <p className="mt-1 text-white/60">
-              ٥→وحش · ١٠→٢ · ٥٠→ذيل أسطوري · ١٠٠→كبير+ذيل · +١٠٠→٣ أذيال
+              {g.kickGuide}
             </p>
           </div>
         </div>
@@ -725,12 +751,12 @@ export default function ZombieShooterGame({
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
           <div className="game-toolbar flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/60 bg-secondary/30 p-2.5 sm:p-3">
             <span className="text-sm font-bold text-muted-foreground sm:text-base">
-              الوحش القادم بعد <span className="text-fuchsia-300">{nextBossIn}</span> ·{" "}
+              {g.nextBoss} <span className="text-fuchsia-300">{nextBossIn}</span> ·{" "}
               <span className="text-fuchsia-300">{hud.bossThreat}</span>
               {hud.bossSegments > 1 ? (
-                <span className="text-rose-300"> · {hud.bossSegments} هيلات</span>
+                <span className="text-rose-300"> · {hud.bossSegments} {g.heals}</span>
               ) : null}
-              <span className="mr-2 text-[10px] text-muted-foreground">· اختصار: K</span>
+              <span className="ms-2 text-[10px] text-muted-foreground">· {g.shortcut}</span>
             </span>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -751,7 +777,7 @@ export default function ZombieShooterGame({
                 {isFullscreen ? c.exitFullscreen : c.enterFullscreen}
               </Button>
               <Button type="button" variant="destructive" className="h-11 px-4" onClick={stopMatch}>
-                إنهاء الجولة
+                {g.endRound}
               </Button>
             </div>
           </div>
@@ -813,10 +839,10 @@ export default function ZombieShooterGame({
                   className="pointer-events-none absolute inset-x-0 top-[20%] z-[43] px-4 text-center"
                 >
                   <p className="animate-verdict-burst font-display text-2xl font-black text-cyan-50 drop-shadow-[0_0_28px_rgba(34,211,238,0.9)] sm:text-4xl">
-                    وحش الذيل الأسطوري نزل!
+                    {g.titanSpawned}
                   </p>
                   <p className="mt-2 animate-verdict-burst text-sm font-bold text-cyan-200/80 sm:text-base">
-                    الأرض تهتز... استعد!
+                    {g.groundShakes}
                   </p>
                 </div>
               </>
@@ -855,12 +881,12 @@ export default function ZombieShooterGame({
                         : "text-rose-100",
                     )}
                   >
-                    {roundVerdict.outcome === "survived" ? "ربحت!" : "خسرت!"}
+                    {roundVerdict.outcome === "survived" ? g.won : g.lost}
                   </h2>
                   <p className="mt-4 text-base font-extrabold text-white/90 sm:text-xl">
                     {roundVerdict.outcome === "survived"
-                      ? "صمدت حتى نهاية الوقت — الستريمر انتصر!"
-                      : "الشات أسقطك — المشاهدون فازوا!"}
+                      ? g.survivedVerdict
+                      : g.defeatedVerdict}
                   </p>
                 </div>
               </div>
@@ -869,13 +895,13 @@ export default function ZombieShooterGame({
             {/* Always-clickable top controls (above lock overlay) */}
             <div className="absolute inset-x-0 top-0 z-50 flex flex-wrap items-start justify-between gap-2 bg-gradient-to-b from-black/80 to-transparent p-3 sm:p-4">
               <div className="pointer-events-none grid grid-cols-3 gap-2 sm:grid-cols-6">
-                <Stat label="الدم" value={`${hud.hp}%`} danger={hud.hp <= 30} compact />
-                <Stat label="قتلى" value={String(hud.kills)} compact />
-                <Stat label="أحياء" value={String(hud.alive)} compact />
-                <Stat label="طابور" value={String(hud.queued)} compact />
-                <Stat label="زومبي" value={String(hud.comments)} compact />
+                <Stat label={g.hp} value={`${hud.hp}%`} danger={hud.hp <= 30} compact />
+                <Stat label={g.kills} value={String(hud.kills)} compact />
+                <Stat label={g.alive} value={String(hud.alive)} compact />
+                <Stat label={g.queue} value={String(hud.queued)} compact />
+                <Stat label={g.zombies} value={String(hud.comments)} compact />
                 <Stat
-                  label="وقت"
+                  label={g.time}
                   value={session.left == null ? "∞" : formatClock(session.left)}
                   compact
                 />
@@ -896,7 +922,7 @@ export default function ZombieShooterGame({
                   ) : (
                     <Maximize2 className="size-4" />
                   )}
-                  {isFullscreen ? "تصغير" : "تكبير"}
+                  {isFullscreen ? g.shrink : g.enlarge}
                 </Button>
                 <Button
                   type="button"
@@ -910,7 +936,7 @@ export default function ZombieShooterGame({
                     stopMatch();
                   }}
                 >
-                  إنهاء
+                  {g.end}
                 </Button>
               </div>
             </div>
@@ -966,7 +992,7 @@ export default function ZombieShooterGame({
             {/* Weapon HUD */}
             <div className="pointer-events-none absolute bottom-24 left-4 z-30 space-y-2">
               <div className="rounded-2xl border border-white/15 bg-black/65 px-3 py-2 backdrop-blur-md">
-                <p className="text-[10px] font-bold text-muted-foreground">السلاح الحالي</p>
+                <p className="text-[10px] font-bold text-muted-foreground">{g.currentWeapon}</p>
                 <p className="mt-0.5 flex items-center gap-1.5 text-sm font-extrabold text-emerald-100">
                   {hud.weapon === "rpg" ? (
                     <Rocket className="size-4 text-orange-400" />
@@ -986,9 +1012,9 @@ export default function ZombieShooterGame({
                           hud.reloading ? "text-amber-300" : "text-white/90",
                         )}
                       >
-                        {hud.reloading ? "يلحم..." : `${hud.ammo}/${hud.magSize}`}
+                        {hud.reloading ? g.reloading : `${hud.ammo}/${hud.magSize}`}
                       </p>
-                      <p className="text-[10px] font-bold text-muted-foreground">R للتحميل</p>
+                      <p className="text-[10px] font-bold text-muted-foreground">{g.reloadHint}</p>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
                       <div
@@ -1003,22 +1029,22 @@ export default function ZombieShooterGame({
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-1 text-[10px] font-bold text-muted-foreground">سكرول للتبديل</p>
+                  <p className="mt-1 text-[10px] font-bold text-muted-foreground">{g.scrollSwitch}</p>
                 )}
               </div>
               <div className="flex flex-wrap gap-1.5">
-                <WeaponChip active={hud.weapon === "rifle"} label="بندقية" />
+                <WeaponChip active={hud.weapon === "rifle"} label={c.rifle} />
                 {hud.hasRiflePlus ? (
                   <WeaponChip
                     active={hud.weapon === "rifle_plus"}
-                    label={hud.rifleTier > 0 ? `بندقية+ ${hud.rifleTier}` : "بندقية+"}
+                    label={hud.rifleTier > 0 ? `${g.riflePlus} ${hud.rifleTier}` : g.riflePlus}
                     accent="amber"
                   />
                 ) : null}
                 {hud.hasRpg ? (
-                  <WeaponChip active={hud.weapon === "rpg"} label="آر بي جي" accent="orange" />
+                  <WeaponChip active={hud.weapon === "rpg"} label={g.rpg} accent="orange" />
                 ) : (
-                  <WeaponChip locked label="آر بي جي" />
+                  <WeaponChip locked label={g.rpg} />
                 )}
               </div>
             </div>
@@ -1040,9 +1066,9 @@ export default function ZombieShooterGame({
                   />
                 ) : null}
                 <div className="mb-2 text-center text-[11px] font-bold text-emerald-100/80">
-                وحش الذيل بعد {nextTitanIn} تعليق · وحش عادي بعد {nextBossIn} · {hud.bossThreat}
-                {hud.bossSegments > 1 ? ` · ${hud.bossSegments} هيلات (${hud.bossHpPreview} دم)` : ""}
-                · وحوش نزلت: {hud.bosses}
+                {g.titanAfter} {nextTitanIn} {g.comment} · {g.normalBossAfter} {nextBossIn} · {hud.bossThreat}
+                {hud.bossSegments > 1 ? ` · ${hud.bossSegments} ${g.heals} (${hud.bossHpPreview} ${g.hp})` : ""}
+                · {g.bossesSpawned} {hud.bosses}
                 </div>
                 <div className="h-3 overflow-hidden rounded-full border border-white/10 bg-white/10">
                   <div
@@ -1072,9 +1098,9 @@ export default function ZombieShooterGame({
               >
                 <div className="rounded-2xl border border-emerald-400/40 bg-black/75 px-6 py-5 text-center">
                   <Crosshair className="mx-auto size-8 text-emerald-300" />
-                  <p className="mt-3 text-lg font-extrabold text-emerald-100">اضغط للعب</p>
+                  <p className="mt-3 text-lg font-extrabold text-emerald-100">{g.clickToPlay}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    سكرول يغيّر السلاح · كليك يمين للزوم · Space للقفز · R للتحميل · K للتكبير · ثم اضغط هنا للعب
+                    {g.playControls}
                   </p>
                 </div>
               </button>
@@ -1118,35 +1144,35 @@ export default function ZombieShooterGame({
                   <>
                     <Trophy className="mx-auto size-10 text-amber-300" />
                     <h3 className="mt-3 font-display text-3xl font-black text-amber-200">
-                      المشاهدون فازوا!
+                      {g.viewersWon}
                     </h3>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      الشات أسقط الستريمر بعد {formatClock(Math.floor(endState.livedSec))}
+                      {g.chatDefeatedStreamer} {formatClock(Math.floor(endState.livedSec))}
                     </p>
                   </>
                 ) : (
                   <>
                     <Crosshair className="mx-auto size-10 text-emerald-300" />
                     <h3 className="mt-3 font-display text-3xl font-black text-emerald-200">
-                      الستريمر صمد!
+                      {g.streamerSurvived}
                     </h3>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      نجا من الماب · قتلى: {endState.kills}
+                      {g.mapSurvived} {endState.kills}
                     </p>
                   </>
                 )}
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
-                <MiniStat label="قتلى" value={String(endState.kills)} />
-                <MiniStat label="نزلوا" value={String(endState.spawned)} />
-                <MiniStat label="وحوش كبار" value={String(endState.bossesSpawned)} />
+                <MiniStat label={g.kills} value={String(endState.kills)} />
+                <MiniStat label={g.deployed} value={String(endState.spawned)} />
+                <MiniStat label={g.bigBosses} value={String(endState.bossesSpawned)} />
               </div>
 
               <div>
-                <p className="mb-3 text-sm font-extrabold">أبطال الشات</p>
+                <p className="mb-3 text-sm font-extrabold">{g.chatHeroes}</p>
                 {endState.leaders.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">ما في مشاركات هذه الجولة.</p>
+                  <p className="text-sm text-muted-foreground">{g.noParticipation}</p>
                 ) : (
                   <div className="space-y-2">
                     {endState.leaders.map((c, i) => (
@@ -1168,9 +1194,9 @@ export default function ZombieShooterGame({
                           {i < 3 ? <Trophy className="size-3.5 text-amber-300" /> : null}
                         </div>
                         <span className="text-xs text-muted-foreground">
-                          زومبي {c.zombies}
-                          {c.bosses > 0 ? ` · وحوش ${c.bosses}` : ""}
-                          {c.kicks > 0 ? ` · ${c.kicks} كيك` : ""}
+                          {g.zombies} {c.zombies}
+                          {c.bosses > 0 ? ` · ${g.bosses} ${c.bosses}` : ""}
+                          {c.kicks > 0 ? ` · ${c.kicks} ${g.kick}` : ""}
                         </span>
                       </div>
                     ))}
@@ -1184,7 +1210,7 @@ export default function ZombieShooterGame({
                 style={{ background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})` }}
                 onClick={resetLobby}
               >
-                رجوع للإعداد
+                {g.backToSetup}
               </Button>
           </div>
         </div>
@@ -1205,6 +1231,8 @@ function ControlHint({ label, value }: { label: string; value: string }) {
 }
 
 function LiveLeaderboardPanel({ leaders }: { leaders: LiveLeaders }) {
+  const { messages } = useT();
+  const g = messages.games.zombie;
   const hasAny = leaders.commenters.length > 0 || leaders.kickers.length > 0;
 
   return (
@@ -1213,34 +1241,36 @@ function LiveLeaderboardPanel({ leaders }: { leaders: LiveLeaders }) {
         <div className="border-b border-white/10 bg-gradient-to-l from-amber-500/15 via-transparent to-emerald-500/10 px-3 py-2">
           <p className="flex items-center gap-1.5 text-[10px] font-extrabold tracking-wide text-amber-100/90 uppercase">
             <Trophy className="size-3.5 text-amber-300" />
-            لوحة الأبطال
+            {g.heroesBoard}
           </p>
         </div>
 
         <div className="space-y-2 p-2">
           <LeaderboardSection
-            title="أكثر تعليق"
+            title={g.mostComments}
             icon={MessageCircle}
             accent="emerald"
-            emptyLabel="لا تعليقات بعد"
+            emptyLabel={g.noComments}
             items={leaders.commenters}
             value={(c) =>
-              c.bosses > 0 ? `${c.zombies} زومبي · ${c.bosses} وحش` : `${c.zombies} تعليق`
+              c.bosses > 0
+                ? `${c.zombies} ${g.zombies} · ${c.bosses} ${g.monster}`
+                : `${c.zombies} ${g.comment}`
             }
           />
           <LeaderboardSection
-            title="أكثر كيكس"
+            title={g.mostKicks}
             icon={Gift}
             accent="amber"
-            emptyLabel="لا هدايا بعد"
+            emptyLabel={g.noGifts}
             items={leaders.kickers}
-            value={(c) => `${c.kicks} كيك`}
+            value={(c) => `${c.kicks} ${g.kick}`}
           />
         </div>
 
         {!hasAny ? (
           <p className="border-t border-white/8 px-3 py-2 text-center text-[10px] font-bold text-white/45">
-            الشات يبني الترتيب مباشرة
+            {g.rankingLive}
           </p>
         ) : null}
       </div>

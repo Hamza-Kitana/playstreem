@@ -11,9 +11,7 @@ export const getRouter = () => {
     context: { queryClient },
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,
-    defaultPendingComponent: () => (
-      <LoadingScreen fullscreen={false} label="تحميل الصفحة…" />
-    ),
+    defaultPendingComponent: () => <LoadingScreen fullscreen={false} />,
     defaultPendingMs: 200,
     defaultPendingMinMs: 350,
   });

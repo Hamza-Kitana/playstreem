@@ -107,7 +107,7 @@ export default function RiddleGame({
     setScoreColors((c) => ({ ...c, [m.user]: m.color }));
     session.stop();
     setMoment({
-      ...winMoment(m.user, m.color, `الحل: ${current.answer}`),
+      ...winMoment(m.user, m.color, `${g.solutionLabel} ${current.answer}`),
       actionLabel: hasNextRef.current ? c.nextRiddle : c.finalResult,
       onAction: () => goNext(true),
     });
@@ -270,7 +270,7 @@ export default function RiddleGame({
                   style={{ background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})` }}
                   onClick={restartAll}
                 >
-                  <RotateCcw className="size-4" /> جولة جديدة
+                  <RotateCcw className="size-4" /> {g.newRound}
                 </Button>
               ) : session.running ? (
                 <Button
@@ -305,7 +305,7 @@ export default function RiddleGame({
               >
                 <Trophy className="mx-auto size-16" style={{ color: GLOW }} />
                 <h2 className="font-brand mt-4 text-4xl font-bold text-white sm:text-5xl">{c.roundEnded}</h2>
-                <p className="mt-2 text-sm text-white/60">خلّصنا الـ {deck.length} ألغاز</p>
+                <p className="mt-2 text-sm text-white/60">{deck.length} {g.completedRiddles}</p>
                 {champion ? (
                   <p
                     className="font-brand mt-8 text-5xl font-bold"
@@ -317,7 +317,7 @@ export default function RiddleGame({
                     </span>
                   </p>
                 ) : (
-                  <p className="mt-8 text-sm text-white/50">ما في نقاط.</p>
+                  <p className="mt-8 text-sm text-white/50">{g.noPoints}</p>
                 )}
                 <div className="mt-10 flex flex-wrap justify-center gap-3">
                   <Button
@@ -328,7 +328,7 @@ export default function RiddleGame({
                     <Trophy className="size-4" /> {c.finalResult}
                   </Button>
                   <Button variant="outline" className="h-12 rounded-2xl border-white/15 bg-white/[0.03] px-5 font-bold" onClick={restartAll}>
-                    من جديد
+                    {g.again}
                   </Button>
                 </div>
               </div>
@@ -366,7 +366,7 @@ export default function RiddleGame({
                     </p>
                     <p className="mt-1 text-sm font-bold text-white/55 sm:text-base">
                       {session.running
-                        ? `تخمينات ${attempts}`
+                        ? `${g.guesses} ${attempts}`
                         : g.pressResume}
                     </p>
                   </div>
@@ -416,19 +416,19 @@ export default function RiddleGame({
                             color: GLOW,
                           }}
                         >
-                          تلميح: {current.hint}
+                          {g.hintLabel} {current.hint}
                         </p>
                       ) : null}
                       {peekAnswer && current ? (
                         <p className="mt-3 text-center text-xs font-bold text-white/60">
-                          الحل (لك أنت):{" "}
+                          {g.privateAnswer}{" "}
                           <span style={{ color: GLOW }}>{current.answer}</span>
                         </p>
                       ) : null}
                     </div>
 
                     <p className="relative mt-6 text-center text-sm font-bold text-white/55">
-                      اكتبوا الحل في الشات — أول إصابة تفوز
+                      {g.guessPrompt}
                     </p>
 
                     <div className="relative mt-5 flex flex-wrap justify-center gap-2">
@@ -474,12 +474,12 @@ export default function RiddleGame({
                 <aside className="glass flex min-h-0 flex-col overflow-hidden rounded-[1.75rem] border border-white/10 p-4">
                   <div className="mb-3 flex shrink-0 items-center gap-2">
                     <Trophy className="size-5" style={{ color: GLOW }} />
-                    <p className="text-base font-extrabold text-white sm:text-lg">المتصدرين</p>
+                    <p className="text-base font-extrabold text-white sm:text-lg">{g.leaderboard}</p>
                   </div>
                   <div className="min-h-0 flex-1 overflow-hidden">
                   {top.length === 0 ? (
                     <p className="rounded-xl bg-white/5 p-3 text-center text-sm text-white/55">
-                      الفائزون يظهرون هنا
+                      {g.winnersHere}
                     </p>
                   ) : (
                     <ol className="space-y-1.5">
@@ -541,7 +541,7 @@ export default function RiddleGame({
               <Trophy className="size-7" />
             </div>
             <DialogTitle className="text-xl font-extrabold">{c.finalResult}</DialogTitle>
-            <DialogDescription>بعد {deck.length} ألغاز</DialogDescription>
+            <DialogDescription>{deck.length} {g.finalDescription}</DialogDescription>
           </DialogHeader>
           {champion ? (
             <p
@@ -551,7 +551,7 @@ export default function RiddleGame({
               {champion[0]}
             </p>
           ) : (
-            <p className="text-center text-sm text-muted-foreground">ما انحسبت نقاط.</p>
+            <p className="text-center text-sm text-muted-foreground">{g.noPointsCounted}</p>
           )}
           {ranking.length > 0 ? (
             <div className="max-h-56 space-y-2 overflow-y-auto rounded-2xl border border-white/10 bg-black/30 p-3">
@@ -579,7 +579,7 @@ export default function RiddleGame({
               style={{ background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})` }}
               onClick={() => setFinalOpen(false)}
             >
-              إغلاق
+              {g.close}
             </Button>
           </DialogFooter>
         </DialogContent>

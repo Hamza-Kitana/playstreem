@@ -107,7 +107,7 @@ export default function FlagGame({
     setScoreColors((c) => ({ ...c, [m.user]: m.color }));
     session.stop();
     setMoment({
-      ...winMoment(m.user, m.color, `الدولة: ${current.name}`),
+      ...winMoment(m.user, m.color, `${g.countryLabel} ${current.name}`),
       actionLabel: hasNextRef.current ? c.nextFlag : c.finalResult,
       onAction: () => goNext(true),
     });
@@ -235,7 +235,7 @@ export default function FlagGame({
                 <div>
                   <p className="text-base font-extrabold text-white sm:text-lg">
                     {finished ? c.roundEnded : `${c.flagN} ${index + 1} ${c.of} ${deck.length}`}
-                    {current?.hard ? " · صعب" : ""}
+                    {current?.hard ? ` · ${g.hard}` : ""}
                   </p>
                   <p className="text-sm text-white/55 sm:text-base">
                     {finished ? c.seeFinalResult : c.audienceWritesCountry}
@@ -249,7 +249,7 @@ export default function FlagGame({
                   style={{ background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})` }}
                   onClick={restartAll}
                 >
-                  <RotateCcw className="size-4" /> جولة جديدة
+                  <RotateCcw className="size-4" /> {g.newRound}
                 </Button>
               ) : session.running ? (
                 <Button
@@ -284,7 +284,7 @@ export default function FlagGame({
               >
                 <Trophy className="mx-auto size-16" style={{ color: GLOW }} />
                 <h2 className="font-brand mt-4 text-4xl font-bold text-white sm:text-5xl">{c.roundEnded}</h2>
-                <p className="mt-2 text-sm text-white/60">خلّصنا الـ {deck.length} علم</p>
+                <p className="mt-2 text-sm text-white/60">{deck.length} {g.completedFlags}</p>
                 {champion ? (
                   <p
                     className="font-brand mt-8 text-5xl font-bold"
@@ -296,7 +296,7 @@ export default function FlagGame({
                     </span>
                   </p>
                 ) : (
-                  <p className="mt-8 text-sm text-white/50">ما في نقاط.</p>
+                  <p className="mt-8 text-sm text-white/50">{g.noPoints}</p>
                 )}
                 <div className="mt-10 flex flex-wrap justify-center gap-3">
                   <Button
@@ -311,7 +311,7 @@ export default function FlagGame({
                     className="h-12 rounded-2xl border-white/15 bg-white/[0.03] px-5 font-bold"
                     onClick={restartAll}
                   >
-                    من جديد
+                    {g.again}
                   </Button>
                 </div>
               </div>
@@ -368,7 +368,7 @@ export default function FlagGame({
                       {current && imgOk ? (
                         <img
                           src={flagImageUrl(current.code, 640)}
-                          alt="علم الدولة"
+                          alt={g.flagAlt}
                           className="block h-auto max-h-full w-full max-w-[min(100%,38rem)] object-contain"
                           onError={() => setImgOk(false)}
                           loading="eager"
@@ -376,16 +376,16 @@ export default function FlagGame({
                         />
                       ) : (
                         <div className="grid h-56 w-[min(92vw,38rem)] place-items-center text-sm text-white/50">
-                          تعذّر تحميل العلم
+                          {g.loadFailed}
                         </div>
                       )}
                     </div>
                     <p className="relative mt-4 text-base font-bold text-white/65 sm:text-lg">
-                      اكتبوا اسم الدولة في الشات
+                      {g.guessPrompt}
                     </p>
                     {!session.running ? (
                       <p className="relative mt-2 text-sm text-white/50">
-                        الإجابة الصحيحة مخفية عن الشاشة — بس الشات يقدر يخمّن
+                        {g.hiddenAnswer}
                       </p>
                     ) : null}
                     <Button
@@ -408,12 +408,12 @@ export default function FlagGame({
                 <aside className="glass flex min-h-0 flex-col overflow-hidden rounded-[1.75rem] border border-white/10 p-4">
                   <div className="mb-3 flex shrink-0 items-center gap-2">
                     <Trophy className="size-5" style={{ color: GLOW }} />
-                    <p className="text-base font-extrabold text-white sm:text-lg">المتصدرين</p>
+                    <p className="text-base font-extrabold text-white sm:text-lg">{g.leaderboard}</p>
                   </div>
                   <div className="min-h-0 flex-1 overflow-hidden">
                   {top.length === 0 ? (
                     <p className="rounded-xl bg-white/5 p-3 text-center text-sm text-white/55">
-                      الفائزون يظهرون هنا
+                      {g.winnersHere}
                     </p>
                   ) : (
                     <ol className="space-y-1.5">
@@ -469,7 +469,7 @@ export default function FlagGame({
               <Trophy className="size-7" />
             </div>
             <DialogTitle className="text-xl font-extrabold">{c.finalResult}</DialogTitle>
-            <DialogDescription>بعد {deck.length} علم</DialogDescription>
+            <DialogDescription>{deck.length} {g.finalDescription}</DialogDescription>
           </DialogHeader>
           {champion ? (
             <p
@@ -479,7 +479,7 @@ export default function FlagGame({
               {champion[0]}
             </p>
           ) : (
-            <p className="text-center text-sm text-muted-foreground">ما انحسبت نقاط.</p>
+            <p className="text-center text-sm text-muted-foreground">{g.noPointsCounted}</p>
           )}
           {ranking.length > 0 ? (
             <div className="max-h-56 space-y-2 overflow-y-auto rounded-2xl border border-white/10 bg-black/30 p-3">
@@ -504,7 +504,7 @@ export default function FlagGame({
               style={{ background: `linear-gradient(135deg, ${ACCENT}, ${GLOW})` }}
               onClick={() => setFinalOpen(false)}
             >
-              إغلاق
+              {g.close}
             </Button>
           </DialogFooter>
         </DialogContent>

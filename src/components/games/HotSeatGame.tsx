@@ -102,7 +102,16 @@ function MovingToSeat({ move, onDone }: { move: SeatMove; onDone: () => void }) 
 
 function isJoinCommand(text: string) {
   const t = normalizeAr(text);
-  return t === "دخول" || t.startsWith("دخول ") || t === "ادخل" || t === "انا دخول";
+  return (
+    t === "دخول" ||
+    t.startsWith("دخول ") ||
+    t === "ادخل" ||
+    t === "انا دخول" ||
+    t === "join" ||
+    t.startsWith("join ") ||
+    t === "enter" ||
+    t.startsWith("enter ")
+  );
 }
 
 function extractNumber(text: string): number | null {
@@ -434,12 +443,12 @@ export default function HotSeatGame({
 
   const statusLine =
     innerPhase === "spinning"
-      ? "يلفّون حول الدائرة…"
+      ? g.spinningStatus
       : innerPhase === "claiming"
-        ? "طلعَت الأرقام! اكتب رقم الكرسي في الشات"
+        ? g.claimingStatus
         : innerPhase === "round_end"
-          ? "انتهت الجولة — الجولة التالية…"
-          : "انتهت اللعبة";
+          ? g.nextRoundStatus
+          : g.gameEndedStatus;
 
   return (
     <>
@@ -469,7 +478,7 @@ export default function HotSeatGame({
               }}
             >
               <p className="text-[10px] font-extrabold tracking-[0.28em] text-white/60 uppercase">
-                لاعبون منضمّون
+                {g.joinedPlayers}
               </p>
               <p
                 className="font-brand mt-1 text-5xl font-black leading-none tabular-nums"
@@ -478,7 +487,7 @@ export default function HotSeatGame({
                 {players.length}
               </p>
               <p className="mt-2 text-xs text-white/60">
-                اكتبوا في الشات <span className="font-extrabold text-white">«دخول»</span> للانضمام
+                {g.joinPrefix} <span className="font-extrabold text-white">{g.joinWord}</span> {g.joinSuffix}
               </p>
             </div>
 
@@ -486,14 +495,14 @@ export default function HotSeatGame({
               <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-[11px] font-extrabold tracking-wider text-white/60 uppercase">
-                    اللاعبون
+                    {c.players}
                   </p>
                   <button
                     type="button"
                     onClick={fullReset}
                     className="text-[11px] font-bold text-white/50 hover:text-destructive"
                   >
-                    مسح الكل
+                    {g.clearAll}
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -514,7 +523,7 @@ export default function HotSeatGame({
               </div>
             ) : (
               <p className="rounded-2xl border border-dashed border-white/10 bg-black/20 px-4 py-4 text-center text-xs text-white/45">
-                بانتظار دخول اللاعبين من الشات…
+                {g.waitingPlayers}
               </p>
             )}
           </div>
@@ -538,7 +547,7 @@ export default function HotSeatGame({
                   </p>
                   <p className="text-sm text-white/55 sm:text-base">
                     {innerPhase === "claiming"
-                      ? `سارعوا! محجوز ${chairsTaken}/${chairsTotal}`
+                      ? `${g.hurryReserved} ${chairsTaken}/${chairsTotal}`
                       : statusLine}
                   </p>
                 </div>
@@ -549,7 +558,7 @@ export default function HotSeatGame({
                 className="h-10 gap-1.5 rounded-2xl border-white/12 bg-white/[0.03] font-bold"
                 onClick={fullReset}
               >
-                <RotateCcw className="size-4" /> إعادة من الصفر
+                <RotateCcw className="size-4" /> {g.resetAll}
               </Button>
             </div>
 
@@ -660,7 +669,7 @@ export default function HotSeatGame({
                         </span>
                       ) : reserved ? (
                         <span className="mt-0.5 text-[10px] font-bold" style={{ color: GLOW }}>
-                          يجي…
+                          {g.arriving}
                         </span>
                       ) : null}
                     </div>
@@ -718,13 +727,12 @@ export default function HotSeatGame({
 
               {eliminatedFlash.length > 0 && innerPhase === "round_end" ? (
                 <p className="relative mt-4 text-center text-sm font-bold text-destructive">
-                  طلعوا: {eliminatedFlash.join(" · ")}
+                  {g.outLabel} {eliminatedFlash.join(" · ")}
                 </p>
               ) : null}
 
               <p className="relative mt-4 text-center text-[11px] leading-6 text-white/50 sm:text-xs">
-                {players.length} لاعب ← {Math.max(players.length - 1, 0)} كرسي. كل جولة يطلع شخص واحد فقط.
-                لو خلص الوقت والكراسي لسة فاضية، بتنحجز عشوائي، واللي يضل بدون كرسي يطلع.
+                {players.length} {c.players} ← {Math.max(players.length - 1, 0)} {c.chairs}. {g.rules}
               </p>
             </div>
           </div>
@@ -747,7 +755,7 @@ export default function HotSeatGame({
               <Crown className="size-7" />
             </div>
             <DialogTitle className="text-xl font-extrabold">{c.winner}!</DialogTitle>
-            <DialogDescription>آخر واحد على كرسي</DialogDescription>
+            <DialogDescription>{g.winnerDescription}</DialogDescription>
           </DialogHeader>
           {winner ? (
             <p
@@ -766,7 +774,7 @@ export default function HotSeatGame({
                 fullReset();
               }}
             >
-              لعبة جديدة
+              {g.newGame}
             </Button>
           </DialogFooter>
         </DialogContent>

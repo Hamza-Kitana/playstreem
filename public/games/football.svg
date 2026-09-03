@@ -1,10 +1,135 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" fill="none">
-  <rect width="400" height="300" fill="#071208"/>
-  <ellipse cx="200" cy="260" rx="160" ry="24" fill="#14532d" opacity="0.5"/>
-  <rect x="40" y="40" width="320" height="200" rx="16" fill="#166534" opacity="0.35"/>
-  <circle cx="200" cy="130" r="72" fill="#22c55e" opacity="0.2" stroke="#4ade80" stroke-width="3"/>
-  <path d="M200 58 L200 202 M128 130 L272 130" stroke="#4ade80" stroke-width="2" opacity="0.45"/>
-  <circle cx="200" cy="130" r="8" fill="#f8fafc"/>
-  <circle cx="120" cy="200" r="28" fill="#0f172a" stroke="#94a3b8" stroke-width="3"/>
-  <text x="120" y="206" text-anchor="middle" fill="#f8fafc" font-size="22" font-weight="800">½</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="750" viewBox="0 0 1200 750" fill="none">
+  <defs>
+    <radialGradient id="sky" cx="50%" cy="20%" r="80%">
+      <stop offset="0%" stop-color="#14532d"/>
+      <stop offset="40%" stop-color="#052e16"/>
+      <stop offset="100%" stop-color="#020806"/>
+    </radialGradient>
+    <linearGradient id="pitch" x1="600" y1="280" x2="600" y2="720" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#166534"/>
+      <stop offset="55%" stop-color="#14532d"/>
+      <stop offset="100%" stop-color="#052e16"/>
+    </linearGradient>
+    <linearGradient id="stripeA" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#15803d" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#166534" stop-opacity="0.25"/>
+    </linearGradient>
+    <radialGradient id="ballGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#4ade80" stop-opacity="0.55"/>
+      <stop offset="60%" stop-color="#22c55e" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#14532d" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="spot" cx="50%" cy="35%" r="55%">
+      <stop offset="0%" stop-color="#86efac" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#022c22" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="45%" stop-color="#facc15"/>
+      <stop offset="100%" stop-color="#a16207"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+    <filter id="soft2" x="-15%" y="-15%" width="130%" height="130%">
+      <feGaussianBlur stdDeviation="4"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="750" fill="url(#sky)"/>
+  <ellipse cx="600" cy="180" rx="520" ry="220" fill="url(#spot)"/>
+
+  <!-- stadium stands -->
+  <path d="M0 250 L180 250 L120 420 L0 480 Z" fill="#0a1f14" opacity="0.85"/>
+  <path d="M1200 250 L1020 250 L1080 420 L1200 480 Z" fill="#0a1f14" opacity="0.85"/>
+  <g opacity="0.35" fill="#4ade80">
+    <circle cx="70" cy="300" r="3"/><circle cx="110" cy="320" r="3"/><circle cx="50" cy="350" r="3"/>
+    <circle cx="90" cy="370" r="3"/><circle cx="130" cy="290" r="3"/>
+    <circle cx="1130" cy="300" r="3"/><circle cx="1090" cy="320" r="3"/><circle cx="1150" cy="350" r="3"/>
+    <circle cx="1110" cy="370" r="3"/><circle cx="1070" cy="290" r="3"/>
+  </g>
+
+  <!-- pitch -->
+  <path d="M140 300 L1060 300 L1200 720 L0 720 Z" fill="url(#pitch)"/>
+  <g opacity="0.22">
+    <path d="M160 340 L1040 340 L1080 400 L120 400 Z" fill="url(#stripeA)"/>
+    <path d="M100 460 L1100 460 L1140 520 L60 520 Z" fill="url(#stripeA)"/>
+    <path d="M40 580 L1160 580 L1200 640 L0 640 Z" fill="url(#stripeA)"/>
+  </g>
+
+  <!-- pitch lines -->
+  <g stroke="#86efac" stroke-width="3" opacity="0.55" fill="none">
+    <path d="M600 300 L600 720"/>
+    <ellipse cx="600" cy="470" rx="120" ry="70"/>
+    <path d="M280 300 L280 520 Q280 580 600 580 Q920 580 920 520 L920 300"/>
+    <path d="M420 300 L420 390 Q420 430 600 430 Q780 430 780 390 L780 300"/>
+    <circle cx="600" cy="470" r="7" fill="#86efac" stroke="none"/>
+  </g>
+
+  <!-- goal -->
+  <g transform="translate(600 250)">
+    <rect x="-90" y="-8" width="180" height="12" rx="3" fill="#e2e8f0" opacity="0.85"/>
+    <rect x="-88" y="4" width="8" height="55" rx="2" fill="#cbd5e1" opacity="0.75"/>
+    <rect x="80" y="4" width="8" height="55" rx="2" fill="#cbd5e1" opacity="0.75"/>
+    <path d="M-80 8 L80 8 L80 50 L-80 50 Z" fill="#4ade80" opacity="0.08" stroke="#86efac" stroke-width="2"/>
+  </g>
+
+  <!-- floating quiz cards -->
+  <g transform="translate(210 170) rotate(-12)">
+    <rect width="110" height="140" rx="16" fill="#052e16" stroke="#4ade80" stroke-width="3"/>
+    <rect x="16" y="20" width="78" height="10" rx="5" fill="#22c55e" opacity="0.7"/>
+    <rect x="16" y="42" width="58" height="8" rx="4" fill="#86efac" opacity="0.35"/>
+    <rect x="16" y="60" width="68" height="8" rx="4" fill="#86efac" opacity="0.25"/>
+    <circle cx="55" cy="105" r="18" fill="#14532d" stroke="#4ade80" stroke-width="2"/>
+    <text x="55" y="112" text-anchor="middle" fill="#bbf7d0" font-size="22" font-weight="800" font-family="Arial,sans-serif">?</text>
+  </g>
+  <g transform="translate(880 155) rotate(10)">
+    <rect width="110" height="140" rx="16" fill="#052e16" stroke="#86efac" stroke-width="3"/>
+    <rect x="16" y="20" width="78" height="10" rx="5" fill="#4ade80" opacity="0.7"/>
+    <rect x="16" y="42" width="62" height="8" rx="4" fill="#86efac" opacity="0.35"/>
+    <rect x="16" y="60" width="50" height="8" rx="4" fill="#86efac" opacity="0.25"/>
+    <circle cx="55" cy="105" r="18" fill="#14532d" stroke="#86efac" stroke-width="2"/>
+    <text x="55" y="112" text-anchor="middle" fill="#d9f99d" font-size="22" font-weight="800" font-family="Arial,sans-serif">!</text>
+  </g>
+
+  <!-- trophy -->
+  <g transform="translate(600 165)">
+    <ellipse cx="0" cy="78" rx="48" ry="10" fill="#4ade80" opacity="0.25" filter="url(#soft2)"/>
+    <path d="M-28 -8 C-28 -42 -16 -58 0 -60 C16 -58 28 -42 28 -8 C18 8 10 18 0 22 C-10 18 -18 8 -28 -8 Z" fill="url(#metal)"/>
+    <path d="M-28 -20 C-48 -18 -52 8 -34 14" fill="none" stroke="#facc15" stroke-width="7" stroke-linecap="round"/>
+    <path d="M28 -20 C48 -18 52 8 34 14" fill="none" stroke="#facc15" stroke-width="7" stroke-linecap="round"/>
+    <rect x="-8" y="20" width="16" height="22" rx="3" fill="#ca8a04"/>
+    <rect x="-22" y="40" width="44" height="12" rx="4" fill="#a16207"/>
+    <circle cx="0" cy="-28" r="6" fill="#fef9c3"/>
+  </g>
+
+  <!-- soccer ball glow -->
+  <ellipse cx="600" cy="520" rx="160" ry="90" fill="url(#ballGlow)" filter="url(#soft)"/>
+
+  <!-- soccer ball -->
+  <g transform="translate(600 500)">
+    <circle r="92" fill="#f8fafc"/>
+    <circle r="92" fill="none" stroke="#cbd5e1" stroke-width="4"/>
+    <!-- pentagon center -->
+    <path d="M0 -34 L32 -10 L20 28 L-20 28 L-32 -10 Z" fill="#0f172a"/>
+    <!-- surrounding patches -->
+    <path d="M0 -34 L18 -70 L-18 -70 Z" fill="#0f172a"/>
+    <path d="M32 -10 L72 -18 L58 22 L20 28 Z" fill="#0f172a" opacity="0.92"/>
+    <path d="M-32 -10 L-72 -18 L-58 22 L-20 28 Z" fill="#0f172a" opacity="0.92"/>
+    <path d="M20 28 L40 70 L0 52 L-40 70 L-20 28 Z" fill="#0f172a" opacity="0.88"/>
+    <!-- seam lines -->
+    <g stroke="#94a3b8" stroke-width="3" fill="none" opacity="0.7">
+      <path d="M0 -34 L0 -88"/>
+      <path d="M32 -10 L78 -42"/>
+      <path d="M-32 -10 L-78 -42"/>
+      <path d="M20 28 L78 42"/>
+      <path d="M-20 28 L-78 42"/>
+      <path d="M0 52 L0 88"/>
+    </g>
+    <circle r="92" fill="none" stroke="#4ade80" stroke-width="5" opacity="0.35"/>
+  </g>
+
+  <!-- bottom vignette for text readability -->
+  <rect width="1200" height="750" fill="url(#sky)" opacity="0.15"/>
+  <path d="M0 480 L1200 480 L1200 750 L0 750 Z" fill="#020806" opacity="0.45"/>
 </svg>

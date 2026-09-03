@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import ChatEmoteText from "@/components/ChatEmoteText";
 import type { ChatMessage, ChatStatus } from "@/hooks/useKickChat";
 import { cn } from "@/lib/utils";
 
@@ -52,13 +53,13 @@ export default function ChatFeed({
             بانتظار التعليقات من البث…
           </p>
         ) : (
-          messages.slice(-80).map((m) => (
+          messages.slice(-100).map((m) => (
             <div key={m.key} className="animate-chat-in rounded-xl bg-secondary/40 px-3 py-2">
               <span className="text-sm font-bold" style={{ color: m.color }}>
                 {m.user}
               </span>
               <span className="mx-1 text-muted-foreground">:</span>
-              <span className="text-sm break-words">{m.text}</span>
+              <ChatEmoteText text={m.text} className="text-sm leading-7" size="md" />
             </div>
           ))
         )}

@@ -40,6 +40,8 @@ type GameStageProps = {
   onGoReady: () => void;
   /** Called after the 3-2-1 countdown when the user starts from the ready phase. */
   onStart: () => void;
+  /** Skip the 3-2-1 overlay and start immediately. */
+  skipCountdown?: boolean;
   /** Called when the user hits "تعديل الإعدادات" to go back to setup. */
   onBackToSetup: () => void;
   /** Optional: extra bits (rules, badges) shown at the bottom of the setup card. */
@@ -69,6 +71,7 @@ export default function GameStage({
   onDismissMoment,
   onGoReady,
   onStart,
+  skipCountdown = false,
   onBackToSetup,
   setupExtras,
 }: GameStageProps) {
@@ -101,6 +104,7 @@ export default function GameStage({
           startLabel={resolvedStartLabel}
           chatActive={chatActive}
           canStart={canStart}
+          skipCountdown={skipCountdown}
           onStart={onStart}
           onBackToSetup={onBackToSetup}
         />
@@ -263,6 +267,7 @@ function ReadyStage({
   startLabel,
   chatActive,
   canStart,
+  skipCountdown,
   onStart,
   onBackToSetup,
 }: {
@@ -273,6 +278,7 @@ function ReadyStage({
   startLabel: string;
   chatActive: boolean;
   canStart: boolean;
+  skipCountdown: boolean;
   onStart: () => void;
   onBackToSetup: () => void;
 }) {
@@ -303,8 +309,12 @@ function ReadyStage({
 
   const disabled = !chatActive || !canStart || countdown !== null;
 
-  const beginCountdown = () => {
+  const begin = () => {
     if (disabled) return;
+    if (skipCountdown) {
+      onStart();
+      return;
+    }
     setCountdown(3);
   };
 
@@ -367,7 +377,7 @@ function ReadyStage({
             <Button
               type="button"
               disabled={disabled}
-              onClick={beginCountdown}
+              onClick={begin}
               className="h-[4.25rem] min-w-[min(100%,20rem)] gap-2 rounded-3xl px-10 text-2xl font-extrabold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-[22rem]"
               style={{
                 background: `linear-gradient(135deg, ${accent}, ${glow})`,

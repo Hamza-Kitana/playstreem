@@ -31,7 +31,7 @@ export default function ChatStatsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[min(90vh,720px)] max-w-xl overflow-hidden rounded-3xl border-primary/25 bg-background/95 p-0 shadow-[0_0_80px_-24px_var(--neon)] backdrop-blur-xl">
-        <DialogHeader className="border-b border-white/10 bg-gradient-to-b from-primary/15 to-transparent px-6 py-5 text-start">
+        <DialogHeader className="border-b border-white/10 bg-gradient-to-b from-primary/15 to-transparent px-6 py-5 pe-14 text-start">
           <DialogTitle className="flex items-center gap-2 text-xl font-extrabold">
             <Trophy className="size-5 text-primary" />
             {p.statsTitle}

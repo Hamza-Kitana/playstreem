@@ -13,7 +13,10 @@ import {
 import { useKickChatContext } from "@/contexts/KickChatContext";
 import { useChatAnalytics } from "@/contexts/ChatAnalyticsContext";
 import { useT } from "@/contexts/LocaleContext";
+import ChatEmoteText from "@/components/ChatEmoteText";
+import ChatProfanityDialog from "@/components/ChatProfanityDialog";
 import ChatStatsDialog from "@/components/ChatStatsDialog";
+import ChatSupportersDialog from "@/components/ChatSupportersDialog";
 import ProfanityAlertBanner from "@/components/ProfanityAlertBanner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -37,12 +40,17 @@ function ChatPage() {
   const live = chat.status === "live";
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
-  const latest = [...chat.messages].slice(-120).reverse();
+  const [profanityOpen, setProfanityOpen] = useState(false);
+  const [supportersOpen, setSupportersOpen] = useState(false);
+  // FIFO queue: oldest first, newest last — max 100 (also capped in useKickChat).
+  const latest = chat.messages.length > 100 ? chat.messages.slice(-100) : chat.messages;
+  const newestKey = latest.at(-1)?.key;
 
   useEffect(() => {
     const el = boxRef.current;
-    if (el) el.scrollTop = 0;
-  }, [chat.messages]);
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [newestKey]);
 
   const timeFmt = new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en", {
     hour: "2-digit",
@@ -99,6 +107,36 @@ function ChatPage() {
             <BarChart3 className="size-3.5" />
             {p.statsBtn}
           </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-9 gap-1.5 border border-amber-400/35 bg-gradient-to-r from-amber-500/20 to-amber-400/10 font-extrabold text-amber-100 hover:from-amber-500/30 hover:to-amber-400/20 hover:text-amber-50"
+            onClick={() => setSupportersOpen(true)}
+          >
+            <Gift className="size-3.5 text-amber-300" />
+            {p.supportersBtn}
+            {analytics.topSupporters.length > 0 ? (
+              <span className="rounded-full bg-amber-400/25 px-1.5 py-0.5 text-[10px] font-black tabular-nums text-amber-50">
+                {analytics.topSupporters.length}
+              </span>
+            ) : null}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-9 gap-1.5 border border-rose-500/30 bg-rose-500/10 font-extrabold text-rose-200 hover:bg-rose-500/20 hover:text-rose-100"
+            onClick={() => setProfanityOpen(true)}
+          >
+            <ShieldAlert className="size-3.5" />
+            {p.profanityBtn}
+            {analytics.profanityLog.length > 0 ? (
+              <span className="rounded-full bg-rose-500/30 px-1.5 py-0.5 text-[10px] font-black tabular-nums text-rose-100">
+                {new Set(analytics.profanityLog.map((x) => x.user.toLowerCase())).size}
+              </span>
+            ) : null}
+          </Button>
           {!live ? (
             <Button asChild size="sm" className="h-9 font-extrabold">
               <Link to="/connect">
@@ -146,7 +184,7 @@ function ChatPage() {
 
         <div
           ref={boxRef}
-          className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5 lg:px-8"
+          className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5 lg:px-8"
         >
           {!live ? (
             <div className="grid min-h-[50vh] place-items-center px-4 text-center">
@@ -168,11 +206,13 @@ function ChatPage() {
             latest.map((m) => {
               const flagged = analytics.flaggedMessageKeys.has(m.key);
               const isGift = m.kind === "gift";
+              const isNewest = m.key === newestKey;
               return (
                 <div
                   key={m.key}
                   className={cn(
-                    "animate-chat-in flex w-full items-start gap-3 rounded-2xl border px-4 py-3 transition-colors sm:gap-4 sm:px-5 sm:py-3.5",
+                    "flex w-full items-start gap-3.5 rounded-2xl border px-4 py-3.5 transition-colors sm:gap-4 sm:px-5 sm:py-4",
+                    isNewest && "animate-chat-in",
                     flagged
                       ? "border-rose-500/40 bg-rose-950/30"
                       : isGift
@@ -181,42 +221,42 @@ function ChatPage() {
                   )}
                 >
                   <span
-                    className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full text-sm font-extrabold sm:size-10 sm:text-base"
+                    className="mt-0.5 grid size-11 shrink-0 place-items-center rounded-full text-base font-extrabold sm:size-12 sm:text-lg"
                     style={{
                       color: m.color,
                       background: `color-mix(in oklab, ${m.color} 22%, transparent)`,
                       boxShadow: `0 0 20px -8px ${m.color}`,
                     }}
                   >
-                    {isGift ? <Gift className="size-4" /> : m.user.slice(0, 1)}
+                    {isGift ? <Gift className="size-5" /> : m.user.slice(0, 1)}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                      <span className="text-sm font-extrabold sm:text-base" style={{ color: m.color }}>
+                    <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+                      <span className="text-base font-extrabold sm:text-lg" style={{ color: m.color }}>
                         {m.user}
                       </span>
                       {isGift ? (
-                        <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-extrabold text-amber-300">
+                        <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-extrabold text-amber-300">
                           {p.gift}
                         </span>
                       ) : null}
                       {flagged ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-extrabold text-rose-300">
-                          <ShieldAlert className="size-3" />
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/20 px-2.5 py-0.5 text-xs font-extrabold text-rose-300">
+                          <ShieldAlert className="size-3.5" />
                           {p.flagged}
                         </span>
                       ) : null}
-                      <span className="text-[11px] text-muted-foreground tabular-nums">
+                      <span className="text-xs text-muted-foreground tabular-nums sm:text-sm">
                         {timeFmt.format(m.at)}
                       </span>
                     </div>
                     <p
                       className={cn(
-                        "mt-1 text-base leading-7 break-words sm:text-lg sm:leading-8",
+                        "mt-1.5 text-lg leading-8 break-words sm:text-xl sm:leading-9",
                         flagged ? "text-rose-100" : isGift ? "font-bold text-amber-100" : "text-foreground",
                       )}
                     >
-                      {m.text}
+                      <ChatEmoteText text={m.text} size="lg" />
                     </p>
                   </div>
                 </div>
@@ -227,6 +267,8 @@ function ChatPage() {
       </div>
 
       <ChatStatsDialog open={statsOpen} onOpenChange={setStatsOpen} />
+      <ChatSupportersDialog open={supportersOpen} onOpenChange={setSupportersOpen} />
+      <ChatProfanityDialog open={profanityOpen} onOpenChange={setProfanityOpen} />
     </div>
   );
 }

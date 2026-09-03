@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { ChatMessage } from "./useKickChat";
+import { stripKickEmotes } from "@/lib/kick-emotes";
 
 /**
  * Calls `handler` for every chat message received after the hook became active.
@@ -30,7 +31,7 @@ export function useNewMessages(
 
 /** Converts Arabic-Indic digits to latin and strips tatweel/all diacritics (harakat). */
 export function normalizeAr(input: string) {
-  return input
+  return stripKickEmotes(input)
     .normalize("NFKC")
     .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
     .replace(/[\u06f0-\u06f9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))

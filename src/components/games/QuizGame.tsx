@@ -114,6 +114,7 @@ export default function QuizGame({
           if (questionCount >= 10) setPhase("ready");
         }}
         onStart={startQuiz}
+        skipCountdown
         onBackToSetup={backToSetup}
         settings={
           <div className="space-y-4">

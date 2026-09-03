@@ -165,7 +165,7 @@ export function useKickChat() {
             giftAmount: extra?.giftAmount,
           },
         ];
-        return next.length > 220 ? next.slice(next.length - 220) : next;
+        return next.length > 100 ? next.slice(next.length - 100) : next;
       });
     },
     [],

@@ -21,9 +21,14 @@ export type ChatMessage = {
   /** Pre-formatted support amount for non-Kick gifts, e.g. a "$5.00" Super Chat. */
   giftLabel?: string;
   platform?: ChatPlatform;
+  /** Kind of support for gift messages; Kick gifts leave it unset. */
+  supportType?: SupportType;
+  /** Number of memberships in a YouTube gifted-memberships event. */
+  giftCount?: number;
 };
 
 export type ChatPlatform = "kick" | "youtube";
+export type SupportType = "kicks" | "superchat" | "sticker" | "member" | "giftedMembers";
 
 type KickSender = {
   id?: number | string;

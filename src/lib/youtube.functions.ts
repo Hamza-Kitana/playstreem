@@ -1,15 +1,21 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { youTubeEmoteToken } from "./kick-emotes";
 
 export type YouTubeChatItem = {
   id: string;
   author: string;
   authorId: string;
+  /** Message text; custom emojis / stickers are `[ytemote:…]` tokens. */
   text: string;
   at: number;
-  kind: "chat" | "superchat";
+  kind: "chat" | "superchat" | "sticker" | "member" | "giftMembers";
   /** Formatted Super Chat / Super Sticker amount, e.g. "$5.00". */
   amount?: string;
+  /** Membership headline from YouTube, e.g. "Member for 6 months". */
+  detail?: string;
+  /** Number of memberships gifted. */
+  count?: number;
 };
 
 export type YouTubeLiveInfo = {
@@ -112,75 +118,148 @@ async function videoIdFromPath(path: string): Promise<{ id: string; title: strin
   return { id: canonical[1], title };
 }
 
+type Thumbnails = { thumbnails?: { url?: string; width?: number }[] };
+type Accessible = { accessibility?: { accessibilityData?: { label?: string } } };
+
 type Run = {
   text?: string;
-  emoji?: { emojiId?: string; isCustomEmoji?: boolean; shortcuts?: string[] };
+  emoji?: {
+    emojiId?: string;
+    isCustomEmoji?: boolean;
+    shortcuts?: string[];
+    image?: Thumbnails & Accessible;
+  };
 };
 
-function runsToText(runs: Run[] | undefined) {
-  if (!Array.isArray(runs)) return "";
-  return runs
+type Text = { runs?: Run[]; simpleText?: string };
+
+function largestThumb(image: Thumbnails | undefined) {
+  let best: { url?: string; width?: number } | undefined;
+  for (const t of image?.thumbnails ?? []) {
+    if (t.url && (!best || (t.width ?? 0) > (best.width ?? 0))) best = t;
+  }
+  const url = best?.url;
+  if (!url) return null;
+  return url.startsWith("//") ? `https:${url}` : url;
+}
+
+function runsToText(value: Text | undefined) {
+  if (!value) return "";
+  if (typeof value.simpleText === "string") return value.simpleText.trim();
+  if (!Array.isArray(value.runs)) return "";
+  return value.runs
     .map((r) => {
       if (typeof r.text === "string") return r.text;
-      if (r.emoji)
-        return r.emoji.isCustomEmoji ? (r.emoji.shortcuts?.[0] ?? "") : (r.emoji.emojiId ?? "");
-      return "";
+      if (!r.emoji) return "";
+      if (!r.emoji.isCustomEmoji) return r.emoji.emojiId ?? "";
+      const url = largestThumb(r.emoji.image);
+      const name =
+        r.emoji.shortcuts?.[0]?.replace(/^:|:$/g, "") ??
+        r.emoji.image?.accessibility?.accessibilityData?.label ??
+        "emoji";
+      return url ? youTubeEmoteToken(url, name) : `:${name}:`;
     })
     .join("")
     .trim();
 }
 
+function cleanAuthor(name: string) {
+  return name.replace(/^[\s\u200e\u200f\u202a-\u202e\u2066-\u2069]*@/, "").trim() || "YouTube";
+}
+
 type Renderer = {
   id?: string;
-  message?: { runs?: Run[] };
-  authorName?: { simpleText?: string };
+  message?: Text;
+  authorName?: Text;
   authorExternalChannelId?: string;
   timestampUsec?: string;
-  purchaseAmountText?: { simpleText?: string };
+  purchaseAmountText?: Text;
+  sticker?: Thumbnails & Accessible;
+  headerPrimaryText?: Text;
+  headerSubtext?: Text;
+  header?: { liveChatSponsorshipsHeaderRenderer?: { authorName?: Text; primaryText?: Text } };
 };
 
-function toItem(
-  renderer: Renderer | undefined,
+function baseItem(
+  renderer: Renderer,
   kind: YouTubeChatItem["kind"],
+  authorName?: Text,
 ): YouTubeChatItem | null {
-  if (!renderer?.id) return null;
-  const text = runsToText(renderer.message?.runs);
-  if (kind === "chat" && !text) return null;
+  if (!renderer.id) return null;
+  const author = runsToText(authorName ?? renderer.authorName);
   const at = Number(renderer.timestampUsec) / 1000;
-  const item: YouTubeChatItem = {
+  return {
     id: renderer.id,
-    author:
-      renderer.authorName?.simpleText?.replace(/^[\s\u200e\u200f\u202a-\u202e\u2066-\u2069]*@/, "").trim() ||
-      "YouTube",
-    authorId: renderer.authorExternalChannelId ?? renderer.authorName?.simpleText ?? renderer.id,
-    text,
+    author: cleanAuthor(author),
+    authorId: renderer.authorExternalChannelId ?? (author || renderer.id),
+    text: runsToText(renderer.message),
     at: Number.isFinite(at) && at > 0 ? at : Date.now(),
     kind,
   };
-  const amount = renderer.purchaseAmountText?.simpleText;
-  if (amount) item.amount = amount;
-  return item;
 }
 
-type ChatAction = {
-  addChatItemAction?: {
-    item?: {
-      liveChatTextMessageRenderer?: Renderer;
-      liveChatPaidMessageRenderer?: Renderer;
-      liveChatPaidStickerRenderer?: Renderer;
-    };
-  };
+type ChatItem = {
+  liveChatTextMessageRenderer?: Renderer;
+  liveChatPaidMessageRenderer?: Renderer;
+  liveChatPaidStickerRenderer?: Renderer;
+  liveChatMembershipItemRenderer?: Renderer;
+  liveChatSponsorshipsGiftPurchaseAnnouncementRenderer?: Renderer;
 };
+
+function parseChatItem(item: ChatItem): YouTubeChatItem | null {
+  if (item.liveChatTextMessageRenderer) {
+    const parsed = baseItem(item.liveChatTextMessageRenderer, "chat");
+    return parsed?.text ? parsed : null;
+  }
+  if (item.liveChatPaidMessageRenderer) {
+    const r = item.liveChatPaidMessageRenderer;
+    const parsed = baseItem(r, "superchat");
+    const amount = runsToText(r.purchaseAmountText);
+    if (parsed && amount) parsed.amount = amount;
+    return parsed;
+  }
+  if (item.liveChatPaidStickerRenderer) {
+    const r = item.liveChatPaidStickerRenderer;
+    const parsed = baseItem(r, "sticker");
+    if (!parsed) return null;
+    const amount = runsToText(r.purchaseAmountText);
+    if (amount) parsed.amount = amount;
+    const url = largestThumb(r.sticker);
+    if (url) {
+      parsed.text = youTubeEmoteToken(
+        url,
+        r.sticker?.accessibility?.accessibilityData?.label ?? "sticker",
+      );
+    }
+    return parsed;
+  }
+  if (item.liveChatMembershipItemRenderer) {
+    const r = item.liveChatMembershipItemRenderer;
+    const parsed = baseItem(r, "member");
+    if (!parsed) return null;
+    const detail = runsToText(r.headerPrimaryText) || runsToText(r.headerSubtext);
+    if (detail) parsed.detail = detail;
+    return parsed;
+  }
+  if (item.liveChatSponsorshipsGiftPurchaseAnnouncementRenderer) {
+    const r = item.liveChatSponsorshipsGiftPurchaseAnnouncementRenderer;
+    const header = r.header?.liveChatSponsorshipsHeaderRenderer;
+    const parsed = baseItem(r, "giftMembers", header?.authorName);
+    if (!parsed) return null;
+    const count = Number(runsToText(header?.primaryText).match(/\d+/)?.[0]);
+    parsed.count = Number.isFinite(count) && count > 0 ? count : 1;
+    return parsed;
+  }
+  return null;
+}
+
+type ChatAction = { addChatItemAction?: { item?: ChatItem } };
 
 function actionsToItems(actions: ChatAction[] | undefined): YouTubeChatItem[] {
   const out: YouTubeChatItem[] = [];
   for (const action of actions ?? []) {
     const item = action.addChatItemAction?.item;
-    if (!item) continue;
-    const parsed =
-      toItem(item.liveChatTextMessageRenderer, "chat") ??
-      toItem(item.liveChatPaidMessageRenderer, "superchat") ??
-      toItem(item.liveChatPaidStickerRenderer, "superchat");
+    const parsed = item ? parseChatItem(item) : null;
     if (parsed) out.push(parsed);
   }
   return out;

@@ -216,7 +216,8 @@ export const en: Messages = {
     exampleSuffix: "or just the channel name.",
     pageEyebrow: "Step one",
     pageTitle: "Connect Kick",
-    pageSubtitle: "Enter your stream link or channel name, connect, then pick any game from the top bar.",
+    pageSubtitle:
+      "Enter your stream link or channel name, connect, then pick any game from the top bar.",
     perkFast: "Fast connect",
     perkFastDesc: "Up and running in seconds. Channel name or link — we handle the rest.",
     perkSafe: "Safe & stable",
@@ -227,7 +228,8 @@ export const en: Messages = {
     tabKick: "Kick",
     tabYoutube: "YouTube",
     ytPanelTitle: "Connect YouTube Live",
-    ytPanelSubtitle: "Your live stream link or channel handle — comments join the same chat and games.",
+    ytPanelSubtitle:
+      "Your live stream link or channel handle — comments join the same chat and games.",
     ytInputLabel: "Stream link or channel",
     ytInputPlaceholder: "youtube.com/@yourname or stream link",
     ytConnect: "Connect YouTube",
@@ -413,7 +415,8 @@ export const en: Messages = {
       resetAll: "Start over",
       arriving: "Coming…",
       outLabel: "Eliminated:",
-      rules: "One person is eliminated each round. If time runs out with empty chairs, they are assigned randomly and the player left standing is eliminated.",
+      rules:
+        "One person is eliminated each round. If time runs out with empty chairs, they are assigned randomly and the player left standing is eliminated.",
       winnerDescription: "Last player in a chair",
       newGame: "New game",
     },
@@ -440,7 +443,8 @@ export const en: Messages = {
       stoppedSub: "You stopped the round and locked current ratings.",
       pickPerson: "Pick a person to open their categories",
       personModalTitle: "Rate",
-      personModalDesc: "Pick a category and press Start — the timer begins immediately and chat sends 0–10.",
+      personModalDesc:
+        "Pick a category and press Start — the timer begins immediately and chat sends 0–10.",
       startCriterion: "Start",
       done: "Done",
       pending: "Pending",
@@ -567,7 +571,8 @@ export const en: Messages = {
       normalBossAfter: "Normal boss in",
       bossesSpawned: "Bosses spawned:",
       clickToPlay: "Click to play",
-      playControls: "Scroll changes weapon · Right-click to zoom · Space to jump · R to reload · K for fullscreen · then click here to play",
+      playControls:
+        "Scroll changes weapon · Right-click to zoom · Space to jump · R to reload · K for fullscreen · then click here to play",
       viewersWon: "Viewers won!",
       chatDefeatedStreamer: "Chat took down the streamer after",
       streamerSurvived: "Streamer survived!",
@@ -663,7 +668,8 @@ export const en: Messages = {
       rounds: "Rounds",
       rule: "Rule",
       ruleShort: "Draw only",
-      setupHint: "The word sits on your side rail — crop the canvas in OBS so chat never sees it. They watch the sketch and guess.",
+      setupHint:
+        "The word sits on your side rail — crop the canvas in OBS so chat never sees it. They watch the sketch and guess.",
       streamerOnly: "Streamer only",
       drawThis: "Draw this word",
       theWord: "Word:",
@@ -688,7 +694,8 @@ export const en: Messages = {
       rounds: "Rounds",
       rule: "Rule",
       ruleShort: "Silent",
-      setupHint: "The title stays on your side rail. Act with no voice. Public hints (genre, then year, then a clue) appear over time.",
+      setupHint:
+        "The title stays on your side rail. Act with no voice. Public hints (genre, then year, then a clue) appear over time.",
       streamerOnly: "Streamer only",
       actThis: "Act this movie — no talking",
       silent: "Silent · no talking",
@@ -714,10 +721,13 @@ export const en: Messages = {
       metaTitle: "About us — Al-Daboor",
       eyebrow: "About the platform",
       brandLine: "Al-Daboor · The Hornet",
-      heroSubtitle: "Al-Daboor is an interactive game platform for Kick streamers — we let chat play along, not just watch.",
+      heroSubtitle:
+        "Al-Daboor is an interactive game platform for Kick streamers — we let chat play along, not just watch.",
       storyTitle: "Our story in brief",
-      storyBody1: "Many streams have energetic chats, but the interaction ends there. Al-Daboor turns those comments into part of the show with ready-made games, instant responses, and live rankings — without interrupting your stream or opening a complicated app.",
-      storyBody2: "We built the experience for streamers: a clear interface and direct access to connection, games, and platform pages from the top navigation.",
+      storyBody1:
+        "Many streams have energetic chats, but the interaction ends there. Al-Daboor turns those comments into part of the show with ready-made games, instant responses, and live rankings — without interrupting your stream or opening a complicated app.",
+      storyBody2:
+        "We built the experience for streamers: a clear interface and direct access to connection, games, and platform pages from the top navigation.",
       stats: [
         { k: "8", v: "Ready-to-play games" },
         { k: "1", v: "Stream link to connect" },
@@ -728,14 +738,27 @@ export const en: Messages = {
       valuesTitle: "What matters to us?",
       valuesSubtitle: "More than tools — a clear vision for making interactive streams more fun.",
       values: [
-        { title: "Fast and simple", desc: "Connect your channel in one tap and open a game in the same session. No lengthy setup panels taking time away from your stream." },
-        { title: "The audience joins the show", desc: "Every comment becomes real interaction: an answer, vote, or rating — not just another message flying by." },
-        { title: "Designed for a second screen", desc: "A clear, spacious interface that fits beside OBS, with live connection status always visible." },
-        { title: "Built for every locale", desc: "Direction, typography, and copy adapt naturally to the selected language for a consistent experience." },
+        {
+          title: "Fast and simple",
+          desc: "Connect your channel in one tap and open a game in the same session. No lengthy setup panels taking time away from your stream.",
+        },
+        {
+          title: "The audience joins the show",
+          desc: "Every comment becomes real interaction: an answer, vote, or rating — not just another message flying by.",
+        },
+        {
+          title: "Designed for a second screen",
+          desc: "A clear, spacious interface that fits beside OBS, with live connection status always visible.",
+        },
+        {
+          title: "Built for every locale",
+          desc: "Direction, typography, and copy adapt naturally to the selected language for a consistent experience.",
+        },
       ],
       servicesEyebrow: "Games",
       servicesTitle: "What can you do?",
-      servicesSubtitle: "Every game has its own page — open one from the home page or the games menu.",
+      servicesSubtitle:
+        "Every game has its own page — open one from the home page or the games menu.",
       howEyebrow: "How it works",
       howTitle: "How do you use it on stream?",
       howSubtitle: "Four clear steps — from opening the site to finishing the round.",
@@ -746,7 +769,8 @@ export const en: Messages = {
         "Let viewers respond in chat and watch the results update live.",
       ],
       ctaTitle: "Ready to try Al-Daboor?",
-      ctaSubtitle: "Connect your channel, browse verified streamers, or contact us about a partnership or verification.",
+      ctaSubtitle:
+        "Connect your channel, browse verified streamers, or contact us about a partnership or verification.",
       connectCta: "Start connecting",
       streamersCta: "Verified streamers",
       contactCta: "Contact us",
@@ -758,7 +782,8 @@ export const en: Messages = {
       discord: "Discord",
       metaTitle: "Contact us — Al-Daboor",
       eyebrow: "We're here",
-      heroSubtitle: "We'd love to hear from you about connection support, game ideas, verification requests, or anything else related to Al-Daboor.",
+      heroSubtitle:
+        "We'd love to hear from you about connection support, game ideas, verification requests, or anything else related to Al-Daboor.",
       siteTitle: "Hamza Kitana",
       siteRole: "Full Stack Developer & Marketing Manager",
       siteBody: "Every way to reach me is on my website — head over and get in touch there.",
@@ -771,19 +796,35 @@ export const en: Messages = {
         "General question",
       ],
       channels: [
-        { title: "Official email", body: "For detailed questions, verification requests, and partnerships.", value: "hello@al-daboor.com" },
-        { title: "Quick form", body: "Send your message from this page and we'll deliver it directly to the team.", value: "We usually reply within one to two days" },
-        { title: "Live-stream support", body: "If something breaks while you're live, start your message with “Urgent” so we can prioritize it.", value: "Best time: evenings, Gulf time" },
+        {
+          title: "Official email",
+          body: "For detailed questions, verification requests, and partnerships.",
+          value: "hello@al-daboor.com",
+        },
+        {
+          title: "Quick form",
+          body: "Send your message from this page and we'll deliver it directly to the team.",
+          value: "We usually reply within one to two days",
+        },
+        {
+          title: "Live-stream support",
+          body: "If something breaks while you're live, start your message with “Urgent” so we can prioritize it.",
+          value: "Best time: evenings, Gulf time",
+        },
       ],
       beforeTitle: "Before you contact us",
-      beforeConnect: "For connection issues, include your Kick channel name and the error message you saw.",
-      beforeVerify: "For verification, send your channel link, a short description of your content, and your approximate viewer count.",
-      beforeResponse: "We aim to reply within 24–48 hours. Urgent messages during a stream get higher priority.",
+      beforeConnect:
+        "For connection issues, include your Kick channel name and the error message you saw.",
+      beforeVerify:
+        "For verification, send your channel link, a short description of your content, and your approximate viewer count.",
+      beforeResponse:
+        "We aim to reply within 24–48 hours. Urgent messages during a stream get higher priority.",
       learnPrompt: "Want to see how the platform works first?",
       aboutCta: "About us",
       connectCta: "Connect page",
       sentTitle: "Message received",
-      sentBody: "Thanks for contacting Al-Daboor. We saved your topic ({topic}) and will review it and get back to you soon.",
+      sentBody:
+        "Thanks for contacting Al-Daboor. We saved your topic ({topic}) and will review it and get back to you soon.",
       sendAnother: "Send another message",
       formTitle: "Send a message",
       formSubtitle: "All important fields are clear — we read every message.",
@@ -811,7 +852,7 @@ export const en: Messages = {
       visibleCount: "messages shown",
       waiting: "Waiting for the first comment…",
       emptyTitle: "Chat is empty until you connect",
-      emptyDesc: "Connect your Kick channel to see comments here in full width.",
+      emptyDesc: "Connect your Kick or YouTube channel to see comments here in full width.",
       connectPage: "Connect page",
       connectChannel: "Connect channel",
       statsBtn: "Stats",
@@ -858,6 +899,23 @@ export const en: Messages = {
       flagged: "Inappropriate",
       gift: "Gift",
       giftNoMessage: "Sent Kicks without a message",
+      titleYoutube: "YouTube chat",
+      titleBoth: "Kick & YouTube chat",
+      supportersDescYoutube:
+        "Viewers who sent Super Chats or joined memberships this session — ranked from highest.",
+      supportersDescBoth:
+        "Viewers who supported with Kicks, Super Chats or memberships this session — ranked from highest.",
+      supportersEmptyYoutube: "No Super Chats yet — the first one will show up here.",
+      supporterChatEmptyYoutube:
+        "No support yet — the first Super Chat or membership will show up here.",
+      superChat: "Super Chat",
+      superSticker: "Super Sticker",
+      superChatNoMessage: "Sent a Super Chat without a message",
+      memberLabel: "Membership",
+      memberJoined: "Joined the membership",
+      giftedMembers: "Gifted {n} memberships",
+      membershipsCount: "{n} memberships",
+      giftedMembersCount: "Gifted {n}",
       statusError: "Connection lost",
       noChannel: "No channel",
     },

@@ -1,6 +1,8 @@
-import { Crown, Gift, Sparkles } from "lucide-react";
+import { Crown, Gift, Sparkles, Youtube } from "lucide-react";
 import { useT } from "@/contexts/LocaleContext";
 import { useChatAnalytics } from "@/contexts/ChatAnalyticsContext";
+import { useKickChatContext } from "@/contexts/KickChatContext";
+import { formatSupportAmount } from "@/lib/chat-analytics-store";
 import {
   Dialog,
   DialogContent,
@@ -40,7 +42,20 @@ export default function ChatSupportersDialog({
 }) {
   const { messages: t, locale, dir } = useT();
   const p = t.pages.chat;
-  const { topSupporters, totalKicks } = useChatAnalytics();
+  const { topSupporters, totalKicks, superChatTotals } = useChatAnalytics();
+  const chat = useKickChatContext();
+  const numLocale = locale === "ar" ? "ar" : "en";
+  const kickOn = chat.kick.status === "live" || chat.kick.status === "connecting";
+  const youtubeOn = chat.youtube.status === "live" || chat.youtube.status === "connecting";
+  const youtubeOnly = youtubeOn && !kickOn;
+  const desc =
+    kickOn && youtubeOn
+      ? p.supportersDescBoth
+      : youtubeOnly
+        ? p.supportersDescYoutube
+        : p.supportersDesc;
+  const emptyText = youtubeOnly ? p.supportersEmptyYoutube : p.supportersEmpty;
+  const superChatEntries = Object.entries(superChatTotals).filter(([, v]) => v > 0);
 
   const timeFmt = new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en", {
     hour: "2-digit",
@@ -67,17 +82,28 @@ export default function ChatSupportersDialog({
             {p.supportersTitle}
           </DialogTitle>
           <DialogDescription className="relative text-sm text-muted-foreground">
-            {p.supportersDesc}
+            {desc}
           </DialogDescription>
           <div className="relative mt-3 flex flex-wrap gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-100">
               <Crown className="size-3.5 text-amber-300" />
               {topSupporters.length} {p.supportersPeople}
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-black/30 px-3 py-1 text-xs font-bold text-amber-100 tabular-nums">
-              <Sparkles className="size-3.5 text-amber-300" />
-              {kicksFmt.format(totalKicks)} {p.kicksUnit}
-            </span>
+            {totalKicks > 0 || !youtubeOnly ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-black/30 px-3 py-1 text-xs font-bold text-amber-100 tabular-nums">
+                <Sparkles className="size-3.5 text-amber-300" />
+                {kicksFmt.format(totalKicks)} {p.kicksUnit}
+              </span>
+            ) : null}
+            {superChatEntries.map(([currency, value]) => (
+              <span
+                key={currency}
+                className="inline-flex items-center gap-1.5 rounded-full border border-red-400/30 bg-red-500/15 px-3 py-1 text-xs font-bold text-red-100 tabular-nums"
+              >
+                <Youtube className="size-3.5 text-red-400" />
+                <span dir="ltr">{formatSupportAmount(currency, value, numLocale)}</span>
+              </span>
+            ))}
           </div>
         </DialogHeader>
 
@@ -85,7 +111,7 @@ export default function ChatSupportersDialog({
           {topSupporters.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-amber-400/25 bg-amber-500/5 px-4 py-12 text-center">
               <Gift className="mx-auto size-10 text-amber-400/70" />
-              <p className="mt-3 text-sm font-bold text-muted-foreground">{p.supportersEmpty}</p>
+              <p className="mt-3 text-sm font-bold text-muted-foreground">{emptyText}</p>
             </div>
           ) : (
             <ul className="space-y-2.5">
@@ -123,7 +149,10 @@ export default function ChatSupportersDialog({
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <p className="truncate text-base font-extrabold" style={{ color: row.color }}>
+                          <p
+                            className="truncate text-base font-extrabold"
+                            style={{ color: row.color }}
+                          >
                             {row.user}
                           </p>
                           {i === 0 ? (
@@ -137,16 +166,47 @@ export default function ChatSupportersDialog({
                           </span>
                         </div>
                         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs font-bold">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2.5 py-0.5 text-amber-200 tabular-nums">
-                            <Gift className="size-3" />
-                            {kicksFmt.format(row.kicks)} {p.kicksUnit}
-                          </span>
+                          {row.kicks > 0 ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2.5 py-0.5 text-amber-200 tabular-nums">
+                              <Gift className="size-3" />
+                              {kicksFmt.format(row.kicks)} {p.kicksUnit}
+                            </span>
+                          ) : null}
+                          {Object.entries(row.superChats ?? {}).map(([currency, value]) => (
+                            <span
+                              key={currency}
+                              className="inline-flex items-center gap-1 rounded-full bg-red-500/20 px-2.5 py-0.5 text-red-200 tabular-nums"
+                            >
+                              <Youtube className="size-3" />
+                              <span dir="ltr">
+                                {formatSupportAmount(currency, value, numLocale)}
+                              </span>
+                            </span>
+                          ))}
+                          {row.memberships ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-emerald-200 tabular-nums">
+                              <Crown className="size-3" />
+                              {p.membershipsCount.replace("{n}", kicksFmt.format(row.memberships))}
+                            </span>
+                          ) : null}
+                          {row.giftedMembers ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-emerald-200 tabular-nums">
+                              <Gift className="size-3" />
+                              {p.giftedMembersCount.replace(
+                                "{n}",
+                                kicksFmt.format(row.giftedMembers),
+                              )}
+                            </span>
+                          ) : null}
                           <span className="text-muted-foreground tabular-nums">
                             {row.gifts} {p.giftEvents}
                           </span>
                           <span className="text-white/35">·</span>
                           <span className="text-amber-100/70 tabular-nums">
-                            {p.lastGift}: {kicksFmt.format(row.lastAmount)}
+                            {p.lastGift}:{" "}
+                            <span dir="ltr">
+                              {row.lastLabel ?? `${kicksFmt.format(row.lastAmount)} ${p.kicksUnit}`}
+                            </span>
                           </span>
                         </div>
                       </div>

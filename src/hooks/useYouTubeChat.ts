@@ -36,14 +36,30 @@ function toMessage(item: YouTubeChatItem): ChatMessage {
     platform: "youtube",
     kind: "chat",
   };
-  if (item.kind !== "superchat") return base;
-  return {
-    ...base,
-    kind: "gift",
-    text: `Super Chat ${item.amount ?? ""}`.trim(),
-    ...(item.amount ? { giftLabel: item.amount } : {}),
-    ...(item.text ? { giftMessage: item.text } : {}),
-  };
+  if (item.kind === "chat") return base;
+
+  const gift: ChatMessage = { ...base, kind: "gift" };
+  if (item.text) gift.giftMessage = item.text;
+  switch (item.kind) {
+    case "superchat":
+    case "sticker":
+      gift.supportType = item.kind;
+      gift.text =
+        `${item.kind === "sticker" ? "Super Sticker" : "Super Chat"} ${item.amount ?? ""}`.trim();
+      if (item.amount) gift.giftLabel = item.amount;
+      break;
+    case "member":
+      gift.supportType = "member";
+      gift.text = "YouTube membership";
+      if (item.detail) gift.giftLabel = item.detail;
+      break;
+    case "giftMembers":
+      gift.supportType = "giftedMembers";
+      gift.text = `Gifted ${item.count ?? 1} memberships`;
+      gift.giftCount = item.count ?? 1;
+      break;
+  }
+  return gift;
 }
 
 export function useYouTubeChat() {

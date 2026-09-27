@@ -15,6 +15,7 @@ import {
   analyticsChannelKey,
   emptyChatAnalytics,
   loadChatAnalytics,
+  parseSupportAmount,
   saveChatAnalytics,
   type ChatterStat,
   type ProfanityAlert,
@@ -36,6 +37,7 @@ type ChatAnalyticsValue = {
   dismissProfanity: () => void;
   totalMessages: number;
   totalKicks: number;
+  superChatTotals: Record<string, number>;
   uniqueChatters: number;
   flaggedMessageKeys: Set<number>;
 };
@@ -56,6 +58,7 @@ export function ChatAnalyticsProvider({ children }: { children: ReactNode }) {
   const [profanityLog, setProfanityLog] = useState<ProfanityAlert[]>([]);
   const [totalMessages, setTotalMessages] = useState(0);
   const [totalKicks, setTotalKicks] = useState(0);
+  const [superChatTotals, setSuperChatTotals] = useState<Record<string, number>>({});
   const [activeProfanity, setActiveProfanity] = useState<ProfanityAlert | null>(null);
   const [flaggedKeys, setFlaggedKeys] = useState<Set<number>>(() => new Set());
   const cursor = useRef(0);
@@ -72,6 +75,7 @@ export function ChatAnalyticsProvider({ children }: { children: ReactNode }) {
         profanityLog,
         totalMessages,
         totalKicks,
+        superChatTotals,
         winCounter,
         alertCounter,
       });
@@ -91,6 +95,7 @@ export function ChatAnalyticsProvider({ children }: { children: ReactNode }) {
       setProfanityLog(empty.profanityLog);
       setTotalMessages(0);
       setTotalKicks(0);
+      setSuperChatTotals({});
       winCounter = 0;
       alertCounter = 0;
       hydrated.current = false;
@@ -104,6 +109,7 @@ export function ChatAnalyticsProvider({ children }: { children: ReactNode }) {
     setProfanityLog(stored.profanityLog);
     setTotalMessages(stored.totalMessages);
     setTotalKicks(stored.totalKicks);
+    setSuperChatTotals(stored.superChatTotals);
     winCounter = stored.winCounter;
     alertCounter = stored.alertCounter;
     hydrated.current = true;
@@ -121,17 +127,64 @@ export function ChatAnalyticsProvider({ children }: { children: ReactNode }) {
       profanityLog,
       totalMessages,
       totalKicks,
+      superChatTotals,
       winCounter,
       alertCounter,
     });
-  }, [channelSlug, chatters, supporters, wins, profanityLog, totalMessages, totalKicks]);
+  }, [
+    channelSlug,
+    chatters,
+    supporters,
+    wins,
+    profanityLog,
+    totalMessages,
+    totalKicks,
+    superChatTotals,
+  ]);
 
   const ingestMessage = useCallback((m: ChatMessage) => {
     if (m.kind === "gift") {
-      const amount = Math.max(0, Math.round(m.giftAmount ?? 0));
-      if (amount <= 0) return;
       const key = participantKey(m) || m.user.toLowerCase();
       if (!key) return;
+
+      if (m.platform === "youtube") {
+        const paid =
+          (m.supportType === "superchat" || m.supportType === "sticker") && m.giftLabel
+            ? parseSupportAmount(m.giftLabel)
+            : null;
+        if (paid) {
+          setSuperChatTotals((prev) => ({
+            ...prev,
+            [paid.currency]: (prev[paid.currency] ?? 0) + paid.value,
+          }));
+        }
+        setSupporters((prev) => {
+          const existing = prev[key];
+          const superChats = { ...existing?.superChats };
+          if (paid) superChats[paid.currency] = (superChats[paid.currency] ?? 0) + paid.value;
+          const next: SupporterStat = {
+            user: m.user,
+            userKey: key,
+            color: m.color,
+            kicks: existing?.kicks ?? 0,
+            gifts: (existing?.gifts ?? 0) + 1,
+            lastAt: m.at,
+            lastAmount: existing?.lastAmount ?? 0,
+            superChats,
+            memberships: (existing?.memberships ?? 0) + (m.supportType === "member" ? 1 : 0),
+            giftedMembers:
+              (existing?.giftedMembers ?? 0) +
+              (m.supportType === "giftedMembers" ? (m.giftCount ?? 1) : 0),
+          };
+          if (paid && m.giftLabel) next.lastLabel = m.giftLabel;
+          else if (existing?.lastLabel) next.lastLabel = existing.lastLabel;
+          return { ...prev, [key]: next };
+        });
+        return;
+      }
+
+      const amount = Math.max(0, Math.round(m.giftAmount ?? 0));
+      if (amount <= 0) return;
 
       setTotalKicks((n) => n + amount);
       setSupporters((prev) => {
@@ -139,6 +192,7 @@ export function ChatAnalyticsProvider({ children }: { children: ReactNode }) {
         return {
           ...prev,
           [key]: {
+            ...existing,
             user: m.user,
             userKey: key,
             color: m.color,
@@ -224,10 +278,18 @@ export function ChatAnalyticsProvider({ children }: { children: ReactNode }) {
     [chatters],
   );
 
-  const topSupporters = useMemo(
-    () => Object.values(supporters).sort((a, b) => b.kicks - a.kicks || b.lastAt - a.lastAt),
-    [supporters],
-  );
+  const topSupporters = useMemo(() => {
+    const paidTotal = (s: SupporterStat) =>
+      Object.values(s.superChats ?? {}).reduce((sum, v) => sum + v, 0);
+    return Object.values(supporters).sort(
+      (a, b) =>
+        b.kicks - a.kicks ||
+        paidTotal(b) - paidTotal(a) ||
+        (b.giftedMembers ?? 0) - (a.giftedMembers ?? 0) ||
+        b.gifts - a.gifts ||
+        b.lastAt - a.lastAt,
+    );
+  }, [supporters]);
 
   const value = useMemo<ChatAnalyticsValue>(
     () => ({
@@ -239,6 +301,7 @@ export function ChatAnalyticsProvider({ children }: { children: ReactNode }) {
       dismissProfanity,
       totalMessages,
       totalKicks,
+      superChatTotals,
       uniqueChatters: topChatters.length,
       flaggedMessageKeys: flaggedKeys,
     }),
@@ -251,6 +314,7 @@ export function ChatAnalyticsProvider({ children }: { children: ReactNode }) {
       dismissProfanity,
       totalMessages,
       totalKicks,
+      superChatTotals,
       flaggedKeys,
     ],
   );

@@ -3,6 +3,7 @@ import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "reac
 import {
   BarChart3,
   Columns2,
+  Crown,
   Gift,
   MessageSquareText,
   PlugZap,
@@ -32,6 +33,12 @@ type RowLabels = {
   flagged: string;
   kicksUnit: string;
   giftNoMessage: string;
+  superChat: string;
+  superSticker: string;
+  superChatNoMessage: string;
+  memberLabel: string;
+  memberJoined: string;
+  giftedMembers: string;
 };
 
 const ChatRow = memo(function ChatRow({
@@ -51,6 +58,35 @@ const ChatRow = memo(function ChatRow({
   const [slideIn] = useState(animate);
   const isGift = m.kind === "gift";
   const giftText = isGift ? m.giftMessage : undefined;
+  const isMembership = m.supportType === "member" || m.supportType === "giftedMembers";
+
+  let chipText = "";
+  let chipDetail: string | undefined;
+  let emptyText: string | undefined;
+  if (isGift) {
+    switch (m.supportType) {
+      case "superchat":
+        chipText = labels.superChat;
+        chipDetail = m.giftLabel;
+        emptyText = labels.superChatNoMessage;
+        break;
+      case "sticker":
+        chipText = labels.superSticker;
+        chipDetail = m.giftLabel;
+        break;
+      case "member":
+        chipText = labels.memberLabel;
+        emptyText = m.giftLabel ?? labels.memberJoined;
+        break;
+      case "giftedMembers":
+        chipText = labels.giftedMembers.replace("{n}", String(m.giftCount ?? 1));
+        break;
+      default:
+        chipText = `${m.giftAmount ?? 0} ${labels.kicksUnit}`;
+        chipDetail = m.giftName;
+        emptyText = labels.giftNoMessage;
+    }
+  }
 
   return (
     <div
@@ -59,9 +95,11 @@ const ChatRow = memo(function ChatRow({
         slideIn && "animate-chat-in",
         flagged
           ? "border-rose-500/40 bg-rose-950/30"
-          : isGift
-            ? "border-amber-400/40 bg-gradient-to-l from-amber-500/15 via-amber-500/10 to-transparent shadow-[0_0_28px_-16px_rgba(251,191,36,0.9)]"
-            : "border-white/5 bg-black/25 hover:border-primary/15 hover:bg-black/35",
+          : isGift && isMembership
+            ? "border-emerald-400/40 bg-gradient-to-l from-emerald-500/15 via-emerald-500/10 to-transparent shadow-[0_0_28px_-16px_rgba(52,211,153,0.9)]"
+            : isGift
+              ? "border-amber-400/40 bg-gradient-to-l from-amber-500/15 via-amber-500/10 to-transparent shadow-[0_0_28px_-16px_rgba(251,191,36,0.9)]"
+              : "border-white/5 bg-black/25 hover:border-primary/15 hover:bg-black/35",
       )}
     >
       <span
@@ -72,7 +110,15 @@ const ChatRow = memo(function ChatRow({
           boxShadow: `0 0 20px -8px ${m.color}`,
         }}
       >
-        {isGift ? <Gift className="size-4.5" /> : m.user.slice(0, 1)}
+        {isGift ? (
+          isMembership ? (
+            <Crown className="size-4.5" />
+          ) : (
+            <Gift className="size-4.5" />
+          )
+        ) : (
+          m.user.slice(0, 1)
+        )}
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -88,11 +134,24 @@ const ChatRow = memo(function ChatRow({
             {m.user}
           </span>
           {isGift ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/20 px-2 py-0.5 text-[11px] font-black text-amber-200 tabular-nums">
-              <Gift className="size-3" />
-              {m.giftLabel ?? `${m.giftAmount ?? 0} ${labels.kicksUnit}`}
-              {m.giftName ? (
-                <span className="font-bold text-amber-100/70">· {m.giftName}</span>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-black tabular-nums",
+                isMembership
+                  ? "border-emerald-400/40 bg-emerald-400/20 text-emerald-200"
+                  : "border-amber-400/40 bg-amber-400/20 text-amber-200",
+              )}
+            >
+              {isMembership ? <Crown className="size-3" /> : <Gift className="size-3" />}
+              {chipText}
+              {chipDetail ? (
+                <span
+                  className={
+                    isMembership ? "font-bold text-emerald-100/70" : "font-bold text-amber-100/80"
+                  }
+                >
+                  · <span dir="ltr">{chipDetail}</span>
+                </span>
               ) : null}
             </span>
           ) : null}
@@ -106,12 +165,26 @@ const ChatRow = memo(function ChatRow({
         </div>
         {isGift ? (
           giftText ? (
-            <p className="mt-1.5 rounded-xl border border-amber-300/20 bg-black/25 px-3 py-2 text-base leading-7 font-bold break-words text-amber-50 sm:text-lg sm:leading-8">
+            <p
+              className={cn(
+                "mt-1.5 rounded-xl border bg-black/25 px-3 py-2 text-base leading-7 font-bold break-words sm:text-lg sm:leading-8",
+                isMembership
+                  ? "border-emerald-300/20 text-emerald-50"
+                  : "border-amber-300/20 text-amber-50",
+              )}
+            >
               <ChatEmoteText text={giftText} size="lg" />
             </p>
-          ) : (
-            <p className="mt-1 text-sm font-semibold text-amber-100/55">{labels.giftNoMessage}</p>
-          )
+          ) : emptyText ? (
+            <p
+              className={cn(
+                "mt-1 text-sm font-semibold",
+                isMembership ? "text-emerald-100/65" : "text-amber-100/55",
+              )}
+            >
+              {emptyText}
+            </p>
+          ) : null
         ) : (
           <p
             className={cn(
@@ -241,9 +314,24 @@ function ChatPage() {
       flagged: p.flagged,
       kicksUnit: p.kicksUnit,
       giftNoMessage: p.giftNoMessage,
+      superChat: p.superChat,
+      superSticker: p.superSticker,
+      superChatNoMessage: p.superChatNoMessage,
+      memberLabel: p.memberLabel,
+      memberJoined: p.memberJoined,
+      giftedMembers: p.giftedMembers,
     }),
-    [p.gift, p.flagged, p.kicksUnit, p.giftNoMessage],
+    [p],
   );
+
+  const kickOn = chat.kick.status === "live" || chat.kick.status === "connecting";
+  const youtubeOn = chat.youtube.status === "live" || chat.youtube.status === "connecting";
+  const platformMode: "kick" | "youtube" | "both" =
+    kickOn && youtubeOn ? "both" : youtubeOn ? "youtube" : "kick";
+  const pageTitle =
+    platformMode === "both" ? p.titleBoth : platformMode === "youtube" ? p.titleYoutube : p.title;
+  const supporterEmptyText =
+    platformMode === "youtube" ? p.supporterChatEmptyYoutube : p.supporterChatEmpty;
 
   const renderMessages = (items: ChatMessage[], empty: ReactNode) => {
     if (!live) {
@@ -285,7 +373,7 @@ function ChatPage() {
         <div className="min-w-0">
           <p className="inline-flex items-center gap-1.5 text-xs font-bold tracking-[0.2em] text-primary uppercase">
             <MessageSquareText className="size-3.5" />
-            {p.title}
+            {pageTitle}
           </p>
           <h1 className="mt-1 text-2xl font-extrabold sm:text-3xl">
             <span className="shimmer-text">{p.liveTitle}</span>
@@ -525,7 +613,7 @@ function ChatPage() {
                     <div>
                       <Gift className="mx-auto size-9 text-amber-400/60" />
                       <p className="mt-3 text-sm font-bold text-muted-foreground">
-                        {p.supporterChatEmpty}
+                        {supporterEmptyText}
                       </p>
                     </div>
                   </div>,

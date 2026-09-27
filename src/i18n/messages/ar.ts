@@ -744,6 +744,10 @@ export const ar = {
       metaTitle: "تواصل معنا — Al-Daboor",
       eyebrow: "نحن قريبين",
       heroSubtitle: "جاهزين نسمعك: دعم الربط، أفكار الألعاب، طلبات التوثيق، أو أي استفسار عن Al-Daboor.",
+      siteTitle: "Hamza Kitana",
+      siteRole: "مطوّر Full Stack ومدير تسويق",
+      siteBody: "كل طرق التواصل موجودة على موقعي — ادخل وراسلني من هناك.",
+      siteCta: "زور الموقع",
       topics: [
         "دعم فني / مشكلة بالربط",
         "اقتراح لعبة أو ميزة",

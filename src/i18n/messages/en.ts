@@ -746,6 +746,10 @@ export const en: Messages = {
       metaTitle: "Contact us — Al-Daboor",
       eyebrow: "We're here",
       heroSubtitle: "We'd love to hear from you about connection support, game ideas, verification requests, or anything else related to Al-Daboor.",
+      siteTitle: "Hamza Kitana",
+      siteRole: "Full Stack Developer & Marketing Manager",
+      siteBody: "Every way to reach me is on my website — head over and get in touch there.",
+      siteCta: "Visit website",
       topics: [
         "Technical support / connection issue",
         "Suggest a game or feature",

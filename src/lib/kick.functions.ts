@@ -1,5 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import {
+  briefFromInfo,
+  kickChannelEndpoints,
+  parseKickChannel,
+  type KickChannelBrief,
+  type KickChannelInfo,
+} from "./kick-channel";
 
 const slugSchema = z
   .string()
@@ -16,61 +23,41 @@ const liveSchema = z.object({
   slugs: z.array(slugSchema).min(1).max(24),
 });
 
-export type KickChannelInfo = {
-  slug: string;
-  chatroomId: number;
-  /** Kick channel id — used for gift/Kicks events on `channel.{id}`. */
-  channelId: number;
-  displayName: string;
-  avatar: string | null;
-  followers: number | null;
-  isLive: boolean;
-};
+export type { KickChannelBrief, KickChannelInfo } from "./kick-channel";
 
-const KICK_HEADERS = {
-  accept: "application/json",
-  "accept-language": "en-US,en;q=0.9",
-  "user-agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36",
-};
+/** Cloudflare filters on header fingerprints, so try several profiles before giving up. */
+const KICK_HEADER_PROFILES: Record<string, string>[] = [
+  { accept: "application/json" },
+  {
+    accept: "application/json, text/plain, */*",
+    "accept-language": "en-US,en;q=0.9",
+    "user-agent": "Mozilla/5.0 Chrome/131.0.0.0 Safari/537.36",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    referer: "https://kick.com/",
+    origin: "https://kick.com",
+  },
+  {},
+];
 
 async function fetchKickChannel(slug: string): Promise<KickChannelInfo | null> {
-  const endpoints = [
-    `https://kick.com/api/v2/channels/${slug}`,
-    `https://kick.com/api/v1/channels/${slug}`,
-  ];
-
-  for (const url of endpoints) {
-    try {
-      const res = await fetch(url, { headers: KICK_HEADERS });
-      if (!res.ok) continue;
-      const json = (await res.json()) as {
-        id?: number;
-        chatroom?: { id?: number };
-        user?: { username?: string; profile_pic?: string | null };
-        followers_count?: number;
-        livestream?: unknown;
-      };
-      const chatroomId = json.chatroom?.id;
-      const channelId = json.id;
-      if (typeof chatroomId !== "number" || typeof channelId !== "number") continue;
-      return {
-        slug,
-        chatroomId,
-        channelId,
-        displayName: json.user?.username ?? slug,
-        avatar: json.user?.profile_pic ?? null,
-        followers: typeof json.followers_count === "number" ? json.followers_count : null,
-        isLive: Boolean(json.livestream),
-      };
-    } catch {
-      // try next
+  for (const headers of KICK_HEADER_PROFILES) {
+    for (const url of kickChannelEndpoints(slug)) {
+      try {
+        const res = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
+        if (res.status === 403) break;
+        if (!res.ok) continue;
+        const info = parseKickChannel(await res.json(), slug);
+        if (info) return info;
+      } catch {
+        // try next
+      }
     }
   }
   return null;
 }
 
-/** Resolves a Kick channel slug into its chatroom id (server-side to avoid CORS). */
+/** Server fallback when the browser can't reach Kick directly. */
 export const resolveKickChannel = createServerFn({ method: "POST" })
   .validator((input: unknown) => schema.parse(input))
   .handler(async ({ data }): Promise<KickChannelInfo> => {
@@ -82,12 +69,6 @@ export const resolveKickChannel = createServerFn({ method: "POST" })
     return info;
   });
 
-export type KickChannelBrief = {
-  isLive: boolean;
-  avatar: string | null;
-  displayName: string;
-};
-
 /** Batch live-status + profile meta for verified streamers. */
 export const checkKickLiveStatuses = createServerFn({ method: "POST" })
   .validator((input: unknown) => liveSchema.parse(input))
@@ -97,11 +78,7 @@ export const checkKickLiveStatuses = createServerFn({ method: "POST" })
       data.slugs.map(async (raw) => {
         const slug = raw.toLowerCase();
         const info = await fetchKickChannel(slug);
-        out[slug] = {
-          isLive: Boolean(info?.isLive),
-          avatar: info?.avatar ?? null,
-          displayName: info?.displayName ?? slug,
-        };
+        out[slug] = briefFromInfo(info, slug);
       }),
     );
     return out;

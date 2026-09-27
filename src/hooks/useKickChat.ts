@@ -139,6 +139,9 @@ export function useKickChat() {
   const [error, setError] = useState<string | null>(null);
   const [channel, setChannel] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimer = useRef<number | null>(null);
+  const reconnectAttempts = useRef(0);
+  const openSocketRef = useRef<(() => void) | null>(null);
 
   const seenIds = useRef(new Set<string>());
 
@@ -172,8 +175,15 @@ export function useKickChat() {
   );
 
   const disconnectSockets = useCallback(() => {
-    wsRef.current?.close();
+    if (reconnectTimer.current != null) {
+      window.clearTimeout(reconnectTimer.current);
+      reconnectTimer.current = null;
+    }
+    openSocketRef.current = null;
+    reconnectAttempts.current = 0;
+    const ws = wsRef.current;
     wsRef.current = null;
+    ws?.close();
   }, []);
 
   /** Full stop — drops the session so refresh won't reconnect. */
@@ -201,100 +211,127 @@ export function useKickChat() {
           ?.toLowerCase() ||
         "";
 
-      let ws: WebSocket;
-      try {
-        ws = new WebSocket(KICK_WS);
-      } catch {
-        setStatus("error");
-        setError("تعذّر فتح الاتصال بالبث.");
-        return;
-      }
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        for (const ch of kickSubscribeChannels(chatroomId, channelId)) {
-          ws.send(
-            JSON.stringify({
-              event: "pusher:subscribe",
-              data: { auth: "", channel: ch },
-            }),
-          );
-        }
-        if (resolvedSlug) {
-          saveKickSession({ slug: resolvedSlug, chatroomId, channelId });
-        }
-        setStatus("live");
+      const scheduleReconnect = () => {
+        if (reconnectTimer.current != null) return;
+        const attempt = reconnectAttempts.current;
+        reconnectAttempts.current = attempt + 1;
+        const delay = Math.min(15000, 1000 * 2 ** attempt);
+        setStatus("connecting");
+        reconnectTimer.current = window.setTimeout(() => {
+          reconnectTimer.current = null;
+          openSocketRef.current?.();
+        }, delay);
       };
 
-      ws.onmessage = (ev) => {
+      const openSocket = () => {
+        let ws: WebSocket;
         try {
-          const frame = JSON.parse(String(ev.data)) as { event?: string; data?: string };
-          if (!frame.event || !frame.data) return;
-          if (frame.event.startsWith("pusher:") || frame.event.startsWith("pusher_internal:")) return;
+          ws = new WebSocket(KICK_WS);
+        } catch {
+          setStatus("error");
+          setError("تعذّر فتح الاتصال بالبث.");
+          return;
+        }
+        wsRef.current = ws;
 
-          const eventName = frame.event;
-          const isChat = eventName.includes("ChatMessage");
-          const isGift = eventLooksLikeGift(eventName);
-          if (!isChat && !isGift) return;
+        ws.onopen = () => {
+          for (const ch of kickSubscribeChannels(chatroomId, channelId)) {
+            ws.send(
+              JSON.stringify({
+                event: "pusher:subscribe",
+                data: { auth: "", channel: ch },
+              }),
+            );
+          }
+          if (resolvedSlug) {
+            saveKickSession({ slug: resolvedSlug, chatroomId, channelId });
+          }
+        };
 
-          const payload = JSON.parse(frame.data) as Record<string, unknown> & {
-            id?: string | number;
-            content?: string;
-            sender?: KickSender;
-            user?: KickSender;
-          };
-
-          const ident = identityFromSender(payload.sender ?? payload.user);
-
-          if (isGift) {
-            const amount = extractGiftAmount(payload);
-            if (amount == null || amount <= 0) return;
-            const mid = giftMessageId(eventName, payload, amount);
-            if (seenIds.current.has(mid)) return;
-            seenIds.current.add(mid);
-            if (seenIds.current.size > 400) {
-              const first = seenIds.current.values().next().value;
-              if (first) seenIds.current.delete(first);
+        ws.onmessage = (ev) => {
+          try {
+            const frame = JSON.parse(String(ev.data)) as { event?: string; data?: string };
+            if (!frame.event) return;
+            if (frame.event === "pusher:ping") {
+              ws.send(JSON.stringify({ event: "pusher:pong", data: {} }));
+              return;
             }
-            push(ident.user, ident.userKey, `هدية ${amount} كيك`, ident.color, {
-              kind: "gift",
-              giftAmount: amount,
-            });
+            if (frame.event === "pusher_internal:subscription_succeeded") {
+              reconnectAttempts.current = 0;
+              setError(null);
+              setStatus("live");
+              return;
+            }
+            if (!frame.data) return;
+            if (frame.event.startsWith("pusher:") || frame.event.startsWith("pusher_internal:"))
+              return;
+
+            const eventName = frame.event;
+            const isChat = eventName.includes("ChatMessage");
+            const isGift = eventLooksLikeGift(eventName);
+            if (!isChat && !isGift) return;
+
+            const payload = JSON.parse(frame.data) as Record<string, unknown> & {
+              id?: string | number;
+              content?: string;
+              sender?: KickSender;
+              user?: KickSender;
+            };
+
+            const ident = identityFromSender(payload.sender ?? payload.user);
+
+            if (isGift) {
+              const amount = extractGiftAmount(payload);
+              if (amount == null || amount <= 0) return;
+              const mid = giftMessageId(eventName, payload, amount);
+              if (seenIds.current.has(mid)) return;
+              seenIds.current.add(mid);
+              if (seenIds.current.size > 400) {
+                const first = seenIds.current.values().next().value;
+                if (first) seenIds.current.delete(first);
+              }
+              push(ident.user, ident.userKey, `هدية ${amount} كيك`, ident.color, {
+                kind: "gift",
+                giftAmount: amount,
+              });
+              return;
+            }
+
+            const mid =
+              payload.id != null
+                ? String(payload.id)
+                : `${eventName}:${payload.content ?? ""}:${ident.userKey}`;
+            if (mid) {
+              if (seenIds.current.has(mid)) return;
+              seenIds.current.add(mid);
+              if (seenIds.current.size > 400) {
+                const first = seenIds.current.values().next().value;
+                if (first) seenIds.current.delete(first);
+              }
+            }
+
+            const text = payload.content?.trim();
+            if (!text) return;
+            push(ident.user, ident.userKey, text, ident.color);
+          } catch {
+            /* ignore malformed frames */
+          }
+        };
+
+        ws.onclose = () => {
+          if (wsRef.current !== ws) return;
+          wsRef.current = null;
+          if (reconnectAttempts.current >= 6) {
+            setStatus("error");
+            setError("انقطع الاتصال بشات كيك.");
             return;
           }
-
-          const mid =
-            payload.id != null
-              ? String(payload.id)
-              : `${eventName}:${payload.content ?? ""}:${ident.userKey}`;
-          if (mid) {
-            if (seenIds.current.has(mid)) return;
-            seenIds.current.add(mid);
-            if (seenIds.current.size > 400) {
-              const first = seenIds.current.values().next().value;
-              if (first) seenIds.current.delete(first);
-            }
-          }
-
-          const text = payload.content?.trim();
-          if (!text) return;
-          push(ident.user, ident.userKey, text, ident.color);
-        } catch {
-          /* ignore malformed frames */
-        }
+          scheduleReconnect();
+        };
       };
 
-      ws.onerror = () => {
-        setStatus("error");
-        setError("انقطع الاتصال بشات كيك.");
-      };
-
-      ws.onclose = () => {
-        if (wsRef.current === ws) {
-          wsRef.current = null;
-          setStatus((s) => (s === "live" ? "error" : s));
-        }
-      };
+      openSocketRef.current = openSocket;
+      openSocket();
     },
     [disconnectSockets, push],
   );

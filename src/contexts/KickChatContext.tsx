@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { useKickChat } from "@/hooks/useKickChat";
-import { resolveKickChannel } from "@/lib/kick.functions";
+import { useResolveKickChannel } from "@/hooks/useResolveKickChannel";
 import {
   clearKickSession,
   loadKickSession,
@@ -15,7 +14,7 @@ const KickChatContext = createContext<KickChatValue | null>(null);
 
 export function KickChatProvider({ children }: { children: ReactNode }) {
   const chat = useKickChat();
-  const resolve = useServerFn(resolveKickChannel);
+  const resolve = useResolveKickChannel();
   const restored = useRef(false);
 
   // Reconnect last Kick channel after refresh (any page).
@@ -33,7 +32,7 @@ export function KickChatProvider({ children }: { children: ReactNode }) {
       let cancelled = false;
       void (async () => {
         try {
-          const info = await resolve({ data: { slug: session.slug } });
+          const info = await resolve(session.slug);
           if (cancelled) return;
           saveKickSession({
             slug: info.slug,
@@ -56,7 +55,7 @@ export function KickChatProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     void (async () => {
       try {
-        const info = await resolve({ data: { slug: legacy } });
+        const info = await resolve(legacy);
         if (cancelled) return;
         saveKickSession({ slug: info.slug, chatroomId: info.chatroomId, channelId: info.channelId });
         chat.connect(info.chatroomId, `kick.com/${info.slug}`, info.slug, info.channelId);

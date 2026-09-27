@@ -1,8 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { useRouterState } from "@tanstack/react-router";
 import { ClipboardPaste, Loader2, PlugZap, Radio, X } from "lucide-react";
-import { resolveKickChannel } from "@/lib/kick.functions";
+import { useResolveKickChannel } from "@/hooks/useResolveKickChannel";
 import { loadKickSession, loadLegacyKickSlug, saveKickSession } from "@/lib/kick-session";
 import type { ChatStatus } from "@/hooks/useKickChat";
 import { useT } from "@/contexts/LocaleContext";
@@ -35,7 +34,7 @@ export default function ConnectPanel({
   onStop: () => void;
 }) {
   const { messages } = useT();
-  const resolve = useServerFn(resolveKickChannel);
+  const resolve = useResolveKickChannel();
   const search = useRouterState({ select: (s) => s.location.searchStr });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -78,7 +77,7 @@ export default function ConnectPanel({
 
     setLoading(true);
     try {
-      const info = await resolve({ data: { slug } });
+      const info = await resolve(slug);
       saveKickSession({ slug: info.slug, chatroomId: info.chatroomId, channelId: info.channelId });
       setInput(info.slug);
       setHint(messages.connect.connectedVia.replace("{source}", source));

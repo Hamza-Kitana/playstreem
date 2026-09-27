@@ -1,11 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, BadgeCheck, Radio, Shield, Sparkles, Zap } from "lucide-react";
 import StreamerCard from "@/components/StreamerCard";
 import { Reveal } from "@/components/Reveal";
 import { Button } from "@/components/ui/button";
-import { checkKickLiveStatuses, type KickChannelBrief } from "@/lib/kick.functions";
+import { useKickLiveStatuses } from "@/hooks/useResolveKickChannel";
+import type { KickChannelBrief } from "@/lib/kick-channel";
 import { VERIFIED_STREAMERS } from "@/lib/verified-streamers";
 
 export const Route = createFileRoute("/streamers")({
@@ -28,13 +28,13 @@ function StreamersPage() {
   const [metaMap, setMetaMap] = useState<Record<string, KickChannelBrief | null>>(() =>
     Object.fromEntries(VERIFIED.map((s) => [s.slug, null])),
   );
-  const checkLive = useServerFn(checkKickLiveStatuses);
+  const checkLive = useKickLiveStatuses();
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const statuses = await checkLive({ data: { slugs: VERIFIED.map((s) => s.slug) } });
+        const statuses = await checkLive(VERIFIED.map((s) => s.slug));
         if (cancelled) return;
         setMetaMap((prev) => {
           const next = { ...prev };

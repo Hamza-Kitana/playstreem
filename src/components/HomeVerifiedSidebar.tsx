@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
 import { BadgeCheck, Loader2, PlugZap, Radio, Users } from "lucide-react";
 import { useKickChatContext } from "@/contexts/KickChatContext";
 import { useT } from "@/contexts/LocaleContext";
-import { checkKickLiveStatuses, resolveKickChannel, type KickChannelBrief } from "@/lib/kick.functions";
+import { useKickLiveStatuses, useResolveKickChannel } from "@/hooks/useResolveKickChannel";
+import type { KickChannelBrief } from "@/lib/kick-channel";
 import { saveKickSession } from "@/lib/kick-session";
 import { VERIFIED_STREAMERS } from "@/lib/verified-streamers";
 import StreamerAvatar from "@/components/StreamerAvatar";
@@ -29,8 +29,8 @@ function looksLikeSlug(value: string) {
 export default function HomeVerifiedSidebar() {
   const chat = useKickChatContext();
   const { messages } = useT();
-  const resolve = useServerFn(resolveKickChannel);
-  const checkLive = useServerFn(checkKickLiveStatuses);
+  const resolve = useResolveKickChannel();
+  const checkLive = useKickLiveStatuses();
 
   const [metaMap, setMetaMap] = useState<Record<string, KickChannelBrief | null>>(() =>
     Object.fromEntries(VERIFIED_STREAMERS.map((s) => [s.slug, null])),
@@ -47,9 +47,7 @@ export default function HomeVerifiedSidebar() {
     let cancelled = false;
     void (async () => {
       try {
-        const statuses = await checkLive({
-          data: { slugs: VERIFIED_STREAMERS.map((s) => s.slug) },
-        });
+        const statuses = await checkLive(VERIFIED_STREAMERS.map((s) => s.slug));
         if (cancelled) return;
         setMetaMap((prev) => {
           const next = { ...prev };
@@ -88,7 +86,7 @@ export default function HomeVerifiedSidebar() {
 
     setConnectingSlug(slug);
     try {
-      const info = await resolve({ data: { slug } });
+      const info = await resolve(slug);
       saveKickSession({ slug: info.slug, chatroomId: info.chatroomId, channelId: info.channelId });
       chat.connect(info.chatroomId, `kick.com/${info.slug}`, info.slug, info.channelId);
     } catch (e) {

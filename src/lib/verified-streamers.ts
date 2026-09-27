@@ -23,8 +23,8 @@ export const VERIFIED_STREAMERS: VerifiedStreamer[] = [
     note: "ستريمر موثّق بطاقة عالية — شوف البث على الكرت.",
   },
   {
-    name: "sarfndi-m",
-    slug: "sarfndi-m",
+    name: "SARFNDI_M",
+    slug: "sarfndi_m",
     tag: "مجتمع تفاعلي",
     hue: 142,
     note: "موثّق لدى Al-Daboor — ادخل قناته أو اربطها بكبسة من الكرت.",
@@ -38,7 +38,7 @@ export const VERIFIED_STREAMERS: VerifiedStreamer[] = [
   },
   {
     name: "3MRO_KH",
-    slug: "3mro-kh",
+    slug: "3mro_kh",
     tag: "ستريمر موثّق",
     hue: 154,
     note: "موثّق لدى Al-Daboor — قعدة ع الرايق، شوف البث على الكرت أو اربط القناة بكبسة.",

@@ -27,6 +27,8 @@ export type ChatMessage = {
   giftCount?: number;
   /** Image of a TikTok gift. */
   giftImage?: string;
+  /** Total TikTok diamond value of the gift (diamonds per gift × count). */
+  giftDiamonds?: number;
 };
 
 export type ChatPlatform = "kick" | "youtube" | "tiktok";

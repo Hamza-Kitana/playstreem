@@ -163,6 +163,7 @@ export function ChatAnalyticsProvider({ children }: { children: ReactNode }) {
               lastAt: m.at,
               lastAmount: existing?.lastAmount ?? 0,
               tiktokGifts: (existing?.tiktokGifts ?? 0) + count,
+              tiktokDiamonds: (existing?.tiktokDiamonds ?? 0) + (m.giftDiamonds ?? 0),
               lastLabel: `${m.giftName ?? "Gift"} ×${count}`,
             },
           };
@@ -309,6 +310,7 @@ export function ChatAnalyticsProvider({ children }: { children: ReactNode }) {
         b.kicks - a.kicks ||
         paidTotal(b) - paidTotal(a) ||
         (b.giftedMembers ?? 0) - (a.giftedMembers ?? 0) ||
+        (b.tiktokDiamonds ?? 0) - (a.tiktokDiamonds ?? 0) ||
         (b.tiktokGifts ?? 0) - (a.tiktokGifts ?? 0) ||
         b.gifts - a.gifts ||
         b.lastAt - a.lastAt,

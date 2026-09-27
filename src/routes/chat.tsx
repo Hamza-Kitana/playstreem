@@ -86,7 +86,8 @@ const ChatRow = memo(function ChatRow({
         break;
       case "tiktokGift":
         chipText = labels.tiktokGift;
-        chipDetail = `${m.giftName ?? ""} ×${m.giftCount ?? 1}`.trim();
+        chipDetail =
+          `${m.giftName ?? ""} ×${m.giftCount ?? 1}${m.giftDiamonds ? ` · 💎${m.giftDiamonds}` : ""}`.trim();
         break;
       default:
         chipText = `${m.giftAmount ?? 0} ${labels.kicksUnit}`;

@@ -41,6 +41,8 @@ export type SupporterStat = {
   giftedMembers?: number;
   /** TikTok gifts received, counting repeats (Rose ×5 = 5). */
   tiktokGifts?: number;
+  /** Total TikTok diamond value received. */
+  tiktokDiamonds?: number;
   /** Display label for the last non-Kick support, e.g. "$5.00". */
   lastLabel?: string;
 };

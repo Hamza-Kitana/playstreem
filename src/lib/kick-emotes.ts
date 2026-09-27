@@ -1,11 +1,12 @@
 /**
- * Kick chat embeds emotes as `[emote:ID:Name]`. YouTube custom emojis / stickers
- * are encoded server-side as `[ytemote:<encodeURIComponent(url)>:Name]`.
+ * Kick chat embeds emotes as `[emote:ID:Name]`. YouTube custom emojis / stickers and
+ * TikTok emotes are encoded as `[ytemote:<encodeURIComponent(url)>:Name]`.
  */
 const EMOTE_RE = /\[emote:(\d+):([^\]]+)\]|\[ytemote:([^:\]]+):([^\]]*)\]/gi;
 
-/** Only render YouTube emoji images served from Google's image CDNs. */
-const YT_IMAGE_HOST = /^(?:[\w-]+\.)*(?:ggpht\.com|googleusercontent\.com|ytimg\.com)$/i;
+/** Only render emote images served from Google's or TikTok's image CDNs. */
+const YT_IMAGE_HOST =
+  /^(?:[\w-]+\.)*(?:ggpht\.com|googleusercontent\.com|ytimg\.com|tiktokcdn(?:-eu|-us)?\.com)$/i;
 
 export type KickChatPart =
   { type: "text"; value: string } | { type: "emote"; id: string; name: string; url: string };

@@ -207,6 +207,9 @@ export default function ChatSupportersDialog({
                             <span className="inline-flex items-center gap-1 rounded-full bg-[#fe2c55]/20 px-2.5 py-0.5 text-rose-100 tabular-nums">
                               <TikTokIcon className="size-3" />
                               {p.tiktokGiftsCount.replace("{n}", kicksFmt.format(row.tiktokGifts))}
+                              {row.tiktokDiamonds
+                                ? ` · 💎${kicksFmt.format(row.tiktokDiamonds)}`
+                                : ""}
                             </span>
                           ) : null}
                           <span className="text-muted-foreground tabular-nums">

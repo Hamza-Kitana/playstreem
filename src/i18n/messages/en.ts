@@ -840,6 +840,7 @@ export const en: Messages = {
       chatToneOffLabel: "Sound off",
       flagged: "Inappropriate",
       gift: "Gift",
+      giftNoMessage: "Sent Kicks without a message",
       statusError: "Connection lost",
       noChannel: "No channel",
     },

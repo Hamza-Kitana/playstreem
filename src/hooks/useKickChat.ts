@@ -14,6 +14,10 @@ export type ChatMessage = {
   kind?: "chat" | "gift";
   /** Gifted Kick amount when kind is gift. */
   giftAmount?: number;
+  /** Text the supporter attached to their Kicks, if any. */
+  giftMessage?: string;
+  /** Kick gift name (e.g. "Hell Yeah"). */
+  giftName?: string;
 };
 
 type KickSender = {
@@ -90,6 +94,31 @@ function extractGiftAmount(payload: Record<string, unknown>): number | null {
   return null;
 }
 
+function asText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+}
+
+function extractGiftMessage(payload: Record<string, unknown>): string | null {
+  const sources = [payload, payload.data, payload.transaction, payload.tip, payload.gift]
+    .map(asRecord)
+    .filter((x): x is Record<string, unknown> => x != null);
+  for (const obj of sources) {
+    const text =
+      asText(obj.message) ??
+      asText(obj.gift_message) ??
+      asText(obj.user_message) ??
+      asText(obj.content) ??
+      asText(obj.text);
+    if (text) return text;
+  }
+  return null;
+}
+
+function extractGiftName(payload: Record<string, unknown>): string | null {
+  const gift = asRecord(payload.gift) ?? asRecord(asRecord(payload.data)?.gift);
+  return asText(gift?.name) ?? asText(payload.gift_name);
+}
+
 function eventLooksLikeGift(eventName: string) {
   const e = eventName.toLowerCase();
   return (
@@ -151,7 +180,7 @@ export function useKickChat() {
       userKey: string,
       text: string,
       color: string,
-      extra?: { kind?: "chat" | "gift"; giftAmount?: number },
+      extra?: Pick<ChatMessage, "kind" | "giftAmount" | "giftMessage" | "giftName">,
     ) => {
       counter += 1;
       setMessages((prev) => {
@@ -166,6 +195,8 @@ export function useKickChat() {
             at: Date.now(),
             kind: extra?.kind ?? "chat",
             giftAmount: extra?.giftAmount,
+            giftMessage: extra?.giftMessage,
+            giftName: extra?.giftName,
           },
         ];
         return next.length > 100 ? next.slice(next.length - 100) : next;
@@ -290,9 +321,13 @@ export function useKickChat() {
                 const first = seenIds.current.values().next().value;
                 if (first) seenIds.current.delete(first);
               }
+              const giftMessage = extractGiftMessage(payload);
+              const giftName = extractGiftName(payload);
               push(ident.user, ident.userKey, `هدية ${amount} كيك`, ident.color, {
                 kind: "gift",
                 giftAmount: amount,
+                ...(giftMessage ? { giftMessage } : {}),
+                ...(giftName ? { giftName } : {}),
               });
               return;
             }

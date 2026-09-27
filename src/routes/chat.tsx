@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   BarChart3,
   Columns2,
@@ -23,12 +23,100 @@ import ChatSupportersDialog from "@/components/ChatSupportersDialog";
 import ProfanityAlertBanner from "@/components/ProfanityAlertBanner";
 import { Button } from "@/components/ui/button";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
-import {
-  isChatToneMuted,
-  playChatTone,
-  setChatToneMuted,
-} from "@/lib/alert-sound";
+import { isChatToneMuted, playChatTone, setChatToneMuted } from "@/lib/alert-sound";
 import { cn } from "@/lib/utils";
+
+type RowLabels = {
+  gift: string;
+  flagged: string;
+  kicksUnit: string;
+  giftNoMessage: string;
+};
+
+const ChatRow = memo(function ChatRow({
+  m,
+  flagged,
+  animate,
+  time,
+  labels,
+}: {
+  m: ChatMessage;
+  flagged: boolean;
+  animate: boolean;
+  time: string;
+  labels: RowLabels;
+}) {
+  // Decided once on mount so existing rows never replay the entry animation.
+  const [slideIn] = useState(animate);
+  const isGift = m.kind === "gift";
+  const giftText = isGift ? m.giftMessage : undefined;
+
+  return (
+    <div
+      className={cn(
+        "flex w-full items-start gap-3 rounded-2xl border px-3.5 py-3 transition-colors sm:gap-3.5 sm:px-4 sm:py-3.5",
+        slideIn && "animate-chat-in",
+        flagged
+          ? "border-rose-500/40 bg-rose-950/30"
+          : isGift
+            ? "border-amber-400/40 bg-gradient-to-l from-amber-500/15 via-amber-500/10 to-transparent shadow-[0_0_28px_-16px_rgba(251,191,36,0.9)]"
+            : "border-white/5 bg-black/25 hover:border-primary/15 hover:bg-black/35",
+      )}
+    >
+      <span
+        className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-full text-sm font-extrabold sm:size-11 sm:text-base"
+        style={{
+          color: m.color,
+          background: `color-mix(in oklab, ${m.color} 22%, transparent)`,
+          boxShadow: `0 0 20px -8px ${m.color}`,
+        }}
+      >
+        {isGift ? <Gift className="size-4.5" /> : m.user.slice(0, 1)}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="text-sm font-extrabold sm:text-base" style={{ color: m.color }}>
+            {m.user}
+          </span>
+          {isGift ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/20 px-2 py-0.5 text-[11px] font-black text-amber-200 tabular-nums">
+              <Gift className="size-3" />
+              {m.giftAmount ?? 0} {labels.kicksUnit}
+              {m.giftName ? (
+                <span className="font-bold text-amber-100/70">· {m.giftName}</span>
+              ) : null}
+            </span>
+          ) : null}
+          {flagged ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-extrabold text-rose-300">
+              <ShieldAlert className="size-3" />
+              {labels.flagged}
+            </span>
+          ) : null}
+          <span className="text-[11px] text-muted-foreground tabular-nums sm:text-xs">{time}</span>
+        </div>
+        {isGift ? (
+          giftText ? (
+            <p className="mt-1.5 rounded-xl border border-amber-300/20 bg-black/25 px-3 py-2 text-base leading-7 font-bold break-words text-amber-50 sm:text-lg sm:leading-8">
+              <ChatEmoteText text={giftText} size="lg" />
+            </p>
+          ) : (
+            <p className="mt-1 text-sm font-semibold text-amber-100/55">{labels.giftNoMessage}</p>
+          )
+        ) : (
+          <p
+            className={cn(
+              "mt-1 text-base leading-7 break-words sm:text-lg sm:leading-8",
+              flagged ? "text-rose-100" : "text-foreground",
+            )}
+          >
+            <ChatEmoteText text={m.text} size="lg" />
+          </p>
+        )}
+      </div>
+    </div>
+  );
+});
 
 export const Route = createFileRoute("/chat")({
   head: () => ({
@@ -57,6 +145,8 @@ function ChatPage() {
   const [chatToneMuted, setChatToneMutedState] = useState(isChatToneMuted);
   const seenAnimKeys = useRef<Set<number>>(new Set());
   const chatToneReady = useRef(false);
+  /** Rows mounted after the first batch slide in; the initial backlog renders still. */
+  const animateArrivals = useRef(false);
 
   const supporterKeys = useMemo(
     () => new Set(analytics.topSupporters.map((s) => s.userKey)),
@@ -65,10 +155,7 @@ function ChatPage() {
 
   // Newest always on top; hard-cap 100 (FIFO drop is in useKickChat).
   const latest = useMemo(
-    () =>
-      [...chat.messages]
-        .sort((a, b) => b.at - a.at || b.key - a.key)
-        .slice(0, 100),
+    () => [...chat.messages].sort((a, b) => b.at - a.at || b.key - a.key).slice(0, 100),
     [chat.messages],
   );
 
@@ -90,34 +177,29 @@ function ChatPage() {
   const newestRegularKey = regularFeed[0]?.key;
   const newestSupportKey = supporterFeed[0]?.key;
 
-  const [enteringKeys, setEnteringKeys] = useState<Set<number>>(() => new Set());
-
   useEffect(() => {
-    const incoming = new Set<number>();
+    let newest: ChatMessage | undefined;
     for (const m of latest) {
-      if (!seenAnimKeys.current.has(m.key)) incoming.add(m.key);
+      if (!seenAnimKeys.current.has(m.key)) {
+        newest ??= m;
+        seenAnimKeys.current.add(m.key);
+      }
     }
-    for (const m of latest) seenAnimKeys.current.add(m.key);
-    const liveKeys = new Set(latest.map((m) => m.key));
-    for (const key of [...seenAnimKeys.current]) {
-      if (!liveKeys.has(key)) seenAnimKeys.current.delete(key);
+    if (seenAnimKeys.current.size > 300) {
+      const liveKeys = new Set(latest.map((m) => m.key));
+      for (const key of [...seenAnimKeys.current]) {
+        if (!liveKeys.has(key)) seenAnimKeys.current.delete(key);
+      }
     }
-    if (incoming.size === 0) {
-      if (!chatToneReady.current && latest.length >= 0) chatToneReady.current = true;
-      return;
-    }
+    if (!newest) return;
 
     // Skip the first buffered batch after connect/refresh — only live arrivals.
     if (chatToneReady.current) {
-      const newest = latest.find((m) => incoming.has(m.key));
-      playChatTone({ gift: newest?.kind === "gift" });
+      playChatTone({ gift: newest.kind === "gift" });
     } else {
       chatToneReady.current = true;
     }
-
-    setEnteringKeys(incoming);
-    const t = window.setTimeout(() => setEnteringKeys(new Set()), 380);
-    return () => window.clearTimeout(t);
+    animateArrivals.current = true;
   }, [latest]);
 
   const toggleChatTone = () => {
@@ -128,19 +210,31 @@ function ChatPage() {
   };
 
   useEffect(() => {
-    if (splitView) {
-      if (regularBoxRef.current) regularBoxRef.current.scrollTop = 0;
-      if (supportBoxRef.current) supportBoxRef.current.scrollTop = 0;
-    } else if (allBoxRef.current) {
-      allBoxRef.current.scrollTop = 0;
+    const boxes = splitView ? [regularBoxRef.current, supportBoxRef.current] : [allBoxRef.current];
+    for (const el of boxes) {
+      if (el && el.scrollTop < 160) el.scrollTop = 0;
     }
   }, [newestKey, newestRegularKey, newestSupportKey, splitView]);
 
-  const timeFmt = new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  const timeFmt = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale === "ar" ? "ar" : "en", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }),
+    [locale],
+  );
+
+  const rowLabels = useMemo<RowLabels>(
+    () => ({
+      gift: p.gift,
+      flagged: p.flagged,
+      kicksUnit: p.kicksUnit,
+      giftNoMessage: p.giftNoMessage,
+    }),
+    [p.gift, p.flagged, p.kicksUnit, p.giftNoMessage],
+  );
 
   const renderMessages = (items: ChatMessage[], empty: ReactNode) => {
     if (!live) {
@@ -162,65 +256,16 @@ function ChatPage() {
     }
     if (items.length === 0) return empty;
 
-    return items.map((m) => {
-      const flagged = analytics.flaggedMessageKeys.has(m.key);
-      const isGift = m.kind === "gift";
-      const isEntering = enteringKeys.has(m.key);
-      return (
-        <div
-          key={m.key}
-          className={cn(
-            "flex w-full items-start gap-3 rounded-2xl border px-3.5 py-3 transition-colors sm:gap-3.5 sm:px-4 sm:py-3.5",
-            isEntering && "animate-chat-in",
-            flagged
-              ? "border-rose-500/40 bg-rose-950/30"
-              : isGift
-                ? "border-amber-500/30 bg-amber-500/10"
-                : "border-white/5 bg-black/25 hover:border-primary/15 hover:bg-black/35",
-          )}
-        >
-          <span
-            className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-full text-sm font-extrabold sm:size-11 sm:text-base"
-            style={{
-              color: m.color,
-              background: `color-mix(in oklab, ${m.color} 22%, transparent)`,
-              boxShadow: `0 0 20px -8px ${m.color}`,
-            }}
-          >
-            {isGift ? <Gift className="size-4.5" /> : m.user.slice(0, 1)}
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-              <span className="text-sm font-extrabold sm:text-base" style={{ color: m.color }}>
-                {m.user}
-              </span>
-              {isGift ? (
-                <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-extrabold text-amber-300">
-                  {p.gift}
-                </span>
-              ) : null}
-              {flagged ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-extrabold text-rose-300">
-                  <ShieldAlert className="size-3" />
-                  {p.flagged}
-                </span>
-              ) : null}
-              <span className="text-[11px] text-muted-foreground tabular-nums sm:text-xs">
-                {timeFmt.format(m.at)}
-              </span>
-            </div>
-            <p
-              className={cn(
-                "mt-1 text-base leading-7 break-words sm:text-lg sm:leading-8",
-                flagged ? "text-rose-100" : isGift ? "font-bold text-amber-100" : "text-foreground",
-              )}
-            >
-              <ChatEmoteText text={m.text} size="lg" />
-            </p>
-          </div>
-        </div>
-      );
-    });
+    return items.map((m) => (
+      <ChatRow
+        key={m.key}
+        m={m}
+        flagged={analytics.flaggedMessageKeys.has(m.key)}
+        animate={animateArrivals.current}
+        time={timeFmt.format(m.at)}
+        labels={rowLabels}
+      />
+    ));
   };
 
   return (
@@ -249,7 +294,10 @@ function ChatPage() {
             )}
           >
             <span
-              className={cn("size-2 rounded-full", live ? "animate-pulse bg-primary" : "bg-muted-foreground/50")}
+              className={cn(
+                "size-2 rounded-full",
+                live ? "animate-pulse bg-primary" : "bg-muted-foreground/50",
+              )}
             />
             {live ? nav.live : chat.status === "connecting" ? t.common.loading : nav.offline}
           </span>
@@ -276,7 +324,11 @@ function ChatPage() {
             title={chatToneMuted ? p.chatToneOn : p.chatToneOff}
             aria-label={chatToneMuted ? p.chatToneOn : p.chatToneOff}
           >
-            {chatToneMuted ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5 text-cyan-300" />}
+            {chatToneMuted ? (
+              <VolumeX className="size-3.5" />
+            ) : (
+              <Volume2 className="size-3.5 text-cyan-300" />
+            )}
             {chatToneMuted ? p.chatToneOffLabel : p.chatToneOnLabel}
           </Button>
           <Button
@@ -366,19 +418,21 @@ function ChatPage() {
               <Sparkles className="size-3.5 text-amber-400" />
               {p.winners}
             </p>
-            <p className="mt-1 text-2xl font-extrabold tabular-nums text-amber-300">{analytics.wins.length}</p>
+            <p className="mt-1 text-2xl font-extrabold tabular-nums text-amber-300">
+              {analytics.wins.length}
+            </p>
           </div>
         </div>
       ) : null}
 
       <div
         className={cn(
-          "glass min-h-[calc(100vh-9.5rem)] flex-1 overflow-hidden rounded-3xl border shadow-[0_0_60px_-28px_var(--neon)] transition-all duration-500",
+          "glass h-[calc(100vh-9.5rem)] min-h-[30rem] overflow-hidden rounded-3xl border shadow-[0_0_60px_-28px_var(--neon)] transition-[border-color] duration-500",
           splitView ? "border-amber-400/25" : "border-primary/20",
         )}
       >
         {!splitView ? (
-          <div className="flex h-full min-h-[calc(100vh-9.5rem)] flex-col">
+          <div className="flex h-full min-h-0 flex-col">
             <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-black/40 via-primary/5 to-black/40 px-4 py-3 sm:px-6">
               <p className="text-sm font-extrabold">{p.comments}</p>
               <p className="text-xs font-bold text-muted-foreground tabular-nums">
@@ -387,7 +441,7 @@ function ChatPage() {
             </div>
             <div
               ref={allBoxRef}
-              className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-4 sm:px-5 sm:py-5 lg:px-8"
+              className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-4 [overflow-anchor:none] sm:px-5 sm:py-5 lg:px-8"
             >
               {renderMessages(
                 latest,
@@ -398,9 +452,9 @@ function ChatPage() {
             </div>
           </div>
         ) : (
-          <div className="grid h-full min-h-[calc(100vh-9.5rem)] grid-cols-1 divide-y divide-white/10 lg:grid-cols-2 lg:divide-x lg:divide-y-0 lg:divide-white/10">
+          <div className="grid h-full min-h-0 grid-cols-1 grid-rows-2 divide-y divide-white/10 lg:grid-cols-2 lg:grid-rows-1 lg:divide-x lg:divide-y-0 lg:divide-white/10">
             {/* In RTL, first grid cell is on the right = regular comments */}
-            <section className="flex min-h-[42vh] flex-col lg:min-h-0">
+            <section className="flex min-h-0 flex-col">
               <div className="flex items-center justify-between gap-2 border-b border-white/10 bg-gradient-to-l from-primary/10 via-black/30 to-black/40 px-4 py-3">
                 <div className="flex items-center gap-2">
                   <span className="grid size-8 place-items-center rounded-xl bg-primary/15 text-primary">
@@ -417,7 +471,7 @@ function ChatPage() {
               </div>
               <div
                 ref={regularBoxRef}
-                className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 py-3 sm:px-4"
+                className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-3 py-3 [overflow-anchor:none] sm:px-4"
               >
                 {renderMessages(
                   regularFeed,
@@ -428,7 +482,7 @@ function ChatPage() {
               </div>
             </section>
 
-            <section className="flex min-h-[42vh] flex-col bg-gradient-to-b from-amber-500/[0.06] to-transparent lg:min-h-0">
+            <section className="flex min-h-0 flex-col bg-gradient-to-b from-amber-500/[0.06] to-transparent">
               <div className="flex items-center justify-between gap-2 border-b border-amber-400/20 bg-gradient-to-l from-amber-500/15 via-amber-500/5 to-black/40 px-4 py-3">
                 <div className="flex items-center gap-2">
                   <span className="grid size-8 place-items-center rounded-xl bg-gradient-to-br from-amber-300 to-amber-500 text-amber-950 shadow-[0_8px_20px_-10px_rgba(251,191,36,0.9)]">
@@ -445,14 +499,16 @@ function ChatPage() {
               </div>
               <div
                 ref={supportBoxRef}
-                className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 py-3 sm:px-4"
+                className="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-3 py-3 [overflow-anchor:none] sm:px-4"
               >
                 {renderMessages(
                   supporterFeed,
                   <div className="grid min-h-[30vh] place-items-center px-4 text-center">
                     <div>
                       <Gift className="mx-auto size-9 text-amber-400/60" />
-                      <p className="mt-3 text-sm font-bold text-muted-foreground">{p.supporterChatEmpty}</p>
+                      <p className="mt-3 text-sm font-bold text-muted-foreground">
+                        {p.supporterChatEmpty}
+                      </p>
                     </div>
                   </div>,
                 )}

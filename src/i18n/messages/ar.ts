@@ -838,6 +838,7 @@ export const ar = {
       chatToneOffLabel: "صوت مطفي",
       flagged: "محتوى غير لائق",
       gift: "هدية",
+      giftNoMessage: "بعث كيكس بدون رسالة",
       statusError: "انقطع الاتصال",
       noChannel: "لا توجد قناة",
     },

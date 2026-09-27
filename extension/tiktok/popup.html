@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        width: 300px;
+        margin: 0;
+        padding: 16px;
+        font-family: system-ui, "Segoe UI", Tahoma, sans-serif;
+        background: #0d0718;
+        color: #f4ecff;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 16px;
+        color: #f472b6;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px 10px;
+        margin-bottom: 6px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.06);
+        font-size: 13px;
+      }
+      .ok {
+        color: #34d399;
+        font-weight: 700;
+      }
+      .bad {
+        color: #fb7185;
+        font-weight: 700;
+      }
+      button {
+        width: 100%;
+        margin-top: 10px;
+        padding: 10px;
+        border: 0;
+        border-radius: 10px;
+        background: linear-gradient(90deg, #ec4899, #8b5cf6);
+        color: white;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      #note {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #c4b5fd;
+        min-height: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Al-Daboor · TikTok</h1>
+    <div class="row"><span>بث تيكتوك مفتوح</span><span id="tiktok">…</span></div>
+    <div class="row"><span>موقع Al-Daboor مفتوح</span><span id="site">…</span></div>
+    <div class="row"><span>رسائل انبعتت</span><span id="count">0</span></div>
+    <button id="diagnose">نسخ تقرير للمطوّر</button>
+    <div id="note"></div>
+    <script src="popup.js"></script>
+  </body>
+</html>

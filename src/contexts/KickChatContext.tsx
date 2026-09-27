@@ -10,6 +10,7 @@ import {
 import { useKickChat, type ChatMessage, type ChatStatus } from "@/hooks/useKickChat";
 import { useResolveKickChannel } from "@/hooks/useResolveKickChannel";
 import { useYouTubeChat, type YouTubeChatApi } from "@/hooks/useYouTubeChat";
+import { useTikTokChat, type TikTokChatApi } from "@/hooks/useTikTokChat";
 import {
   clearKickSession,
   loadKickSession,
@@ -21,14 +22,15 @@ import { loadYouTubeSession } from "@/lib/youtube-session";
 type KickChatApi = ReturnType<typeof useKickChat>;
 
 type KickChatValue = Omit<KickChatApi, "messages" | "status" | "channel"> & {
-  /** Kick + YouTube messages merged in arrival order (max 100). */
+  /** Kick + YouTube + TikTok messages merged in arrival order (max 100). */
   messages: ChatMessage[];
   /** Live when any platform is live. */
   status: ChatStatus;
-  /** Kick channel label, falling back to the YouTube label. */
+  /** Kick channel label, falling back to YouTube, then TikTok. */
   channel: string | null;
   kick: Pick<KickChatApi, "status" | "channel" | "error" | "stop">;
   youtube: YouTubeChatApi;
+  tiktok: TikTokChatApi;
 };
 
 const KickChatContext = createContext<KickChatValue | null>(null);
@@ -43,6 +45,7 @@ function combineStatus(a: ChatStatus, b: ChatStatus): ChatStatus {
 export function KickChatProvider({ children }: { children: ReactNode }) {
   const chat = useKickChat();
   const youtube = useYouTubeChat();
+  const tiktok = useTikTokChat();
   const resolve = useResolveKickChannel();
   const restored = useRef(false);
 
@@ -112,27 +115,31 @@ export function KickChatProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const messages = useMemo(() => {
-    if (youtube.messages.length === 0) return chat.messages;
-    if (chat.messages.length === 0) return youtube.messages;
-    const merged = [...chat.messages, ...youtube.messages].sort((a, b) => a.key - b.key);
+    const sources = [chat.messages, youtube.messages, tiktok.messages].filter((l) => l.length > 0);
+    if (sources.length === 0) return chat.messages;
+    if (sources.length === 1) return sources[0]!;
+    const merged = sources.flat().sort((a, b) => a.key - b.key);
     return merged.length > 100 ? merged.slice(merged.length - 100) : merged;
-  }, [chat.messages, youtube.messages]);
+  }, [chat.messages, youtube.messages, tiktok.messages]);
 
   const { stop: stopKick } = chat;
   const { stop: stopYouTube } = youtube;
+  const { stop: stopTikTok } = tiktok;
   const stop = useCallback(() => {
     stopKick();
     stopYouTube();
-  }, [stopKick, stopYouTube]);
+    stopTikTok();
+  }, [stopKick, stopYouTube, stopTikTok]);
 
   const value: KickChatValue = {
     ...chat,
     messages,
-    status: combineStatus(chat.status, youtube.status),
-    channel: chat.channel ?? youtube.channel,
+    status: combineStatus(combineStatus(chat.status, youtube.status), tiktok.status),
+    channel: chat.channel ?? youtube.channel ?? tiktok.channel,
     stop,
     kick: { status: chat.status, channel: chat.channel, error: chat.error, stop: stopKick },
     youtube,
+    tiktok,
   };
 
   return <KickChatContext.Provider value={value}>{children}</KickChatContext.Provider>;

@@ -3,6 +3,7 @@ import { useT } from "@/contexts/LocaleContext";
 import { useChatAnalytics } from "@/contexts/ChatAnalyticsContext";
 import { useKickChatContext } from "@/contexts/KickChatContext";
 import { formatSupportAmount } from "@/lib/chat-analytics-store";
+import TikTokIcon from "@/components/TikTokIcon";
 import {
   Dialog,
   DialogContent,
@@ -47,12 +48,16 @@ export default function ChatSupportersDialog({
   const numLocale = locale === "ar" ? "ar" : "en";
   const kickOn = chat.kick.status === "live" || chat.kick.status === "connecting";
   const youtubeOn = chat.youtube.status === "live" || chat.youtube.status === "connecting";
-  const youtubeOnly = youtubeOn && !kickOn;
-  const desc =
-    kickOn && youtubeOn
-      ? p.supportersDescBoth
-      : youtubeOnly
-        ? p.supportersDescYoutube
+  const tiktokOn = chat.tiktok.status === "live" || chat.tiktok.status === "connecting";
+  const youtubeOnly = youtubeOn && !kickOn && !tiktokOn;
+  const showKicks = totalKicks > 0 || kickOn || (!youtubeOn && !tiktokOn);
+  const multi = [kickOn, youtubeOn, tiktokOn].filter(Boolean).length > 1;
+  const desc = multi
+    ? p.supportersDescBoth
+    : youtubeOnly
+      ? p.supportersDescYoutube
+      : tiktokOn
+        ? p.supportersDescBoth
         : p.supportersDesc;
   const emptyText = youtubeOnly ? p.supportersEmptyYoutube : p.supportersEmpty;
   const superChatEntries = Object.entries(superChatTotals).filter(([, v]) => v > 0);
@@ -89,7 +94,7 @@ export default function ChatSupportersDialog({
               <Crown className="size-3.5 text-amber-300" />
               {topSupporters.length} {p.supportersPeople}
             </span>
-            {totalKicks > 0 || !youtubeOnly ? (
+            {showKicks ? (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-black/30 px-3 py-1 text-xs font-bold text-amber-100 tabular-nums">
                 <Sparkles className="size-3.5 text-amber-300" />
                 {kicksFmt.format(totalKicks)} {p.kicksUnit}
@@ -196,6 +201,12 @@ export default function ChatSupportersDialog({
                                 "{n}",
                                 kicksFmt.format(row.giftedMembers),
                               )}
+                            </span>
+                          ) : null}
+                          {row.tiktokGifts ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[#fe2c55]/20 px-2.5 py-0.5 text-rose-100 tabular-nums">
+                              <TikTokIcon className="size-3" />
+                              {p.tiktokGiftsCount.replace("{n}", kicksFmt.format(row.tiktokGifts))}
                             </span>
                           ) : null}
                           <span className="text-muted-foreground tabular-nums">

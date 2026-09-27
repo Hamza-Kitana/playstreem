@@ -4,6 +4,8 @@ import { Radio, ShieldCheck, Sparkles, Youtube, Zap } from "lucide-react";
 import ChatFeed from "@/components/ChatFeed";
 import ConnectPanel from "@/components/ConnectPanel";
 import YouTubeConnectPanel from "@/components/YouTubeConnectPanel";
+import TikTokConnectPanel from "@/components/TikTokConnectPanel";
+import TikTokIcon from "@/components/TikTokIcon";
 import { cn } from "@/lib/utils";
 import { Reveal, SectionHeading } from "@/components/Reveal";
 import { useKickChatContext } from "@/contexts/KickChatContext";
@@ -28,7 +30,7 @@ export const Route = createFileRoute("/connect")({
 function ConnectPage() {
   const chat = useKickChatContext();
   const { messages } = useT();
-  const [platform, setPlatform] = useState<"kick" | "youtube">("kick");
+  const [platform, setPlatform] = useState<"kick" | "youtube" | "tiktok">("kick");
 
   return (
     <section>
@@ -58,6 +60,14 @@ function ConnectPage() {
                 icon={<Youtube className="size-4" />}
                 activeClass="bg-gradient-to-l from-red-500 to-rose-600 text-white"
               />
+              <PlatformTab
+                active={platform === "tiktok"}
+                live={chat.tiktok.status === "live"}
+                onClick={() => setPlatform("tiktok")}
+                label={messages.connect.tabTiktok}
+                icon={<TikTokIcon className="size-4" />}
+                activeClass="bg-gradient-to-l from-[#fe2c55] to-[#c026d3] text-white"
+              />
             </div>
             {platform === "kick" ? (
               <ConnectPanel
@@ -66,8 +76,10 @@ function ConnectPage() {
                 onConnect={chat.connect}
                 onStop={chat.kick.stop}
               />
-            ) : (
+            ) : platform === "youtube" ? (
               <YouTubeConnectPanel />
+            ) : (
+              <TikTokConnectPanel />
             )}
           </div>
         </Reveal>

@@ -39,6 +39,8 @@ export type SupporterStat = {
   memberships?: number;
   /** YouTube memberships gifted to others. */
   giftedMembers?: number;
+  /** TikTok gifts received, counting repeats (Rose ×5 = 5). */
+  tiktokGifts?: number;
   /** Display label for the last non-Kick support, e.g. "$5.00". */
   lastLabel?: string;
 };
@@ -102,6 +104,8 @@ export function analyticsChannelKey(channel: string | null | undefined): string 
     /youtu(?:\.be|be\.com)\/(?:(?:channel|c|user)\/)?@?([\w.-]{2,80})/i,
   )?.[1];
   if (yt) return `yt-${yt.toLowerCase()}`;
+  const tt = channel.match(/tiktok\.com\/@([\w.-]{2,60})/i)?.[1];
+  if (tt) return `tt-${tt.toLowerCase()}`;
   const slug = channel
     .trim()
     .replace(/^https?:\/\//i, "")

@@ -238,7 +238,28 @@ export const en: Messages = {
     ytErrNotLive: "That channel isn't live right now, or chat is turned off.",
     ytErrLost: "Lost connection to YouTube chat.",
     ytErrFailed: "Couldn't connect to YouTube.",
-    ytBothHint: "You can connect Kick and YouTube together — all comments merge into one chat.",
+    ytBothHint:
+      "You can connect Kick, YouTube and TikTok together — all comments merge into one chat.",
+    tabTiktok: "TikTok",
+    ttPanelTitle: "Connect TikTok LIVE",
+    ttPanelSubtitle:
+      "TikTok connects through a small browser extension — completely free, no limits.",
+    ttStep1: "Download the extension and unzip it",
+    ttDownload: "Download extension",
+    ttStep2:
+      "Open chrome://extensions, enable “Developer mode”, click “Load unpacked” and pick the folder",
+    ttStep3: "Open your LIVE on tiktok.com in a tab of the same browser and keep it open",
+    ttStep4: "Press “Enable TikTok” below",
+    ttExtension: "Extension",
+    ttExtensionOk: "Installed",
+    ttExtensionMissing: "Not installed",
+    ttLiveTab: "LIVE tab",
+    ttLiveTabMissing: "Not open",
+    ttEnable: "Enable TikTok",
+    ttWaiting: "Waiting for a TikTok LIVE tab…",
+    ttErrNoExtension: "Extension not found — make sure it's installed, then refresh this page.",
+    ttNote:
+      "Works on desktop Chrome and Edge. If comments don't arrive, click the extension icon and choose “Copy report for developer”.",
   },
   duration: {
     s30: "30 seconds",
@@ -904,7 +925,7 @@ export const en: Messages = {
       supportersDescYoutube:
         "Viewers who sent Super Chats or joined memberships this session — ranked from highest.",
       supportersDescBoth:
-        "Viewers who supported with Kicks, Super Chats or memberships this session — ranked from highest.",
+        "Viewers who supported the stream this session (Kicks, Super Chats, memberships, TikTok gifts) — ranked from highest.",
       supportersEmptyYoutube: "No Super Chats yet — the first one will show up here.",
       supporterChatEmptyYoutube:
         "No support yet — the first Super Chat or membership will show up here.",
@@ -916,6 +937,10 @@ export const en: Messages = {
       giftedMembers: "Gifted {n} memberships",
       membershipsCount: "{n} memberships",
       giftedMembersCount: "Gifted {n}",
+      titleTiktok: "TikTok chat",
+      titleMulti: "Chat from all platforms",
+      tiktokGift: "TikTok gift",
+      tiktokGiftsCount: "{n} TikTok gifts",
       statusError: "Connection lost",
       noChannel: "No channel",
     },

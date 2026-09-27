@@ -22,6 +22,7 @@ import ChatEmoteText from "@/components/ChatEmoteText";
 import ChatProfanityDialog from "@/components/ChatProfanityDialog";
 import ChatStatsDialog from "@/components/ChatStatsDialog";
 import ChatSupportersDialog from "@/components/ChatSupportersDialog";
+import TikTokIcon from "@/components/TikTokIcon";
 import ProfanityAlertBanner from "@/components/ProfanityAlertBanner";
 import { Button } from "@/components/ui/button";
 import { participantKey, type ChatMessage } from "@/hooks/useKickChat";
@@ -39,6 +40,7 @@ type RowLabels = {
   memberLabel: string;
   memberJoined: string;
   giftedMembers: string;
+  tiktokGift: string;
 };
 
 const ChatRow = memo(function ChatRow({
@@ -59,6 +61,7 @@ const ChatRow = memo(function ChatRow({
   const isGift = m.kind === "gift";
   const giftText = isGift ? m.giftMessage : undefined;
   const isMembership = m.supportType === "member" || m.supportType === "giftedMembers";
+  const isTikTokGift = m.supportType === "tiktokGift";
 
   let chipText = "";
   let chipDetail: string | undefined;
@@ -81,6 +84,10 @@ const ChatRow = memo(function ChatRow({
       case "giftedMembers":
         chipText = labels.giftedMembers.replace("{n}", String(m.giftCount ?? 1));
         break;
+      case "tiktokGift":
+        chipText = labels.tiktokGift;
+        chipDetail = `${m.giftName ?? ""} ×${m.giftCount ?? 1}`.trim();
+        break;
       default:
         chipText = `${m.giftAmount ?? 0} ${labels.kicksUnit}`;
         chipDetail = m.giftName;
@@ -97,9 +104,11 @@ const ChatRow = memo(function ChatRow({
           ? "border-rose-500/40 bg-rose-950/30"
           : isGift && isMembership
             ? "border-emerald-400/40 bg-gradient-to-l from-emerald-500/15 via-emerald-500/10 to-transparent shadow-[0_0_28px_-16px_rgba(52,211,153,0.9)]"
-            : isGift
-              ? "border-amber-400/40 bg-gradient-to-l from-amber-500/15 via-amber-500/10 to-transparent shadow-[0_0_28px_-16px_rgba(251,191,36,0.9)]"
-              : "border-white/5 bg-black/25 hover:border-primary/15 hover:bg-black/35",
+            : isTikTokGift
+              ? "border-[#fe2c55]/40 bg-gradient-to-l from-[#fe2c55]/15 via-[#25f4ee]/5 to-transparent shadow-[0_0_28px_-16px_rgba(254,44,85,0.9)]"
+              : isGift
+                ? "border-amber-400/40 bg-gradient-to-l from-amber-500/15 via-amber-500/10 to-transparent shadow-[0_0_28px_-16px_rgba(251,191,36,0.9)]"
+                : "border-white/5 bg-black/25 hover:border-primary/15 hover:bg-black/35",
       )}
     >
       <span
@@ -113,6 +122,8 @@ const ChatRow = memo(function ChatRow({
         {isGift ? (
           isMembership ? (
             <Crown className="size-4.5" />
+          ) : m.giftImage ? (
+            <img src={m.giftImage} alt="" className="size-7 object-contain" loading="lazy" />
           ) : (
             <Gift className="size-4.5" />
           )
@@ -129,6 +140,13 @@ const ChatRow = memo(function ChatRow({
             >
               <Youtube className="size-3.5" />
             </span>
+          ) : m.platform === "tiktok" ? (
+            <span
+              className="grid size-5 place-items-center rounded-md bg-[#25f4ee]/15 text-[#25f4ee]"
+              title="TikTok"
+            >
+              <TikTokIcon className="size-3.5" />
+            </span>
           ) : null}
           <span className="text-sm font-extrabold sm:text-base" style={{ color: m.color }}>
             {m.user}
@@ -139,7 +157,9 @@ const ChatRow = memo(function ChatRow({
                 "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-black tabular-nums",
                 isMembership
                   ? "border-emerald-400/40 bg-emerald-400/20 text-emerald-200"
-                  : "border-amber-400/40 bg-amber-400/20 text-amber-200",
+                  : isTikTokGift
+                    ? "border-[#fe2c55]/40 bg-[#fe2c55]/20 text-rose-100"
+                    : "border-amber-400/40 bg-amber-400/20 text-amber-200",
               )}
             >
               {isMembership ? <Crown className="size-3" /> : <Gift className="size-3" />}
@@ -320,18 +340,27 @@ function ChatPage() {
       memberLabel: p.memberLabel,
       memberJoined: p.memberJoined,
       giftedMembers: p.giftedMembers,
+      tiktokGift: p.tiktokGift,
     }),
     [p],
   );
 
   const kickOn = chat.kick.status === "live" || chat.kick.status === "connecting";
   const youtubeOn = chat.youtube.status === "live" || chat.youtube.status === "connecting";
-  const platformMode: "kick" | "youtube" | "both" =
-    kickOn && youtubeOn ? "both" : youtubeOn ? "youtube" : "kick";
+  const tiktokOn = chat.tiktok.status === "live" || chat.tiktok.status === "connecting";
+  const activeCount = [kickOn, youtubeOn, tiktokOn].filter(Boolean).length;
   const pageTitle =
-    platformMode === "both" ? p.titleBoth : platformMode === "youtube" ? p.titleYoutube : p.title;
+    activeCount > 1
+      ? kickOn && youtubeOn && !tiktokOn
+        ? p.titleBoth
+        : p.titleMulti
+      : youtubeOn
+        ? p.titleYoutube
+        : tiktokOn
+          ? p.titleTiktok
+          : p.title;
   const supporterEmptyText =
-    platformMode === "youtube" ? p.supporterChatEmptyYoutube : p.supporterChatEmpty;
+    youtubeOn && activeCount === 1 ? p.supporterChatEmptyYoutube : p.supporterChatEmpty;
 
   const renderMessages = (items: ChatMessage[], empty: ReactNode) => {
     if (!live) {
@@ -414,6 +443,15 @@ function ChatPage() {
             >
               <Youtube className="size-3.5 text-red-400" />
               {chat.youtube.channel}
+            </span>
+          ) : null}
+          {chat.tiktok.channel ? (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-2xl bg-black/30 px-3 py-2 text-xs font-bold text-muted-foreground"
+              dir="ltr"
+            >
+              <TikTokIcon className="size-3.5 text-[#25f4ee]" />
+              {chat.tiktok.channel}
             </span>
           ) : null}
           <Button

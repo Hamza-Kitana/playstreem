@@ -9,7 +9,8 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "zip:extension": "powershell -NoProfile -Command \"Compress-Archive -Force -Path extension/tiktok/* -DestinationPath public/al-daboor-tiktok.zip\""
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

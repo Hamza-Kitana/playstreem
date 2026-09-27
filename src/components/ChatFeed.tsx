@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Youtube } from "lucide-react";
 import ChatEmoteText from "@/components/ChatEmoteText";
+import TikTokIcon from "@/components/TikTokIcon";
 import type { ChatMessage, ChatStatus } from "@/hooks/useKickChat";
 import { cn } from "@/lib/utils";
 import { useT } from "@/contexts/LocaleContext";
@@ -61,6 +62,11 @@ export default function ChatFeed({
                 <Youtube
                   className="me-1 inline size-3.5 align-[-2px] text-red-400"
                   aria-label="YouTube"
+                />
+              ) : m.platform === "tiktok" ? (
+                <TikTokIcon
+                  className="me-1 inline size-3.5 align-[-2px] text-[#25f4ee]"
+                  aria-label="TikTok"
                 />
               ) : null}
               <span className="text-sm font-bold" style={{ color: m.color }}>

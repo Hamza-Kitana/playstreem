@@ -23,12 +23,15 @@ export type ChatMessage = {
   platform?: ChatPlatform;
   /** Kind of support for gift messages; Kick gifts leave it unset. */
   supportType?: SupportType;
-  /** Number of memberships in a YouTube gifted-memberships event. */
+  /** Number of memberships in a YouTube gifted-memberships event, or TikTok gift repeat count. */
   giftCount?: number;
+  /** Image of a TikTok gift. */
+  giftImage?: string;
 };
 
-export type ChatPlatform = "kick" | "youtube";
-export type SupportType = "kicks" | "superchat" | "sticker" | "member" | "giftedMembers";
+export type ChatPlatform = "kick" | "youtube" | "tiktok";
+export type SupportType =
+  "kicks" | "superchat" | "sticker" | "member" | "giftedMembers" | "tiktokGift";
 
 type KickSender = {
   id?: number | string;

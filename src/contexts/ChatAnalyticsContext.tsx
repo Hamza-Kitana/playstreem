@@ -147,6 +147,29 @@ export function ChatAnalyticsProvider({ children }: { children: ReactNode }) {
       const key = participantKey(m) || m.user.toLowerCase();
       if (!key) return;
 
+      if (m.platform === "tiktok") {
+        const count = m.giftCount ?? 1;
+        setSupporters((prev) => {
+          const existing = prev[key];
+          return {
+            ...prev,
+            [key]: {
+              ...existing,
+              user: m.user,
+              userKey: key,
+              color: m.color,
+              kicks: existing?.kicks ?? 0,
+              gifts: (existing?.gifts ?? 0) + 1,
+              lastAt: m.at,
+              lastAmount: existing?.lastAmount ?? 0,
+              tiktokGifts: (existing?.tiktokGifts ?? 0) + count,
+              lastLabel: `${m.giftName ?? "Gift"} ×${count}`,
+            },
+          };
+        });
+        return;
+      }
+
       if (m.platform === "youtube") {
         const paid =
           (m.supportType === "superchat" || m.supportType === "sticker") && m.giftLabel
@@ -286,6 +309,7 @@ export function ChatAnalyticsProvider({ children }: { children: ReactNode }) {
         b.kicks - a.kicks ||
         paidTotal(b) - paidTotal(a) ||
         (b.giftedMembers ?? 0) - (a.giftedMembers ?? 0) ||
+        (b.tiktokGifts ?? 0) - (a.tiktokGifts ?? 0) ||
         b.gifts - a.gifts ||
         b.lastAt - a.lastAt,
     );

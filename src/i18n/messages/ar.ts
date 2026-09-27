@@ -213,7 +213,7 @@ export const ar = {
     sourcePageUrl: "رابط الصفحة",
     exampleSuffix: "أو الاسم فقط.",
     pageEyebrow: "الخطوة الأولى",
-    pageTitle: "اربط كيك",
+    pageTitle: "اربط بثك",
     pageSubtitle: "حط رابط بثك أو اسم القناة، اربط، وبعدين روح لأي لعبة من الشريط فوق.",
     perkFast: "ربط سريع",
     perkFastDesc: "ثانية وأنت فوق. اسم القناة أو الرابط، والباقي علينا.",

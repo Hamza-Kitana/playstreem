@@ -15,13 +15,15 @@ export function useReveal<T extends HTMLElement = HTMLDivElement>(threshold = 0.
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
-          if (e.isIntersecting) {
+          // Elements taller than the viewport can never reach the ratio threshold.
+          const tall = e.intersectionRect.height >= window.innerHeight * 0.4;
+          if (e.isIntersecting && (e.intersectionRatio >= threshold || tall)) {
             setShown(true);
             io.disconnect();
           }
         }
       },
-      { threshold, rootMargin: "0px 0px -8% 0px" },
+      { threshold: [0, threshold, 0.4], rootMargin: "0px 0px -8% 0px" },
     );
     io.observe(el);
     return () => io.disconnect();

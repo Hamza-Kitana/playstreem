@@ -71,12 +71,12 @@ function ConnectPage() {
             )}
           </div>
         </Reveal>
-        <Reveal delay={120}>
+        <Reveal delay={120} className="relative">
           <ChatFeed
             messages={chat.messages}
             status={chat.status}
             channel={chat.channel}
-            className="h-full"
+            className="h-[28rem] lg:absolute lg:inset-0 lg:h-auto"
           />
         </Reveal>
       </div>

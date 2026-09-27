@@ -215,7 +215,7 @@ export const en: Messages = {
     sourcePageUrl: "page link",
     exampleSuffix: "or just the channel name.",
     pageEyebrow: "Step one",
-    pageTitle: "Connect Kick",
+    pageTitle: "Connect your stream",
     pageSubtitle:
       "Enter your stream link or channel name, connect, then pick any game from the top bar.",
     perkFast: "Fast connect",

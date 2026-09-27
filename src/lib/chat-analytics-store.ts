@@ -64,6 +64,8 @@ export function emptyChatAnalytics(): StoredChatAnalytics {
 /** Normalize Kick label (`kick.com/foo` or `foo`) to a storage slug. */
 export function analyticsChannelKey(channel: string | null | undefined): string | null {
   if (!channel) return null;
+  const yt = channel.match(/youtu(?:\.be|be\.com)\/(?:(?:channel|c|user)\/)?@?([\w.-]{2,80})/i)?.[1];
+  if (yt) return `yt-${yt.toLowerCase()}`;
   const slug = channel
     .trim()
     .replace(/^https?:\/\//i, "")

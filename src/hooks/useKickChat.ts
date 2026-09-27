@@ -18,7 +18,12 @@ export type ChatMessage = {
   giftMessage?: string;
   /** Kick gift name (e.g. "Hell Yeah"). */
   giftName?: string;
+  /** Pre-formatted support amount for non-Kick gifts, e.g. a "$5.00" Super Chat. */
+  giftLabel?: string;
+  platform?: ChatPlatform;
 };
+
+export type ChatPlatform = "kick" | "youtube";
 
 type KickSender = {
   id?: number | string;
@@ -162,6 +167,12 @@ const KICK_WS =
 
 let counter = 0;
 
+/** Keys are shared across platforms so merged feeds stay unique and ordered. */
+export function nextChatKey() {
+  counter += 1;
+  return counter;
+}
+
 export function useKickChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<ChatStatus>("idle");
@@ -182,12 +193,13 @@ export function useKickChat() {
       color: string,
       extra?: Pick<ChatMessage, "kind" | "giftAmount" | "giftMessage" | "giftName">,
     ) => {
-      counter += 1;
+      const key = nextChatKey();
       setMessages((prev) => {
         const next = [
           ...prev,
           {
-            key: counter,
+            key,
+            platform: "kick" as const,
             user,
             userKey,
             text,

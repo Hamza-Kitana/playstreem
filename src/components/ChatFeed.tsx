@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Youtube } from "lucide-react";
 import ChatEmoteText from "@/components/ChatEmoteText";
 import type { ChatMessage, ChatStatus } from "@/hooks/useKickChat";
 import { cn } from "@/lib/utils";
@@ -56,6 +57,12 @@ export default function ChatFeed({
         ) : (
           chatMessages.slice(-100).map((m) => (
             <div key={m.key} className="animate-chat-in rounded-xl bg-secondary/40 px-3 py-2">
+              {m.platform === "youtube" ? (
+                <Youtube
+                  className="me-1 inline size-3.5 align-[-2px] text-red-400"
+                  aria-label="YouTube"
+                />
+              ) : null}
               <span className="text-sm font-bold" style={{ color: m.color }}>
                 {m.user}
               </span>

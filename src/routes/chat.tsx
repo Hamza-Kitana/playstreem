@@ -12,6 +12,7 @@ import {
   Users,
   Volume2,
   VolumeX,
+  Youtube,
 } from "lucide-react";
 import { useKickChatContext } from "@/contexts/KickChatContext";
 import { useChatAnalytics } from "@/contexts/ChatAnalyticsContext";
@@ -75,13 +76,21 @@ const ChatRow = memo(function ChatRow({
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {m.platform === "youtube" ? (
+            <span
+              className="grid size-5 place-items-center rounded-md bg-red-500/20 text-red-400"
+              title="YouTube"
+            >
+              <Youtube className="size-3.5" />
+            </span>
+          ) : null}
           <span className="text-sm font-extrabold sm:text-base" style={{ color: m.color }}>
             {m.user}
           </span>
           {isGift ? (
             <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/20 px-2 py-0.5 text-[11px] font-black text-amber-200 tabular-nums">
               <Gift className="size-3" />
-              {m.giftAmount ?? 0} {labels.kicksUnit}
+              {m.giftLabel ?? `${m.giftAmount ?? 0} ${labels.kicksUnit}`}
               {m.giftName ? (
                 <span className="font-bold text-amber-100/70">· {m.giftName}</span>
               ) : null}
@@ -301,13 +310,22 @@ function ChatPage() {
             />
             {live ? nav.live : chat.status === "connecting" ? t.common.loading : nav.offline}
           </span>
-          {chat.channel ? (
+          {chat.kick.channel ? (
             <span
               className="inline-flex items-center gap-1.5 rounded-2xl bg-black/30 px-3 py-2 text-xs font-bold text-muted-foreground"
               dir="ltr"
             >
               <Radio className="size-3.5 text-primary" />
-              {chat.channel}
+              {chat.kick.channel}
+            </span>
+          ) : null}
+          {chat.youtube.channel ? (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-2xl bg-black/30 px-3 py-2 text-xs font-bold text-muted-foreground"
+              dir="ltr"
+            >
+              <Youtube className="size-3.5 text-red-400" />
+              {chat.youtube.channel}
             </span>
           ) : null}
           <Button

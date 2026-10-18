@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Al-Daboor TikTok Bridge",
   "description": "Sends TikTok LIVE comments and gifts to Al-Daboor stream games.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "icons": {
     "128": "icon.png"
   },
@@ -21,7 +21,7 @@
       "run_at": "document_idle"
     },
     {
-      "matches": ["http://localhost/*", "http://127.0.0.1/*", "https://*.vercel.app/*"],
+      "matches": ["http://localhost/*", "http://127.0.0.1/*", "https://*.vercel.app/*", "https://aldaboor.website/*", "https://*.aldaboor.website/*"],
       "js": ["site.js"],
       "run_at": "document_start"
     }

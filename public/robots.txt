@@ -12,3 +12,6 @@ Allow: /
 
 User-agent: *
 Allow: /
+Disallow: /quiz/overlay
+
+Sitemap: https://www.aldaboor.website/sitemap.xml

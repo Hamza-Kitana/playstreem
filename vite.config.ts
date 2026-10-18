@@ -7,7 +7,11 @@ import tsConfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig(({ command }) => ({
   resolve: {
-    alias: { "@": `${process.cwd()}/src` },
+    alias: [
+      { find: "@", replacement: `${process.cwd()}/src` },
+      // tslib's Node ESM entry default-imports its CJS build, which breaks once bundled.
+      { find: /^tslib$/, replacement: "tslib/tslib.es6.mjs" },
+    ],
     dedupe: [
       "react",
       "react-dom",

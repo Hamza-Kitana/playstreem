@@ -123,7 +123,7 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <LocaleProvider>{children}</LocaleProvider>
         <Scripts />
       </body>
     </html>
@@ -142,21 +142,19 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <LocaleProvider>
-        <LocaleHtmlSync />
-        <KickChatProvider>
-          <ChatAnalyticsProvider>
-            <GuideProvider>
-              <BootWithGuide>
-                <AppShell>
-                  <Outlet />
-                </AppShell>
-              </BootWithGuide>
-              {!isOverlay ? <WelcomeGuide /> : null}
-            </GuideProvider>
-          </ChatAnalyticsProvider>
-        </KickChatProvider>
-      </LocaleProvider>
+      <LocaleHtmlSync />
+      <KickChatProvider>
+        <ChatAnalyticsProvider>
+          <GuideProvider>
+            <BootWithGuide>
+              <AppShell>
+                <Outlet />
+              </AppShell>
+            </BootWithGuide>
+            {!isOverlay ? <WelcomeGuide /> : null}
+          </GuideProvider>
+        </ChatAnalyticsProvider>
+      </KickChatProvider>
     </QueryClientProvider>
   );
 }

@@ -50,4 +50,11 @@ export const VERIFIED_STREAMERS: VerifiedStreamer[] = [
     hue: 148,
     note: "موثّقة لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
   },
+  {
+    name: "BERLIN_BR",
+    slug: "berlin_br",
+    tag: "ستريمر موثّق",
+    hue: 158,
+    note: "موثّق لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
+  },
 ];

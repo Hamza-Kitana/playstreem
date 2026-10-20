@@ -661,6 +661,8 @@ export const en: Messages = {
       winnerTitle: "Roulette winner!",
       noWinner: "No winner",
       playAgain: "Play again",
+      soundOn: "Wheel sound on — click to mute",
+      soundOff: "Wheel sound muted — click to unmute",
     },
     football: {
       title: "Football Quiz",

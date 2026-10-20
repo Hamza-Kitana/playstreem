@@ -653,6 +653,8 @@ export const ar = {
       winnerTitle: "فائز الروليت!",
       noWinner: "ما في فائز",
       playAgain: "لعب جديد",
+      soundOn: "صوت العجلة شغّال — اكبس لكتمه",
+      soundOff: "صوت العجلة مكتوم — اكبس لتشغيله",
     },
     football: {
       title: "أسئلة كروية",

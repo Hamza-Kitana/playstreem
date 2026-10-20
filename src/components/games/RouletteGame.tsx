@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleDot, Crown, RotateCw, Users } from "lucide-react";
+import { CircleDot, Crown, RotateCw, Users, Volume2, VolumeX } from "lucide-react";
 import { useT } from "@/contexts/LocaleContext";
 import type { ChatMessage } from "@/hooks/useKickChat";
 import { normalizeAr, useNewMessages } from "@/hooks/useNewMessages";
@@ -14,11 +14,14 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { recordGameWin } from "@/lib/record-game-win";
+import { createRouletteAudio, type RouletteAudio } from "@/lib/roulette-audio";
 import GameStage, { type Phase as StagePhase } from "@/components/games/GameStage";
 
 const ACCENT = "#f59e0b";
 const GLOW = "#fbbf24";
-const SPIN_MS = 4200;
+const SPIN_MS = 5600;
+const WINNER_DIALOG_DELAY_MS = 1400;
+const SOUND_STORAGE_KEY = "al-daboor-roulette-sound";
 
 type Contestant = { name: string; color: string };
 type InnerPhase = "lobby" | "spinning" | "reveal" | "winner";
@@ -35,8 +38,19 @@ function isRouletteJoin(text: string) {
   );
 }
 
-function pickEliminatedIndex(count: number) {
-  return Math.floor(Math.random() * count);
+function mod360(deg: number) {
+  return ((deg % 360) + 360) % 360;
+}
+
+/** Segment under the top pointer. Segments run clockwise from 12 o'clock; the wheel turns clockwise. */
+function segmentAtPointer(rotationDeg: number, count: number) {
+  const seg = 360 / count;
+  return Math.min(count - 1, Math.floor(mod360(-rotationDeg) / seg));
+}
+
+/** Quartic ease-out: fast start, long suspenseful slowdown. */
+function easeOutQuart(t: number) {
+  return 1 - (1 - t) ** 4;
 }
 
 function segmentColors(i: number, total: number) {
@@ -64,15 +78,61 @@ export default function RouletteGame({
   const [eliminated, setEliminated] = useState<Contestant[]>([]);
   const [spinDeg, setSpinDeg] = useState(0);
   const [lastOut, setLastOut] = useState<Contestant | null>(null);
+  const [landedIdx, setLandedIdx] = useState<number | null>(null);
   const [winner, setWinner] = useState<Contestant | null>(null);
   const [winnerOpen, setWinnerOpen] = useState(false);
   const [round, setRound] = useState(1);
+  const [soundOn, setSoundOn] = useState(true);
   const spinningRef = useRef(false);
+  const rotationRef = useRef(0);
+  const frameRef = useRef<number | null>(null);
+  const winnerTimerRef = useRef<number | null>(null);
+  const wheelRef = useRef<HTMLDivElement>(null);
+  const pointerRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<RouletteAudio | null>(null);
   const contestantsRef = useRef(contestants);
   contestantsRef.current = contestants;
+  const winLabelRef = useRef(messages.gameMeta.roulette.label);
+  winLabelRef.current = messages.gameMeta.roulette.label;
 
+  const revealing = innerPhase === "reveal" || innerPhase === "winner";
   const canStart = contestants.length >= 2;
-  const remaining = contestants.length;
+  const remaining = contestants.length - (revealing && lastOut ? 1 : 0);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(SOUND_STORAGE_KEY) === "off") setSoundOn(false);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    audioRef.current ??= createRouletteAudio();
+    audioRef.current.setMuted(!soundOn);
+  }, [soundOn]);
+
+  useEffect(
+    () => () => {
+      if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
+      if (winnerTimerRef.current != null) window.clearTimeout(winnerTimerRef.current);
+      audioRef.current?.dispose();
+      audioRef.current = null;
+    },
+    [],
+  );
+
+  const toggleSound = () => {
+    setSoundOn((on) => {
+      const next = !on;
+      try {
+        localStorage.setItem(SOUND_STORAGE_KEY, next ? "on" : "off");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
 
   useNewMessages(chatMessages, (stagePhase === "setup" || innerPhase === "lobby") && chatActive, (m) => {
     if (!isRouletteJoin(m.text)) return;
@@ -85,64 +145,126 @@ export default function RouletteGame({
     });
   });
 
+  const finishSpin = useCallback((pool: Contestant[], finalDeg: number) => {
+    const audio = audioRef.current;
+    const idx = segmentAtPointer(finalDeg, pool.length);
+    const victim = pool[idx]!;
+    const survivors = pool.filter((_, i) => i !== idx);
+    spinningRef.current = false;
+    setSpinDeg(finalDeg);
+    setLandedIdx(idx);
+    setLastOut(victim);
+    setEliminated((e) => [...e, victim]);
+
+    if (survivors.length <= 1) {
+      const champ = survivors[0] ?? null;
+      setWinner(champ);
+      setInnerPhase("winner");
+      audio?.playEliminated();
+      if (champ) {
+        recordGameWin({
+          user: champ.name,
+          userKey: champ.name.toLowerCase(),
+          color: champ.color,
+          game: winLabelRef.current,
+        });
+        winnerTimerRef.current = window.setTimeout(() => {
+          winnerTimerRef.current = null;
+          audioRef.current?.playWinner();
+          setWinnerOpen(true);
+        }, WINNER_DIALOG_DELAY_MS);
+      }
+      return;
+    }
+
+    audio?.playEliminated();
+    setInnerPhase("reveal");
+  }, []);
+
   const spin = useCallback(() => {
     const pool = contestantsRef.current;
     if (pool.length < 2 || spinningRef.current) return;
     spinningRef.current = true;
     setInnerPhase("spinning");
     setLastOut(null);
+    setLandedIdx(null);
 
-    const idx = pickEliminatedIndex(pool.length);
-    const seg = 360 / pool.length;
-    const extraTurns = 5 + Math.floor(Math.random() * 3);
-    const target =
-      spinDeg +
-      extraTurns * 360 +
-      (360 - idx * seg - seg / 2);
+    const audio = audioRef.current;
+    audio?.unlock();
+    audio?.playSpinStart();
 
-    setSpinDeg(target);
+    const n = pool.length;
+    const seg = 360 / n;
+    const idx = Math.floor(Math.random() * n);
+    const landAt = (idx + 0.5) * seg + (Math.random() - 0.5) * seg * 0.7;
+    const start = rotationRef.current;
+    const extraTurns = 6 + Math.floor(Math.random() * 3);
+    const target = start + extraTurns * 360 + mod360(-landAt - start);
+    const distance = target - start;
 
-    window.setTimeout(() => {
-      const victim = pool[idx]!;
-      const survivors = pool.filter((p) => p.name.toLowerCase() !== victim.name.toLowerCase());
-      setLastOut(victim);
-      setEliminated((e) => [...e, victim]);
-      setContestants(survivors);
-      spinningRef.current = false;
+    let lastSeg = segmentAtPointer(start, n);
+    let lastAngle = start;
+    let lastTime = performance.now();
+    const t0 = lastTime;
+    let peakSpeed = 0;
 
-      if (survivors.length <= 1) {
-        const champ = survivors[0] ?? null;
-        setWinner(champ);
-        if (champ) {
-          recordGameWin({
-            user: champ.name,
-            userKey: champ.name.toLowerCase(),
-            color: champ.color,
-            game: messages.gameMeta.roulette.label,
-          });
-        }
-        setInnerPhase("winner");
-        setWinnerOpen(Boolean(champ));
-        return;
+    const step = (now: number) => {
+      const t = Math.min(1, (now - t0) / SPIN_MS);
+      const angle = start + distance * easeOutQuart(t);
+      rotationRef.current = angle;
+      if (wheelRef.current) wheelRef.current.style.transform = `rotate(${angle}deg)`;
+
+      const dt = Math.max(1, now - lastTime);
+      const speed = (angle - lastAngle) / dt;
+      peakSpeed = Math.max(peakSpeed, speed);
+      lastAngle = angle;
+      lastTime = now;
+
+      const current = segmentAtPointer(angle, n);
+      if (current !== lastSeg) {
+        lastSeg = current;
+        audioRef.current?.playTick(peakSpeed > 0 ? speed / peakSpeed : 0);
+        pointerRef.current?.animate(
+          [{ transform: "rotate(0deg)" }, { transform: "rotate(-22deg)" }, { transform: "rotate(0deg)" }],
+          { duration: Math.min(180, 60 + (1 - speed / (peakSpeed || 1)) * 140), easing: "ease-out" },
+        );
       }
 
-      setInnerPhase("reveal");
-      setRound((r) => r + 1);
-    }, SPIN_MS);
-  }, [spinDeg]);
+      if (t < 1) {
+        frameRef.current = requestAnimationFrame(step);
+        return;
+      }
+      frameRef.current = null;
+      finishSpin(pool, target);
+    };
+    frameRef.current = requestAnimationFrame(step);
+  }, [finishSpin]);
 
+  /** Drops the eliminated player only now, so the wheel keeps showing who the pointer landed on. */
   const continueAfterReveal = () => {
+    const out = lastOut;
+    if (out) setContestants((prev) => prev.filter((p) => p.name.toLowerCase() !== out.name.toLowerCase()));
+    rotationRef.current = mod360(rotationRef.current);
+    setSpinDeg(rotationRef.current);
     setLastOut(null);
+    setLandedIdx(null);
+    setRound((r) => r + 1);
     setInnerPhase("lobby");
   };
 
   const resetAll = () => {
+    if (frameRef.current != null) cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
+    if (winnerTimerRef.current != null) window.clearTimeout(winnerTimerRef.current);
+    winnerTimerRef.current = null;
     setStagePhase("setup");
     setInnerPhase("lobby");
     setContestants([]);
     setEliminated([]);
+    rotationRef.current = 0;
     setSpinDeg(0);
     setLastOut(null);
+    setLandedIdx(null);
     setWinner(null);
     setWinnerOpen(false);
     setRound(1);
@@ -232,6 +354,16 @@ export default function RouletteGame({
                 <span className="text-sm font-bold text-white/60">
                   {g.remaining}: <span className="text-white">{remaining}</span>
                 </span>
+                <button
+                  type="button"
+                  onClick={toggleSound}
+                  aria-label={soundOn ? g.soundOn : g.soundOff}
+                  title={soundOn ? g.soundOn : g.soundOff}
+                  aria-pressed={soundOn}
+                  className="flex size-9 items-center justify-center rounded-full border border-amber-500/40 bg-amber-500/10 text-amber-200 transition hover:bg-amber-500/20"
+                >
+                  {soundOn ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+                </button>
               </div>
 
               <div className="relative mx-auto aspect-square w-full max-w-[min(100%,22rem)] sm:max-w-[26rem]">
@@ -240,20 +372,20 @@ export default function RouletteGame({
                   aria-hidden
                 >
                   <div
+                    ref={pointerRef}
                     className="size-0 border-x-[14px] border-x-transparent border-t-[26px]"
-                    style={{ borderTopColor: GLOW, filter: `drop-shadow(0 0 12px ${ACCENT})` }}
+                    style={{
+                      borderTopColor: GLOW,
+                      filter: `drop-shadow(0 0 12px ${ACCENT})`,
+                      transformOrigin: "50% 0",
+                    }}
                   />
                 </div>
 
                 <div
+                  ref={wheelRef}
                   className="absolute inset-[6%] rounded-full border-4 border-amber-400/50 shadow-[inset_0_0_40px_rgba(0,0,0,0.5),0_0_60px_-10px_rgba(245,158,11,0.8)]"
-                  style={{
-                    transition:
-                      innerPhase === "spinning"
-                        ? `transform ${SPIN_MS}ms cubic-bezier(0.12, 0.85, 0.15, 1)`
-                        : undefined,
-                    transform: `rotate(${spinDeg}deg)`,
-                  }}
+                  style={{ transform: `rotate(${spinDeg}deg)`, willChange: "transform" }}
                 >
                   <svg viewBox="0 0 200 200" className="size-full">
                     {wheelSegments.map((seg, i) => {
@@ -273,13 +405,23 @@ export default function RouletteGame({
                       const ty = cy + 62 * Math.sin(mid);
                       const label =
                         seg.label.length > 10 ? `${seg.label.slice(0, 9)}…` : seg.label;
+                      const landed = revealing && landedIdx === i;
+                      const dimmed = revealing && landedIdx != null && !landed;
+                      const d =
+                        n === 1
+                          ? `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - 0.01} ${cy - r} Z`
+                          : `M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} Z`;
                       return (
-                        <g key={`${seg.label}-${i}`}>
+                        <g
+                          key={`${seg.label}-${i}`}
+                          opacity={dimmed ? 0.35 : 1}
+                          style={{ transition: "opacity 300ms" }}
+                        >
                           <path
-                            d={`M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} Z`}
-                            fill={seg.fill}
-                            stroke={seg.edge}
-                            strokeWidth="1.5"
+                            d={d}
+                            fill={landed ? "oklch(0.55 0.22 25)" : seg.fill}
+                            stroke={landed ? "#fff" : seg.edge}
+                            strokeWidth={landed ? 3 : 1.5}
                           />
                           <text
                             x={tx}
@@ -342,7 +484,9 @@ export default function RouletteGame({
               <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
                 <h4 className="text-xs font-extrabold tracking-wider text-white/50 uppercase">{g.stillIn}</h4>
                 <ul className="mt-2 max-h-40 space-y-1.5 overflow-y-auto">
-                  {contestants.map((p) => (
+                  {contestants
+                    .filter((p) => !(revealing && lastOut && p.name === lastOut.name))
+                    .map((p) => (
                     <li
                       key={p.name}
                       className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm font-bold"

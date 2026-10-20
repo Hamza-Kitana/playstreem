@@ -23,6 +23,15 @@ type KickChannelJson = {
   livestream?: unknown;
 };
 
+export type KickPusherConfig = { appKey: string; cluster: string };
+
+/** Used when Kick's realtime descriptor can't be fetched; Kick rotates this key. */
+export const KICK_PUSHER_FALLBACK: KickPusherConfig = { appKey: "34bf7a0ff419a2a775b9", cluster: "us2" };
+
+export function kickPusherUrl({ appKey, cluster }: KickPusherConfig) {
+  return `wss://ws-${cluster}.pusher.com/app/${appKey}?protocol=7&client=js&version=8.4.0&flash=false`;
+}
+
 export function kickChannelEndpoints(slug: string) {
   return [`https://kick.com/api/v2/channels/${slug}`, `https://kick.com/api/v1/channels/${slug}`];
 }

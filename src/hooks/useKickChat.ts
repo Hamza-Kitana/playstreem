@@ -1,4 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import {
+  KICK_PUSHER_FALLBACK,
+  kickPusherUrl,
+  type KickPusherConfig,
+} from "@/lib/kick-channel";
+import { getKickPusherConfig } from "@/lib/kick.functions";
 import { clearKickSession, saveKickSession } from "@/lib/kick-session";
 
 export type ChatMessage = {
@@ -172,8 +179,10 @@ function kickSubscribeChannels(chatroomId: number, channelId?: number) {
 
 export type ChatStatus = "idle" | "connecting" | "live" | "error";
 
-const KICK_WS =
-  "wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679?protocol=7&client=js&version=8.4.0-rc2&flash=false";
+/** Pusher closes with this code when the app key is unknown, i.e. Kick rotated it. */
+const PUSHER_INVALID_APP_KEY = 4001;
+
+let pusherConfigPromise: Promise<KickPusherConfig> | null = null;
 
 let counter = 0;
 
@@ -192,8 +201,17 @@ export function useKickChat() {
   const reconnectTimer = useRef<number | null>(null);
   const reconnectAttempts = useRef(0);
   const openSocketRef = useRef<(() => void) | null>(null);
+  const fetchPusherConfig = useServerFn(getKickPusherConfig);
 
   const seenIds = useRef(new Set<string>());
+
+  const loadPusherConfig = useCallback(() => {
+    pusherConfigPromise ??= fetchPusherConfig().catch(() => {
+      pusherConfigPromise = null;
+      return KICK_PUSHER_FALLBACK;
+    });
+    return pusherConfigPromise;
+  }, [fetchPusherConfig]);
 
   const push = useCallback(
     (
@@ -276,10 +294,12 @@ export function useKickChat() {
         }, delay);
       };
 
-      const openSocket = () => {
+      const openSocket = async () => {
+        const config = await loadPusherConfig();
+        if (openSocketRef.current !== openSocket) return;
         let ws: WebSocket;
         try {
-          ws = new WebSocket(KICK_WS);
+          ws = new WebSocket(kickPusherUrl(config));
         } catch {
           setStatus("error");
           setError("تعذّر فتح الاتصال بالبث.");
@@ -375,9 +395,10 @@ export function useKickChat() {
           }
         };
 
-        ws.onclose = () => {
+        ws.onclose = (ev) => {
           if (wsRef.current !== ws) return;
           wsRef.current = null;
+          if (ev.code === PUSHER_INVALID_APP_KEY) pusherConfigPromise = null;
           if (reconnectAttempts.current >= 6) {
             setStatus("error");
             setError("انقطع الاتصال بشات كيك.");
@@ -388,9 +409,9 @@ export function useKickChat() {
       };
 
       openSocketRef.current = openSocket;
-      openSocket();
+      void openSocket();
     },
-    [disconnectSockets, push],
+    [disconnectSockets, loadPusherConfig, push],
   );
 
   useEffect(() => () => disconnectSockets(), [disconnectSockets]);

@@ -43,4 +43,11 @@ export const VERIFIED_STREAMERS: VerifiedStreamer[] = [
     hue: 154,
     note: "موثّق لدى Al-Daboor — قعدة ع الرايق، شوف البث على الكرت أو اربط القناة بكبسة.",
   },
+  {
+    name: "RAHMA_GAMIN_G",
+    slug: "rahma_gamin_g",
+    tag: "ستريمر موثّق",
+    hue: 148,
+    note: "موثّقة لدى Al-Daboor — شوف البث على الكرت أو اربط القناة بكبسة.",
+  },
 ];

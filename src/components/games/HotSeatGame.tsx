@@ -48,6 +48,10 @@ function lerpPct(a: string, b: string, t: number) {
 function MovingToSeat({ move, onDone }: { move: SeatMove; onDone: () => void }) {
   const [t, setT] = useState(0);
   const doneRef = useRef(false);
+  // The parent passes an inline callback and re-renders per chat message; depending
+  // on it would restart the move animation forever on a busy chat.
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
     let raf = 0;
@@ -59,12 +63,12 @@ function MovingToSeat({ move, onDone }: { move: SeatMove; onDone: () => void }) 
       if (p < 1) raf = requestAnimationFrame(tick);
       else if (!doneRef.current) {
         doneRef.current = true;
-        onDone();
+        onDoneRef.current();
       }
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [onDone]);
+  }, []);
 
   const from = polar(42, move.fromAngle);
   const to = polar(18, move.toAngle);

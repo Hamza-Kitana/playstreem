@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, PlugZap, RotateCcw, Sparkles } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import GameCountdownOverlay from "@/components/games/GameCountdownOverlay";
@@ -286,6 +286,10 @@ function ReadyStage({
   const BackArrow = dir === "rtl" ? ArrowRight : ArrowLeft;
   const [pulse, setPulse] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  // Games pass inline callbacks and re-render on every chat message; keying the
+  // countdown timer on `onStart` would restart it forever on a busy chat.
+  const onStartRef = useRef(onStart);
+  onStartRef.current = onStart;
 
   useEffect(() => {
     setPulse(true);
@@ -299,13 +303,13 @@ function ReadyStage({
     const id = window.setTimeout(() => {
       if (countdown === 0) {
         setCountdown(null);
-        onStart();
+        onStartRef.current();
       } else {
         setCountdown(countdown - 1);
       }
     }, delay);
     return () => window.clearTimeout(id);
-  }, [countdown, onStart]);
+  }, [countdown]);
 
   const disabled = !chatActive || !canStart || countdown !== null;
 

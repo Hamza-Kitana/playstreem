@@ -48,6 +48,24 @@ function segmentAtPointer(rotationDeg: number, count: number) {
   return Math.min(count - 1, Math.floor(mod360(-rotationDeg) / seg));
 }
 
+/** Labels run along the radius, from just inside the rim toward the hub (SVG units, wheel r = 98). */
+const LABEL_OUTER_R = 91;
+const LABEL_INNER_R = 24;
+/** Rough average glyph width as a fraction of font size for the bold label font. */
+const GLYPH_WIDTH = 0.6;
+
+/** Fits a name inside its slice: as large as the slice width allows, shrinking (then truncating) long names. */
+function radialLabel(name: string, count: number) {
+  const length = LABEL_OUTER_R - LABEL_INNER_R;
+  const sliceWidth = (2 * Math.PI * 58) / Math.max(count, 1);
+  const byWidth = Math.min(11, sliceWidth * 0.62);
+  const byLength = length / (GLYPH_WIDTH * Math.max(name.length, 1));
+  const fontSize = Math.max(Math.min(byWidth, byLength, 11), Math.min(byWidth, 5.5));
+  const maxChars = Math.floor(length / (GLYPH_WIDTH * fontSize));
+  const label = name.length > maxChars ? `${name.slice(0, Math.max(1, maxChars - 1))}…` : name;
+  return { label, fontSize };
+}
+
 /** Quartic ease-out: fast start, long suspenseful slowdown. */
 function easeOutQuart(t: number) {
   return 1 - (1 - t) ** 4;
@@ -366,7 +384,7 @@ export default function RouletteGame({
                 </button>
               </div>
 
-              <div className="relative mx-auto aspect-square w-full max-w-[min(100%,22rem)] sm:max-w-[26rem]">
+              <div className="relative mx-auto aspect-square w-full max-w-[min(100%,24rem)] sm:max-w-[min(30rem,60vh)] lg:max-w-[min(36rem,64vh)]">
                 <div
                   className="absolute top-0 left-1/2 z-20 -translate-x-1/2 -translate-y-1"
                   aria-hidden
@@ -400,11 +418,11 @@ export default function RouletteGame({
                       const x1 = cx + r * Math.cos((a1 * Math.PI) / 180);
                       const y1 = cy + r * Math.sin((a1 * Math.PI) / 180);
                       const large = a1 - a0 > 180 ? 1 : 0;
-                      const mid = ((a0 + a1) / 2) * (Math.PI / 180);
-                      const tx = cx + 62 * Math.cos(mid);
-                      const ty = cy + 62 * Math.sin(mid);
-                      const label =
-                        seg.label.length > 10 ? `${seg.label.slice(0, 9)}…` : seg.label;
+                      const midDeg = (a0 + a1) / 2;
+                      const mid = midDeg * (Math.PI / 180);
+                      const tx = cx + LABEL_OUTER_R * Math.cos(mid);
+                      const ty = cy + LABEL_OUTER_R * Math.sin(mid);
+                      const { label, fontSize } = radialLabel(seg.label, n);
                       const landed = revealing && landedIdx === i;
                       const dimmed = revealing && landedIdx != null && !landed;
                       const d =
@@ -427,11 +445,15 @@ export default function RouletteGame({
                             x={tx}
                             y={ty}
                             fill="white"
-                            fontSize={n > 8 ? "7" : "8.5"}
+                            fontSize={fontSize}
                             fontWeight="800"
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            transform={`rotate(${(a0 + a1) / 2 + 90}, ${tx}, ${ty})`}
+                            textAnchor="end"
+                            dominantBaseline="central"
+                            direction="ltr"
+                            stroke="rgba(0,0,0,0.45)"
+                            strokeWidth={fontSize * 0.12}
+                            paintOrder="stroke"
+                            transform={`rotate(${midDeg}, ${tx}, ${ty})`}
                           >
                             {label}
                           </text>
